@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct ContentView: View {
+    let repository: any ProjectRepository
+
+    @State private var showingPasteTranscript = false
+
     var body: some View {
         VStack(spacing: 24) {
             Text(AppInfo.name)
@@ -14,13 +18,21 @@ struct ContentView: View {
 
                 Button("파일 불러오기") {}
                     .accessibilityIdentifier("import-button")
+
+                Button("텍스트 회의록 붙여넣기") {
+                    showingPasteTranscript = true
+                }
+                .accessibilityIdentifier("paste-transcript-button")
             }
         }
         .padding(40)
         .frame(minWidth: 420, minHeight: 280)
+        .sheet(isPresented: $showingPasteTranscript) {
+            PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
+        }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(repository: InMemoryProjectRepository())
 }

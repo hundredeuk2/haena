@@ -8,7 +8,8 @@ struct TranscriptSegment: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let meetingID: UUID
     /// References `Participant.id` of the speaker within the same meeting.
-    let speakerID: UUID
+    /// Nil when the speaker is unknown or not applicable, e.g. pasted-text input.
+    let speakerID: UUID?
     var text: String
     var startTime: TimeInterval?
     var endTime: TimeInterval?
