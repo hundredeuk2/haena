@@ -6,6 +6,10 @@ import SwiftUI
 struct ProjectDetailView: View {
     let project: Project
     @Binding var selectedMeetingID: Meeting.ID?
+    let deletionErrorMessage: String?
+    let onDeleteProject: () async -> Void
+
+    @State private var isConfirmingDeletion = false
 
     private let dateFormatter = MeetingDateFormatter()
 
@@ -15,10 +19,19 @@ struct ProjectDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(project.name)
-                .font(.title2)
-                .bold()
-                .accessibilityIdentifier("project-detail-name")
+            HStack {
+                Text(project.name)
+                    .font(.title2)
+                    .bold()
+                    .accessibilityIdentifier("project-detail-name")
+
+                Spacer()
+
+                Button("프로젝트 삭제", role: .destructive) {
+                    isConfirmingDeletion = true
+                }
+                .accessibilityIdentifier("delete-project-button")
+            }
 
             if !project.summary.isEmpty {
                 Text(project.summary)
@@ -32,6 +45,12 @@ struct ProjectDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if let deletionErrorMessage {
+                Text(deletionErrorMessage)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("project-deletion-error-message")
+            }
 
             Divider()
 
@@ -55,6 +74,21 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("project-detail-screen")
+        .sheet(isPresented: $isConfirmingDeletion) {
+            DeletionConfirmationView(
+                title: "“\(project.name)” 프로젝트를 삭제할까요?",
+                message: "포함된 회의 \(project.meetings.count)개와 관련 업무 상태가 함께 삭제됩니다.\n이 작업은 앱에서 복구할 수 없습니다.",
+                confirmButtonIdentifier: "confirm-delete-project-button",
+                cancelButtonIdentifier: "cancel-delete-project-button",
+                onConfirm: {
+                    await onDeleteProject()
+                    isConfirmingDeletion = false
+                },
+                onCancel: {
+                    isConfirmingDeletion = false
+                }
+            )
+        }
     }
 }
 

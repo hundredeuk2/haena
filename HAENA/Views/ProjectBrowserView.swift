@@ -3,6 +3,9 @@ import SwiftUI
 /// Root of the "프로젝트 보기" flow: a 3-pane macOS browser (projects → meetings → meeting
 /// detail) reading from `ProjectRepository` through the stateless `ProjectBrowserQueryService`.
 /// Owns only UI state (`@State`); all repository access and sorting stay in the query service.
+/// Deletion (`ProjectDeletionService`) is orchestrated here too, since this is the one place
+/// that already owns the loaded project list and the sidebar/content/detail selection state
+/// that must stay consistent after something is removed.
 struct ProjectBrowserView: View {
     let repository: any ProjectRepository
 
@@ -10,9 +13,15 @@ struct ProjectBrowserView: View {
     @State private var selectedProjectID: Project.ID?
     @State private var selectedMeetingID: Meeting.ID?
     @State private var showingPasteTranscript = false
+    @State private var projectDeletionError: String?
+    @State private var meetingDeletionError: String?
 
     private var queryService: ProjectBrowserQueryService {
         ProjectBrowserQueryService(repository: repository)
+    }
+
+    private var deletionService: ProjectDeletionService {
+        ProjectDeletionService(repository: repository)
     }
 
     private var selectedProject: Project? {
@@ -27,7 +36,14 @@ struct ProjectBrowserView: View {
             sidebar
         } content: {
             if let selectedProject {
-                ProjectDetailView(project: selectedProject, selectedMeetingID: $selectedMeetingID)
+                ProjectDetailView(
+                    project: selectedProject,
+                    selectedMeetingID: $selectedMeetingID,
+                    deletionErrorMessage: projectDeletionError,
+                    onDeleteProject: {
+                        await confirmDeleteProject(selectedProject.id)
+                    }
+                )
             } else {
                 Text("프로젝트를 선택해주세요.")
                     .foregroundStyle(.secondary)
@@ -36,7 +52,13 @@ struct ProjectBrowserView: View {
         } detail: {
             if let selectedProject,
                let meeting = selectedProject.meetings.first(where: { $0.id == selectedMeetingID }) {
-                MeetingDetailView(meeting: meeting)
+                MeetingDetailView(
+                    meeting: meeting,
+                    deletionErrorMessage: meetingDeletionError,
+                    onDeleteMeeting: {
+                        await confirmDeleteMeeting(meeting.id, from: selectedProject.id)
+                    }
+                )
             } else {
                 Text("회의를 선택해주세요.")
                     .foregroundStyle(.secondary)
@@ -52,6 +74,9 @@ struct ProjectBrowserView: View {
         .onChange(of: showingPasteTranscript) { _, isShowing in
             guard !isShowing else { return }
             Task { await load() }
+        }
+        .onChange(of: selectedProjectID) { _, _ in
+            validateMeetingSelection()
         }
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
@@ -108,8 +133,64 @@ struct ProjectBrowserView: View {
         do {
             let projects = try await queryService.loadProjects()
             loadState = projects.isEmpty ? .empty : .loaded(projects)
+            validateSelection(against: projects)
         } catch {
             loadState = .failed("프로젝트를 불러오지 못했습니다.")
+        }
+    }
+
+    /// Clears any selection that no longer points at something in `projects` — e.g. after a
+    /// deletion, or simply because the on-disk state changed since the last load.
+    private func validateSelection(against projects: [Project]) {
+        guard let selectedProjectID else {
+            return
+        }
+        guard let project = projects.first(where: { $0.id == selectedProjectID }) else {
+            self.selectedProjectID = nil
+            self.selectedMeetingID = nil
+            return
+        }
+        if let selectedMeetingID, !project.meetings.contains(where: { $0.id == selectedMeetingID }) {
+            self.selectedMeetingID = nil
+        }
+    }
+
+    /// Called when the sidebar selection changes: a meeting selected under a previous project
+    /// must not silently carry over to a different project.
+    private func validateMeetingSelection() {
+        guard let selectedMeetingID else {
+            return
+        }
+        guard let selectedProject, selectedProject.meetings.contains(where: { $0.id == selectedMeetingID }) else {
+            self.selectedMeetingID = nil
+            return
+        }
+    }
+
+    private func confirmDeleteProject(_ projectID: UUID) async {
+        projectDeletionError = nil
+        do {
+            try await deletionService.deleteProject(id: projectID)
+            if selectedProjectID == projectID {
+                selectedProjectID = nil
+                selectedMeetingID = nil
+            }
+            await load()
+        } catch {
+            projectDeletionError = "프로젝트를 삭제하지 못했습니다."
+        }
+    }
+
+    private func confirmDeleteMeeting(_ meetingID: UUID, from projectID: UUID) async {
+        meetingDeletionError = nil
+        do {
+            try await deletionService.deleteMeeting(meetingID: meetingID, fromProjectID: projectID)
+            if selectedMeetingID == meetingID {
+                selectedMeetingID = nil
+            }
+            await load()
+        } catch {
+            meetingDeletionError = "회의를 삭제하지 못했습니다."
         }
     }
 }
