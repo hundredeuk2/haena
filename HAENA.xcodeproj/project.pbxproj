@@ -7,11 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B44FC3AE440B3F72EDD3321 /* InMemoryProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87D0A086FEC403D92311F43 /* InMemoryProjectRepositoryTests.swift */; };
+		2128F42E60BDBD7E28B47D5F /* TranscriptSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92971D2FD866A033476B8A39 /* TranscriptSegment.swift */; };
+		27700C96D1F1CBDC1648C70A /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 094803E680DAF312ED016D13 /* Participant.swift */; };
+		2D2DFDFD27923AA07E8FD545 /* AgendaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524A8C52737AFBD63CB02D3B /* AgendaItem.swift */; };
+		367C2D508135610F1FFA28EF /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56952421557CED7EF65F86BC /* Project.swift */; };
 		3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */; };
+		464A006474FFA302F5855C96 /* OpenQuestionAgendaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E056A9053BE18F89DBC35864 /* OpenQuestionAgendaTests.swift */; };
+		528460D9D374E85118706BA3 /* ActionItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9E74850DE2CD61F90B5A4F2 /* ActionItem.swift */; };
+		54B01D2FCF5DB58F0778242F /* DecisionActionItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE061DCF66457F5AFBB4F4E7 /* DecisionActionItemTests.swift */; };
+		56B6B71C8385A69C17ABCA2B /* MeetingModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34ACF1C978BEDBEDCBFAC7AA /* MeetingModelTests.swift */; };
 		671A2C7A89052B6B4596C779 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */; };
+		6E2DAB8AB4F945E85C1FCFF1 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F58341826CA4B29DA56136 /* Decision.swift */; };
 		76255D5DB6B9620BD1470F72 /* AppInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */; };
+		887D02C972996DAE73F34A7B /* ConfidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3AC0FF9D86F38E674AE2B7 /* ConfidenceTests.swift */; };
+		A30E189ECDC4A7397CD5AF9D /* Confidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA36E048E3E1562A504968 /* Confidence.swift */; };
+		B661AD6232302BEF96289F30 /* TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EAC0D602C3672018722218 /* TestFixtures.swift */; };
+		BBBA7F289271932AEF87E89C /* ProjectModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCB030E872DA4146351D7778 /* ProjectModelTests.swift */; };
+		BC2C8F4D4151108DCFC895E1 /* OpenQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 586B35153C1DEC11ED99277B /* OpenQuestion.swift */; };
+		D5EFEC1663327623F5E0871A /* EvidenceReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAC7E87F39DD0690F9FCACC /* EvidenceReference.swift */; };
+		D81B9BA4BF8509C0F03968B0 /* ModelEquatableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14F569133D323B4D76A703E /* ModelEquatableTests.swift */; };
 		D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B09EF44B431F4D44006E6B9 /* ContentView.swift */; };
 		DE34566921332DC5F9B65B5A /* HAENATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5E3EA054185646F649AC65 /* HAENATests.swift */; };
+		E7610CDC32E986F7523BED7F /* Meeting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BBFD2AE326C7CF9AAA8C3FE /* Meeting.swift */; };
+		EE0EC039EFF85D5B114AB654 /* ProjectRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D663392DA5F61D2339878F /* ProjectRepository.swift */; };
+		F9C209AE1CAF67621158ED55 /* InMemoryProjectRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E87DE77DB75B8A0157AF5C2 /* InMemoryProjectRepository.swift */; };
 		FA19DFD9B21C6F9461F68086 /* HAENAUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,15 +54,35 @@
 
 /* Begin PBXFileReference section */
 		065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAUITests.swift; sourceTree = "<group>"; };
+		094803E680DAF312ED016D13 /* Participant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Participant.swift; sourceTree = "<group>"; };
 		0B09EF44B431F4D44006E6B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		34ACF1C978BEDBEDCBFAC7AA /* MeetingModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingModelTests.swift; sourceTree = "<group>"; };
 		3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift; sourceTree = "<group>"; };
+		44D663392DA5F61D2339878F /* ProjectRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepository.swift; sourceTree = "<group>"; };
 		4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAApp.swift; sourceTree = "<group>"; };
+		524A8C52737AFBD63CB02D3B /* AgendaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaItem.swift; sourceTree = "<group>"; };
+		56952421557CED7EF65F86BC /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		586B35153C1DEC11ED99277B /* OpenQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenQuestion.swift; sourceTree = "<group>"; };
 		5A952952C0DBC2F839A48E28 /* HAENATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HAENATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F3AC0FF9D86F38E674AE2B7 /* ConfidenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceTests.swift; sourceTree = "<group>"; };
 		6E5E3EA054185646F649AC65 /* HAENATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENATests.swift; sourceTree = "<group>"; };
+		7BBFD2AE326C7CF9AAA8C3FE /* Meeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting.swift; sourceTree = "<group>"; };
+		7E87DE77DB75B8A0157AF5C2 /* InMemoryProjectRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryProjectRepository.swift; sourceTree = "<group>"; };
+		89F58341826CA4B29DA56136 /* Decision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Decision.swift; sourceTree = "<group>"; };
+		92971D2FD866A033476B8A39 /* TranscriptSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegment.swift; sourceTree = "<group>"; };
+		9AAC7E87F39DD0690F9FCACC /* EvidenceReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceReference.swift; sourceTree = "<group>"; };
 		C61C950D3592DF04190327B0 /* HAENA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HAENA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCB030E872DA4146351D7778 /* ProjectModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModelTests.swift; sourceTree = "<group>"; };
+		CCEA36E048E3E1562A504968 /* Confidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confidence.swift; sourceTree = "<group>"; };
+		D1EAC0D602C3672018722218 /* TestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFixtures.swift; sourceTree = "<group>"; };
+		E056A9053BE18F89DBC35864 /* OpenQuestionAgendaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenQuestionAgendaTests.swift; sourceTree = "<group>"; };
+		E14F569133D323B4D76A703E /* ModelEquatableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelEquatableTests.swift; sourceTree = "<group>"; };
+		E87D0A086FEC403D92311F43 /* InMemoryProjectRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryProjectRepositoryTests.swift; sourceTree = "<group>"; };
+		EE061DCF66457F5AFBB4F4E7 /* DecisionActionItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionActionItemTests.swift; sourceTree = "<group>"; };
 		F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F52AEC879E75673564D813EF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F9147B0F790EC0D479AFBADF /* HAENAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HAENAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9E74850DE2CD61F90B5A4F2 /* ActionItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -54,6 +94,8 @@
 				0B09EF44B431F4D44006E6B9 /* ContentView.swift */,
 				4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */,
 				F52AEC879E75673564D813EF /* Info.plist */,
+				A2EB2684C29DA5D44EBE495C /* Models */,
+				FB5474B17A903CE58D21AF99 /* Persistence */,
 			);
 			path = HAENA;
 			sourceTree = "<group>";
@@ -71,7 +113,15 @@
 		86EA415B3C76CBB17974D62D /* HAENATests */ = {
 			isa = PBXGroup;
 			children = (
+				5F3AC0FF9D86F38E674AE2B7 /* ConfidenceTests.swift */,
+				EE061DCF66457F5AFBB4F4E7 /* DecisionActionItemTests.swift */,
 				6E5E3EA054185646F649AC65 /* HAENATests.swift */,
+				E87D0A086FEC403D92311F43 /* InMemoryProjectRepositoryTests.swift */,
+				34ACF1C978BEDBEDCBFAC7AA /* MeetingModelTests.swift */,
+				E14F569133D323B4D76A703E /* ModelEquatableTests.swift */,
+				E056A9053BE18F89DBC35864 /* OpenQuestionAgendaTests.swift */,
+				CCB030E872DA4146351D7778 /* ProjectModelTests.swift */,
+				D1EAC0D602C3672018722218 /* TestFixtures.swift */,
 			);
 			path = HAENATests;
 			sourceTree = "<group>";
@@ -92,6 +142,32 @@
 				87A3C65A5F9E7CB3B046E364 /* HAENAUITests */,
 				5F7FB40D5970746878B3F299 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A2EB2684C29DA5D44EBE495C /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F9E74850DE2CD61F90B5A4F2 /* ActionItem.swift */,
+				524A8C52737AFBD63CB02D3B /* AgendaItem.swift */,
+				CCEA36E048E3E1562A504968 /* Confidence.swift */,
+				89F58341826CA4B29DA56136 /* Decision.swift */,
+				9AAC7E87F39DD0690F9FCACC /* EvidenceReference.swift */,
+				7BBFD2AE326C7CF9AAA8C3FE /* Meeting.swift */,
+				586B35153C1DEC11ED99277B /* OpenQuestion.swift */,
+				094803E680DAF312ED016D13 /* Participant.swift */,
+				56952421557CED7EF65F86BC /* Project.swift */,
+				92971D2FD866A033476B8A39 /* TranscriptSegment.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		FB5474B17A903CE58D21AF99 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				7E87DE77DB75B8A0157AF5C2 /* InMemoryProjectRepository.swift */,
+				44D663392DA5F61D2339878F /* ProjectRepository.swift */,
+			);
+			path = Persistence;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -220,7 +296,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				887D02C972996DAE73F34A7B /* ConfidenceTests.swift in Sources */,
+				54B01D2FCF5DB58F0778242F /* DecisionActionItemTests.swift in Sources */,
 				DE34566921332DC5F9B65B5A /* HAENATests.swift in Sources */,
+				0B44FC3AE440B3F72EDD3321 /* InMemoryProjectRepositoryTests.swift in Sources */,
+				56B6B71C8385A69C17ABCA2B /* MeetingModelTests.swift in Sources */,
+				D81B9BA4BF8509C0F03968B0 /* ModelEquatableTests.swift in Sources */,
+				464A006474FFA302F5855C96 /* OpenQuestionAgendaTests.swift in Sources */,
+				BBBA7F289271932AEF87E89C /* ProjectModelTests.swift in Sources */,
+				B661AD6232302BEF96289F30 /* TestFixtures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,9 +312,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				528460D9D374E85118706BA3 /* ActionItem.swift in Sources */,
+				2D2DFDFD27923AA07E8FD545 /* AgendaItem.swift in Sources */,
 				76255D5DB6B9620BD1470F72 /* AppInfo.swift in Sources */,
+				A30E189ECDC4A7397CD5AF9D /* Confidence.swift in Sources */,
 				D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */,
+				6E2DAB8AB4F945E85C1FCFF1 /* Decision.swift in Sources */,
+				D5EFEC1663327623F5E0871A /* EvidenceReference.swift in Sources */,
 				3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */,
+				F9C209AE1CAF67621158ED55 /* InMemoryProjectRepository.swift in Sources */,
+				E7610CDC32E986F7523BED7F /* Meeting.swift in Sources */,
+				BC2C8F4D4151108DCFC895E1 /* OpenQuestion.swift in Sources */,
+				27700C96D1F1CBDC1648C70A /* Participant.swift in Sources */,
+				367C2D508135610F1FFA28EF /* Project.swift in Sources */,
+				EE0EC039EFF85D5B114AB654 /* ProjectRepository.swift in Sources */,
+				2128F42E60BDBD7E28B47D5F /* TranscriptSegment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
