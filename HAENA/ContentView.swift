@@ -4,6 +4,7 @@ struct ContentView: View {
     let repository: any ProjectRepository
 
     @State private var showingPasteTranscript = false
+    @State private var showingProjectBrowser = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -23,12 +24,20 @@ struct ContentView: View {
                     showingPasteTranscript = true
                 }
                 .accessibilityIdentifier("paste-transcript-button")
+
+                Button("프로젝트 보기") {
+                    showingProjectBrowser = true
+                }
+                .accessibilityIdentifier("browse-projects-button")
             }
         }
         .padding(40)
         .frame(minWidth: 420, minHeight: 280)
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
+        }
+        .sheet(isPresented: $showingProjectBrowser) {
+            ProjectBrowserView(repository: repository)
         }
     }
 }

@@ -1,0 +1,157 @@
+import SwiftUI
+
+/// Root of the "프로젝트 보기" flow: a 3-pane macOS browser (projects → meetings → meeting
+/// detail) reading from `ProjectRepository` through the stateless `ProjectBrowserQueryService`.
+/// Owns only UI state (`@State`); all repository access and sorting stay in the query service.
+struct ProjectBrowserView: View {
+    let repository: any ProjectRepository
+
+    @State private var loadState: ProjectBrowserLoadState = .idle
+    @State private var selectedProjectID: Project.ID?
+    @State private var selectedMeetingID: Meeting.ID?
+    @State private var showingPasteTranscript = false
+
+    private var queryService: ProjectBrowserQueryService {
+        ProjectBrowserQueryService(repository: repository)
+    }
+
+    private var selectedProject: Project? {
+        guard case .loaded(let projects) = loadState else {
+            return nil
+        }
+        return projects.first { $0.id == selectedProjectID }
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidebar
+        } content: {
+            if let selectedProject {
+                ProjectDetailView(project: selectedProject, selectedMeetingID: $selectedMeetingID)
+            } else {
+                Text("프로젝트를 선택해주세요.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        } detail: {
+            if let selectedProject,
+               let meeting = selectedProject.meetings.first(where: { $0.id == selectedMeetingID }) {
+                MeetingDetailView(meeting: meeting)
+            } else {
+                Text("회의를 선택해주세요.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(minWidth: 720, minHeight: 480)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("project-browser-screen")
+        .task {
+            await load()
+        }
+        .onChange(of: showingPasteTranscript) { _, isShowing in
+            guard !isShowing else { return }
+            Task { await load() }
+        }
+        .sheet(isPresented: $showingPasteTranscript) {
+            PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
+        }
+    }
+
+    @ViewBuilder
+    private var sidebar: some View {
+        switch loadState {
+        case .idle, .loading:
+            ProgressView("불러오는 중…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .failed(let message):
+            VStack(spacing: 12) {
+                Text(message)
+                    .accessibilityIdentifier("project-browser-error-message")
+                Button("다시 시도") {
+                    Task { await load() }
+                }
+                .accessibilityIdentifier("project-browser-retry-button")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .empty:
+            VStack(spacing: 12) {
+                Text("아직 저장된 프로젝트가 없습니다.")
+                Text("텍스트 회의록을 추가해 첫 프로젝트를 만들어보세요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("텍스트 회의록 붙여넣기") {
+                    showingPasteTranscript = true
+                }
+            }
+            .multilineTextAlignment(.center)
+            .padding()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("project-browser-empty-state")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .loaded(let projects):
+            List(projects, selection: $selectedProjectID) { project in
+                ProjectRowView(project: project)
+                    .tag(project.id)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("project-row-\(project.id.uuidString)")
+            }
+            .accessibilityIdentifier("project-list")
+        }
+    }
+
+    private func load() async {
+        loadState = .loading
+        do {
+            let projects = try await queryService.loadProjects()
+            loadState = projects.isEmpty ? .empty : .loaded(projects)
+        } catch {
+            loadState = .failed("프로젝트를 불러오지 못했습니다.")
+        }
+    }
+}
+
+private enum ProjectBrowserLoadState: Equatable {
+    case idle
+    case loading
+    case loaded([Project])
+    case empty
+    case failed(String)
+}
+
+private struct ProjectRowView: View {
+    let project: Project
+
+    private let dateFormatter = MeetingDateFormatter()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(project.name)
+                .font(.headline)
+                .accessibilityIdentifier("project-name-\(project.id.uuidString)")
+
+            if !project.summary.isEmpty {
+                Text(project.summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text(MeetingCountDisplay.label(count: project.meetings.count))
+                    .accessibilityIdentifier("project-meeting-count-\(project.id.uuidString)")
+                Spacer()
+                Text(dateFormatter.string(from: project.updatedAt))
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+#Preview {
+    ProjectBrowserView(repository: InMemoryProjectRepository())
+}
