@@ -60,7 +60,7 @@ final class TextMeetingCaptureServiceTests: XCTestCase {
         )
 
         let project = try await service.createProject(name: "HAE.NA MVP")
-        let fetched = await repository.project(id: TestFixtures.projectID)
+        let fetched = try await repository.project(id: TestFixtures.projectID)
 
         XCTAssertEqual(project.id, TestFixtures.projectID)
         XCTAssertEqual(project.createdAt, TestFixtures.fixedDate)
@@ -223,7 +223,7 @@ final class TextMeetingCaptureServiceTests: XCTestCase {
             transcript: "오늘 결정된 내용입니다."
         )
 
-        let fetchedProject = await repository.project(id: project.id)
+        let fetchedProject = try await repository.project(id: project.id)
         let updatedProject = try XCTUnwrap(fetchedProject)
         XCTAssertEqual(updatedProject.meetings.map(\.id), [meeting.id])
         XCTAssertEqual(updatedProject.updatedAt, TestFixtures.laterDate)

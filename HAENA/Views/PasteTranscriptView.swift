@@ -61,7 +61,11 @@ struct PasteTranscriptView: View {
         .padding(24)
         .frame(minWidth: 480, minHeight: 420)
         .task {
-            projects = await service.allProjects()
+            do {
+                projects = try await service.allProjects()
+            } catch {
+                validationMessage = "프로젝트를 불러오지 못했습니다."
+            }
         }
     }
 
@@ -103,8 +107,10 @@ struct PasteTranscriptView: View {
                 selectedProjectID = project.id
                 newProjectName = ""
                 isAddingNewProject = false
-            } catch {
+            } catch let error as TextMeetingCaptureError {
                 validationMessage = message(for: error)
+            } catch {
+                validationMessage = "프로젝트를 저장하지 못했습니다."
             }
         }
     }
@@ -120,17 +126,16 @@ struct PasteTranscriptView: View {
                     transcript: transcriptText
                 )
                 savedMessage = "회의록이 저장되었습니다."
-            } catch {
+            } catch let error as TextMeetingCaptureError {
                 validationMessage = message(for: error)
+            } catch {
+                validationMessage = "회의록을 저장하지 못했습니다."
             }
         }
     }
 
-    private func message(for error: Error) -> String {
-        guard let captureError = error as? TextMeetingCaptureError else {
-            return "알 수 없는 오류가 발생했습니다."
-        }
-        switch captureError {
+    private func message(for error: TextMeetingCaptureError) -> String {
+        switch error {
         case .noProjectSelected:
             return "프로젝트를 선택하거나 새로 만들어주세요."
         case .projectNameMissing:

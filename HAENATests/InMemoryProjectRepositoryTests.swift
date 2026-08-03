@@ -17,73 +17,73 @@ final class InMemoryProjectRepositoryTests: XCTestCase {
         )
     }
 
-    func testSaveThenFetchByID() async {
+    func testSaveThenFetchByID() async throws {
         let repository = InMemoryProjectRepository()
         let project = Self.makeProject(id: TestFixtures.projectID)
 
-        await repository.save(project)
-        let fetched = await repository.project(id: TestFixtures.projectID)
+        try await repository.save(project)
+        let fetched = try await repository.project(id: TestFixtures.projectID)
 
         XCTAssertEqual(fetched, project)
     }
 
-    func testFetchingUnknownIDReturnsNil() async {
+    func testFetchingUnknownIDReturnsNil() async throws {
         let repository = InMemoryProjectRepository()
 
-        let fetched = await repository.project(id: UUID())
+        let fetched = try await repository.project(id: UUID())
 
         XCTAssertNil(fetched)
     }
 
-    func testAllProjectsListsEveryStoredProject() async {
+    func testAllProjectsListsEveryStoredProject() async throws {
         let repository = InMemoryProjectRepository()
         let first = Self.makeProject(name: "First")
         let second = Self.makeProject(name: "Second")
 
-        await repository.save(first)
-        await repository.save(second)
-        let all = await repository.allProjects()
+        try await repository.save(first)
+        try await repository.save(second)
+        let all = try await repository.allProjects()
 
         XCTAssertEqual(Set(all.map(\.id)), Set([first.id, second.id]))
     }
 
-    func testSavingSameIDUpdatesExistingProject() async {
+    func testSavingSameIDUpdatesExistingProject() async throws {
         let repository = InMemoryProjectRepository()
         var project = Self.makeProject(id: TestFixtures.projectID, name: "Original")
 
-        await repository.save(project)
+        try await repository.save(project)
         project.name = "Renamed"
-        await repository.save(project)
+        try await repository.save(project)
 
-        let all = await repository.allProjects()
+        let all = try await repository.allProjects()
         XCTAssertEqual(all.count, 1)
         XCTAssertEqual(all.first?.name, "Renamed")
     }
 
-    func testDeleteRemovesProject() async {
+    func testDeleteRemovesProject() async throws {
         let repository = InMemoryProjectRepository()
         let project = Self.makeProject(id: TestFixtures.projectID)
 
-        await repository.save(project)
-        await repository.delete(id: TestFixtures.projectID)
-        let fetched = await repository.project(id: TestFixtures.projectID)
+        try await repository.save(project)
+        try await repository.delete(id: TestFixtures.projectID)
+        let fetched = try await repository.project(id: TestFixtures.projectID)
 
         XCTAssertNil(fetched)
     }
 
-    func testConcurrentSavesDoNotCorruptState() async {
+    func testConcurrentSavesDoNotCorruptState() async throws {
         let repository = InMemoryProjectRepository()
         let projectIDs = (0..<50).map { _ in UUID() }
 
         await withTaskGroup(of: Void.self) { group in
             for id in projectIDs {
                 group.addTask {
-                    await repository.save(Self.makeProject(id: id))
+                    try? await repository.save(Self.makeProject(id: id))
                 }
             }
         }
 
-        let all = await repository.allProjects()
+        let all = try await repository.allProjects()
         XCTAssertEqual(Set(all.map(\.id)), Set(projectIDs))
     }
 }

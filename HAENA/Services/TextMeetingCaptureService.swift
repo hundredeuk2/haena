@@ -31,8 +31,8 @@ struct TextMeetingCaptureService: Sendable {
         self.makeID = makeID
     }
 
-    func allProjects() async -> [Project] {
-        await repository.allProjects()
+    func allProjects() async throws -> [Project] {
+        try await repository.allProjects()
     }
 
     /// Creates and persists a new project. Project names are not required to be unique —
@@ -57,7 +57,7 @@ struct TextMeetingCaptureService: Sendable {
             openQuestions: [],
             nextAgenda: []
         )
-        await repository.save(project)
+        try await repository.save(project)
         return project
     }
 
@@ -79,7 +79,7 @@ struct TextMeetingCaptureService: Sendable {
             throw TextMeetingCaptureError.transcriptMissing
         }
 
-        guard var project = await repository.project(id: projectID) else {
+        guard var project = try await repository.project(id: projectID) else {
             throw TextMeetingCaptureError.projectNotFound
         }
 
@@ -106,7 +106,7 @@ struct TextMeetingCaptureService: Sendable {
 
         project.meetings.append(meeting)
         project.updatedAt = timestamp
-        await repository.save(project)
+        try await repository.save(project)
 
         return meeting
     }

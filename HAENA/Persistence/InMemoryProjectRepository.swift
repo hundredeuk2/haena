@@ -7,19 +7,19 @@ actor InMemoryProjectRepository: ProjectRepository {
 
     init() {}
 
-    func save(_ project: Project) {
+    func save(_ project: Project) throws {
         storage[project.id] = project
     }
 
-    func project(id: UUID) -> Project? {
+    func project(id: UUID) throws -> Project? {
         storage[id]
     }
 
-    func allProjects() -> [Project] {
+    func allProjects() throws -> [Project] {
         Array(storage.values)
     }
 
-    func delete(id: UUID) {
+    func delete(id: UUID) throws {
         storage.removeValue(forKey: id)
     }
 }

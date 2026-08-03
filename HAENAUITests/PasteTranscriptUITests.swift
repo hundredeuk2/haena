@@ -8,6 +8,7 @@ final class PasteTranscriptUITests: XCTestCase {
 
     func testPasteTranscriptButtonOpensInputScreen() {
         let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launch()
 
         XCTAssertTrue(app.buttons["paste-transcript-button"].waitForExistence(timeout: 5))
@@ -18,6 +19,7 @@ final class PasteTranscriptUITests: XCTestCase {
 
     func testSavingWithoutProjectShowsValidationMessage() {
         let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launch()
 
         app.buttons["paste-transcript-button"].click()
@@ -30,6 +32,7 @@ final class PasteTranscriptUITests: XCTestCase {
 
     func testCreatingProjectAndSavingMeetingShowsSavedConfirmation() {
         let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launch()
 
         app.buttons["paste-transcript-button"].click()

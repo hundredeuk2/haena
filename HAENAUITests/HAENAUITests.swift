@@ -8,6 +8,7 @@ final class HAENAUITests: XCTestCase {
 
     func testHomeScreenShowsRecordAndImportButtons() {
         let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launch()
 
         let recordButton = app.buttons["record-button"]
@@ -21,6 +22,7 @@ final class HAENAUITests: XCTestCase {
 
     func testHomeScreenShowsProductName() {
         let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launch()
 
         let productName = app.staticTexts["product-name"]
