@@ -1,0 +1,95 @@
+name: HAENA
+options:
+  bundleIdPrefix: com.haena
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ALWAYS_SEARCH_USER_PATHS: NO
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_REQUIRED: YES
+    CODE_SIGNING_ALLOWED: YES
+    DEVELOPMENT_TEAM: ""
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      ENABLE_TESTABILITY: YES
+      ONLY_ACTIVE_ARCH: YES
+      DEBUG_INFORMATION_FORMAT: dwarf
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      ENABLE_TESTABILITY: NO
+      ONLY_ACTIVE_ARCH: NO
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      SWIFT_COMPILATION_MODE: wholemodule
+
+targets:
+  HAENA:
+    type: application
+    platform: macOS
+    sources:
+      - path: HAENA
+    info:
+      path: HAENA/Info.plist
+      properties:
+        CFBundleDisplayName: HAE.NA
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: "14.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENA
+        PRODUCT_NAME: HAENA
+        ENABLE_HARDENED_RUNTIME: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  HAENATests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: HAENATests
+    dependencies:
+      - target: HAENA
+    settings:
+      base:
+        PRODUCT_NAME: HAENATests
+        PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENATests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  HAENAUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: HAENAUITests
+    dependencies:
+      - target: HAENA
+    settings:
+      base:
+        PRODUCT_NAME: HAENAUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENAUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: HAENA
+
+schemes:
+  HAENA:
+    build:
+      targets:
+        HAENA: all
+        HAENATests: [test]
+        HAENAUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - HAENATests
+        - HAENAUITests
+    run:
+      config: Debug

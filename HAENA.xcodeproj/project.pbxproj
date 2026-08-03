@@ -1,0 +1,405 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */; };
+		671A2C7A89052B6B4596C779 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */; };
+		76255D5DB6B9620BD1470F72 /* AppInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */; };
+		D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B09EF44B431F4D44006E6B9 /* ContentView.swift */; };
+		DE34566921332DC5F9B65B5A /* HAENATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5E3EA054185646F649AC65 /* HAENATests.swift */; };
+		FA19DFD9B21C6F9461F68086 /* HAENAUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2A7676E7BBC552C1CF9B726C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A205A76F003310DCC2D83829 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6CA1AA31F2BDF9EB2F1DCEF1;
+			remoteInfo = HAENA;
+		};
+		818D36C5F8499113E42FE7D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A205A76F003310DCC2D83829 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6CA1AA31F2BDF9EB2F1DCEF1;
+			remoteInfo = HAENA;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAUITests.swift; sourceTree = "<group>"; };
+		0B09EF44B431F4D44006E6B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift; sourceTree = "<group>"; };
+		4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAApp.swift; sourceTree = "<group>"; };
+		5A952952C0DBC2F839A48E28 /* HAENATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HAENATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E5E3EA054185646F649AC65 /* HAENATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENATests.swift; sourceTree = "<group>"; };
+		C61C950D3592DF04190327B0 /* HAENA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HAENA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F52AEC879E75673564D813EF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F9147B0F790EC0D479AFBADF /* HAENAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HAENAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3734728E818B595C5967FEDF /* HAENA */ = {
+			isa = PBXGroup;
+			children = (
+				3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */,
+				F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */,
+				0B09EF44B431F4D44006E6B9 /* ContentView.swift */,
+				4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */,
+				F52AEC879E75673564D813EF /* Info.plist */,
+			);
+			path = HAENA;
+			sourceTree = "<group>";
+		};
+		5F7FB40D5970746878B3F299 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C61C950D3592DF04190327B0 /* HAENA.app */,
+				5A952952C0DBC2F839A48E28 /* HAENATests.xctest */,
+				F9147B0F790EC0D479AFBADF /* HAENAUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		86EA415B3C76CBB17974D62D /* HAENATests */ = {
+			isa = PBXGroup;
+			children = (
+				6E5E3EA054185646F649AC65 /* HAENATests.swift */,
+			);
+			path = HAENATests;
+			sourceTree = "<group>";
+		};
+		87A3C65A5F9E7CB3B046E364 /* HAENAUITests */ = {
+			isa = PBXGroup;
+			children = (
+				065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */,
+			);
+			path = HAENAUITests;
+			sourceTree = "<group>";
+		};
+		88BB9B97B620837B199FF29B = {
+			isa = PBXGroup;
+			children = (
+				3734728E818B595C5967FEDF /* HAENA */,
+				86EA415B3C76CBB17974D62D /* HAENATests */,
+				87A3C65A5F9E7CB3B046E364 /* HAENAUITests */,
+				5F7FB40D5970746878B3F299 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		48FA2853E38C02266A2B3420 /* HAENAUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CBA788D932D79A980482C80B /* Build configuration list for PBXNativeTarget "HAENAUITests" */;
+			buildPhases = (
+				2D62A14831BE263A75CE620A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AAAF226C964DA57E0BF1D732 /* PBXTargetDependency */,
+			);
+			name = HAENAUITests;
+			packageProductDependencies = (
+			);
+			productName = HAENAUITests;
+			productReference = F9147B0F790EC0D479AFBADF /* HAENAUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		6CA1AA31F2BDF9EB2F1DCEF1 /* HAENA */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F891D0836066741D285869C5 /* Build configuration list for PBXNativeTarget "HAENA" */;
+			buildPhases = (
+				D66ED2890803FE92103130AB /* Sources */,
+				AD514FE01E9249EC9F542B18 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HAENA;
+			packageProductDependencies = (
+			);
+			productName = HAENA;
+			productReference = C61C950D3592DF04190327B0 /* HAENA.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D15CF6C28DB6C8C5690B5BF9 /* HAENATests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 728C76D624ADB9B7390BF220 /* Build configuration list for PBXNativeTarget "HAENATests" */;
+			buildPhases = (
+				6E2665539D8B3A4E87719178 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E770615DEB8B3422EFD1BB31 /* PBXTargetDependency */,
+			);
+			name = HAENATests;
+			packageProductDependencies = (
+			);
+			productName = HAENATests;
+			productReference = 5A952952C0DBC2F839A48E28 /* HAENATests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A205A76F003310DCC2D83829 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					48FA2853E38C02266A2B3420 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+						TestTargetID = 6CA1AA31F2BDF9EB2F1DCEF1;
+					};
+					6CA1AA31F2BDF9EB2F1DCEF1 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+					D15CF6C28DB6C8C5690B5BF9 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 9264586B47E3668394D455B6 /* Build configuration list for PBXProject "HAENA" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 88BB9B97B620837B199FF29B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5F7FB40D5970746878B3F299 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6CA1AA31F2BDF9EB2F1DCEF1 /* HAENA */,
+				D15CF6C28DB6C8C5690B5BF9 /* HAENATests */,
+				48FA2853E38C02266A2B3420 /* HAENAUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AD514FE01E9249EC9F542B18 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				671A2C7A89052B6B4596C779 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2D62A14831BE263A75CE620A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA19DFD9B21C6F9461F68086 /* HAENAUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6E2665539D8B3A4E87719178 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DE34566921332DC5F9B65B5A /* HAENATests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D66ED2890803FE92103130AB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				76255D5DB6B9620BD1470F72 /* AppInfo.swift in Sources */,
+				D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */,
+				3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AAAF226C964DA57E0BF1D732 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6CA1AA31F2BDF9EB2F1DCEF1 /* HAENA */;
+			targetProxy = 2A7676E7BBC552C1CF9B726C /* PBXContainerItemProxy */;
+		};
+		E770615DEB8B3422EFD1BB31 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6CA1AA31F2BDF9EB2F1DCEF1 /* HAENA */;
+			targetProxy = 818D36C5F8499113E42FE7D4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4427A7E7E915B51D8DF01BAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENAUITests;
+				PRODUCT_NAME = HAENAUITests;
+				TEST_TARGET_NAME = HAENA;
+			};
+			name = Release;
+		};
+		9EACAC00135BE18CEAAF3E20 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENATests;
+				PRODUCT_NAME = HAENATests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HAENA.app/Contents/MacOS/HAENA";
+			};
+			name = Debug;
+		};
+		A6758B0BA65D81C5E1FA2123 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = HAENA/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENA;
+				PRODUCT_NAME = HAENA;
+			};
+			name = Release;
+		};
+		A8CA8C7CF7902E33E2DB5443 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENAUITests;
+				PRODUCT_NAME = HAENAUITests;
+				TEST_TARGET_NAME = HAENA;
+			};
+			name = Debug;
+		};
+		B2C41219956E011E9F8A8FCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_TESTABILITY = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		BF097FE34A5E4B7089BEBB6C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_TESTABILITY = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				ONLY_ACTIVE_ARCH = NO;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E151D6D1684D837F69976C03 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENATests;
+				PRODUCT_NAME = HAENATests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HAENA.app/Contents/MacOS/HAENA";
+			};
+			name = Release;
+		};
+		E182C2E40EBCAF8C618A11E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = HAENA/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haena.HAENA;
+				PRODUCT_NAME = HAENA;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		728C76D624ADB9B7390BF220 /* Build configuration list for PBXNativeTarget "HAENATests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9EACAC00135BE18CEAAF3E20 /* Debug */,
+				E151D6D1684D837F69976C03 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9264586B47E3668394D455B6 /* Build configuration list for PBXProject "HAENA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B2C41219956E011E9F8A8FCF /* Debug */,
+				BF097FE34A5E4B7089BEBB6C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CBA788D932D79A980482C80B /* Build configuration list for PBXNativeTarget "HAENAUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A8CA8C7CF7902E33E2DB5443 /* Debug */,
+				4427A7E7E915B51D8DF01BAB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F891D0836066741D285869C5 /* Build configuration list for PBXNativeTarget "HAENA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E182C2E40EBCAF8C618A11E6 /* Debug */,
+				A6758B0BA65D81C5E1FA2123 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A205A76F003310DCC2D83829 /* Project object */;
+}
