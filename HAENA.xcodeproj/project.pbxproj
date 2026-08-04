@@ -56,6 +56,7 @@
 		B357787453E7CC91AA2C9F88 /* OpenAIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FF844D7B879F96D7D6854A7 /* OpenAIConfiguration.swift */; };
 		B45857945AFFCF585A768947 /* OpenAIExtractionSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEFA1B6D2768D938E792A6B /* OpenAIExtractionSchema.swift */; };
 		B661AD6232302BEF96289F30 /* TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EAC0D602C3672018722218 /* TestFixtures.swift */; };
+		B6A3A32C80AC955951E8476F /* OpenAIWorkStateExtractionLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0FC923DDE8CCBBD36D4AF37 /* OpenAIWorkStateExtractionLiveTests.swift */; };
 		B72970AF9382570451116A22 /* ProjectDeletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D144AA4ED59ECDB328F181 /* ProjectDeletionService.swift */; };
 		BBBA7F289271932AEF87E89C /* ProjectModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCB030E872DA4146351D7778 /* ProjectModelTests.swift */; };
 		BC2C8F4D4151108DCFC895E1 /* OpenQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 586B35153C1DEC11ED99277B /* OpenQuestion.swift */; };
@@ -156,6 +157,7 @@
 		E87D0A086FEC403D92311F43 /* InMemoryProjectRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryProjectRepositoryTests.swift; sourceTree = "<group>"; };
 		EE061DCF66457F5AFBB4F4E7 /* DecisionActionItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionActionItemTests.swift; sourceTree = "<group>"; };
 		F0D144AA4ED59ECDB328F181 /* ProjectDeletionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeletionService.swift; sourceTree = "<group>"; };
+		F0FC923DDE8CCBBD36D4AF37 /* OpenAIWorkStateExtractionLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIWorkStateExtractionLiveTests.swift; sourceTree = "<group>"; };
 		F306605013AC4B1D5E0E4072 /* WorkStateProposalMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateProposalMapper.swift; sourceTree = "<group>"; };
 		F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F52AEC879E75673564D813EF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -215,6 +217,7 @@
 				E76EE72A111839BB98DB4E8C /* JSONProjectRepositoryTests.swift */,
 				34ACF1C978BEDBEDCBFAC7AA /* MeetingModelTests.swift */,
 				E14F569133D323B4D76A703E /* ModelEquatableTests.swift */,
+				F0FC923DDE8CCBBD36D4AF37 /* OpenAIWorkStateExtractionLiveTests.swift */,
 				B007E7CF934A780CA321E8E0 /* OpenAIWorkStateExtractorTests.swift */,
 				E056A9053BE18F89DBC35864 /* OpenQuestionAgendaTests.swift */,
 				0BF0EB15856555142F021913 /* PresentationFormattingTests.swift */,
@@ -464,6 +467,7 @@
 				003386E8A06F65C9F120D9E9 /* JSONProjectRepositoryTests.swift in Sources */,
 				56B6B71C8385A69C17ABCA2B /* MeetingModelTests.swift in Sources */,
 				D81B9BA4BF8509C0F03968B0 /* ModelEquatableTests.swift in Sources */,
+				B6A3A32C80AC955951E8476F /* OpenAIWorkStateExtractionLiveTests.swift in Sources */,
 				7144156C68BDCF9F0AB766D4 /* OpenAIWorkStateExtractorTests.swift in Sources */,
 				464A006474FFA302F5855C96 /* OpenQuestionAgendaTests.swift in Sources */,
 				36D512DE82EA45C4D9311F75 /* PresentationFormattingTests.swift in Sources */,
