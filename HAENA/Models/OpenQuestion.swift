@@ -18,4 +18,11 @@ struct OpenQuestion: Identifiable, Codable, Equatable, Sendable {
     var confidence: Confidence
     let createdAt: Date
     var resolvedAt: Date?
+    /// When a user reviewed this question, or nil while it is still an unreviewed AI proposal.
+    ///
+    /// Unlike Decision and ActionItem, `OpenQuestionStatus` has no `.proposed` case — an approved
+    /// question and a freshly extracted one are both `.open`. Without this marker the two are
+    /// indistinguishable, and re-extracting the meeting would delete work the user had already
+    /// accepted.
+    var reviewedAt: Date? = nil
 }

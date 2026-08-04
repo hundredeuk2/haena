@@ -5,6 +5,9 @@ import Foundation
 enum AgendaItemStatus: String, Codable, Equatable, Sendable {
     case pending
     case resolved
+    /// The user decided this does not belong on the next agenda. Distinct from `.resolved`, which
+    /// means it was actually dealt with.
+    case dismissed
 }
 
 /// An entry on a project's next-meeting agenda. May originate from a past meeting, an
@@ -26,4 +29,8 @@ struct AgendaItem: Identifiable, Codable, Equatable, Sendable {
     /// an entry as AI-derived and therefore still unreviewed.
     var evidence: EvidenceReference? = nil
     var confidence: Confidence? = nil
+    /// When a user reviewed this item, or nil while it is still an unreviewed AI proposal. Needed
+    /// for the same reason as `OpenQuestion.reviewedAt`: `.pending` alone cannot tell an approved
+    /// agenda item apart from one the model just suggested.
+    var reviewedAt: Date? = nil
 }

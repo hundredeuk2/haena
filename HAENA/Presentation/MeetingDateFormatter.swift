@@ -22,4 +22,15 @@ struct MeetingDateFormatter: Sendable {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+
+    /// Date without a time — for values like a due date, where the transcript only ever states a
+    /// day and showing "오전 12:00" would imply a precision that was never there.
+    func dateOnlyString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
 }

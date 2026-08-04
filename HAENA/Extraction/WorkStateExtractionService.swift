@@ -94,10 +94,10 @@ struct WorkStateExtractionService: Sendable {
     /// so running twice cannot silently double every item.
     ///
     /// Only unreviewed, AI-derived records are removed: an item is superseded when it comes from
-    /// this meeting, still carries its model evidence, and is still in the state the extractor
-    /// created it in (`.proposed` / `.open` / `.pending`). Anything a user has confirmed,
-    /// resolved, dismissed, or hand-entered has no such evidence or has moved on from that state,
-    /// and is kept. This rule needs revisiting once the review UI can mark items as user-approved.
+    /// this meeting, still carries its model evidence, is still in the state the extractor created
+    /// it in (`.proposed` / `.open` / `.pending`), and — for the two types whose status cannot
+    /// express "not yet reviewed" — has no `reviewedAt`. Anything a user confirmed, approved,
+    /// resolved, dismissed, or hand-entered fails at least one of those and is kept.
     private func removeSupersededProposals(for meetingID: UUID, from project: inout Project) -> Int {
         var removed = 0
 
@@ -108,10 +108,10 @@ struct WorkStateExtractionService: Sendable {
             $0.meetingID == meetingID && $0.status == .proposed && $0.evidence != nil
         }
         let supersededQuestion: (OpenQuestion) -> Bool = {
-            $0.meetingID == meetingID && $0.status == .open && $0.evidence != nil
+            $0.meetingID == meetingID && $0.status == .open && $0.evidence != nil && $0.reviewedAt == nil
         }
         let supersededAgendaItem: (AgendaItem) -> Bool = {
-            $0.sourceMeetingID == meetingID && $0.status == .pending && $0.evidence != nil
+            $0.sourceMeetingID == meetingID && $0.status == .pending && $0.evidence != nil && $0.reviewedAt == nil
         }
 
         removed += project.decisions.countMatching(supersededDecision)

@@ -25,6 +25,10 @@ struct ProjectBrowserView: View {
         ProjectDeletionService(repository: repository)
     }
 
+    private var reviewService: WorkStateReviewService {
+        WorkStateReviewService(repository: repository)
+    }
+
     private var selectedProject: Project? {
         guard case .loaded(let projects) = loadState else {
             return nil
@@ -43,6 +47,12 @@ struct ProjectBrowserView: View {
                     deletionErrorMessage: projectDeletionError,
                     onDeleteProject: {
                         await confirmDeleteProject(selectedProject.id)
+                    },
+                    reviewService: reviewService,
+                    // Reload rather than mutating the local copy, so what the review list shows is
+                    // always what was actually persisted.
+                    onWorkStateChanged: {
+                        await load()
                     }
                 )
             } else {

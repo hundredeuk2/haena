@@ -173,6 +173,27 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         XCTAssertEqual(updated.openQuestions.filter { $0.status == .resolved }.count, 1)
     }
 
+    func testReExtractingKeepsApprovedOpenQuestionsAndAgendaItems() async throws {
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+        _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
+
+        // Approve both through the real review service. Neither changes status — an approved open
+        // question is still `.open` and an approved agenda item is still `.pending` — so only
+        // `reviewedAt` distinguishes them from a fresh proposal.
+        let reviewService = WorkStateReviewService(repository: repository, now: { TestFixtures.laterDate })
+        let approved = try await storedProject()
+        try await reviewService.approveOpenQuestion(id: approved.openQuestions[0].id, in: approved.id)
+        try await reviewService.approveAgendaItem(id: approved.nextAgenda[0].id, in: approved.id)
+
+        _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let updated = try await storedProject()
+        XCTAssertEqual(updated.openQuestions.count, 2, "the approved question must survive re-extraction")
+        XCTAssertEqual(updated.openQuestions.filter { $0.reviewedAt != nil }.count, 1)
+        XCTAssertEqual(updated.nextAgenda.count, 2, "the approved agenda item must survive re-extraction")
+        XCTAssertEqual(updated.nextAgenda.filter { $0.reviewedAt != nil }.count, 1)
+    }
+
     func testReExtractingKeepsHandEnteredAgendaItemsThatHaveNoEvidence() async throws {
         var project = try await storedProject()
         project.nextAgenda.append(

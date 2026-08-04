@@ -1,20 +1,36 @@
 import SwiftUI
 
-/// Content pane showing one project's summary/dates and its meetings, sorted by
-/// `ProjectBrowserQueryService.sortedMeetings`. No AI-extracted sections (Decision, ActionItem,
-/// OpenQuestion, AgendaItem) are shown yet — nothing has ever produced them.
+/// Content pane for one project, switching between its meetings and its work state.
+///
+/// The two are separated by a picker rather than stacked, because the meeting list is a selection
+/// list driving the third pane while the work-state pane is a scrolling review surface — putting
+/// both in one scroll view would fight SwiftUI and bury whichever came second.
 struct ProjectDetailView: View {
     let project: Project
     @Binding var selectedMeetingID: Meeting.ID?
     let deletionErrorMessage: String?
     let onDeleteProject: () async -> Void
+    let reviewService: WorkStateReviewService
+    let onWorkStateChanged: () async -> Void
 
     @State private var isConfirmingDeletion = false
+    @State private var pane: Pane = .meetings
 
     private let dateFormatter = MeetingDateFormatter()
 
+    private enum Pane: String, CaseIterable, Identifiable {
+        case meetings
+        case workState
+
+        var id: String { rawValue }
+    }
+
     private var sortedMeetings: [Meeting] {
         ProjectBrowserQueryService.sortedMeetings(project.meetings)
+    }
+
+    private var pendingProposalCount: Int {
+        WorkStateInbox.pendingProposals(in: project).count
     }
 
     var body: some View {
@@ -54,18 +70,37 @@ struct ProjectDetailView: View {
 
             Divider()
 
-            if sortedMeetings.isEmpty {
-                Text("저장된 회의가 없습니다.")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("meeting-list-empty-state")
-            } else {
-                List(sortedMeetings, selection: $selectedMeetingID) { meeting in
-                    MeetingRowView(meeting: meeting)
-                        .tag(meeting.id)
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("meeting-row-\(meeting.id.uuidString)")
+            Picker("표시", selection: $pane) {
+                Text("회의").tag(Pane.meetings)
+                Text(pendingProposalCount == 0 ? "업무 상태" : "업무 상태 (\(pendingProposalCount))")
+                    .tag(Pane.workState)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityIdentifier("project-detail-pane-picker")
+
+            switch pane {
+            case .meetings:
+                if sortedMeetings.isEmpty {
+                    Text("저장된 회의가 없습니다.")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("meeting-list-empty-state")
+                } else {
+                    List(sortedMeetings, selection: $selectedMeetingID) { meeting in
+                        MeetingRowView(meeting: meeting)
+                            .tag(meeting.id)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("meeting-row-\(meeting.id.uuidString)")
+                    }
+                    .accessibilityIdentifier("meeting-list")
                 }
-                .accessibilityIdentifier("meeting-list")
+
+            case .workState:
+                WorkStateReviewView(
+                    project: project,
+                    reviewService: reviewService,
+                    onChanged: onWorkStateChanged
+                )
             }
 
             Spacer(minLength: 0)
