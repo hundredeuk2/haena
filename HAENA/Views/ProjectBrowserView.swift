@@ -8,6 +8,7 @@ import SwiftUI
 /// that must stay consistent after something is removed.
 struct ProjectBrowserView: View {
     let repository: any ProjectRepository
+    let extractor: any WorkStateExtractor
 
     @State private var loadState: ProjectBrowserLoadState = .idle
     @State private var selectedProjectID: Project.ID?
@@ -79,7 +80,10 @@ struct ProjectBrowserView: View {
             validateMeetingSelection()
         }
         .sheet(isPresented: $showingPasteTranscript) {
-            PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
+            PasteTranscriptView(
+                service: TextMeetingCaptureService(repository: repository),
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+            )
         }
     }
 
@@ -234,5 +238,5 @@ private struct ProjectRowView: View {
 }
 
 #Preview {
-    ProjectBrowserView(repository: InMemoryProjectRepository())
+    ProjectBrowserView(repository: InMemoryProjectRepository(), extractor: DeterministicWorkStateExtractor())
 }

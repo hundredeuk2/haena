@@ -20,4 +20,10 @@ struct AgendaItem: Identifiable, Codable, Equatable, Sendable {
     var relatedOpenQuestionID: UUID?
     var status: AgendaItemStatus
     let createdAt: Date
+    /// Both nil for a user-added agenda item, and both set for one an extractor proposed — unlike
+    /// Decision/ActionItem/OpenQuestion, an AgendaItem has always been allowed to originate from a
+    /// person rather than a model, so neither field can be required. Their presence is what marks
+    /// an entry as AI-derived and therefore still unreviewed.
+    var evidence: EvidenceReference? = nil
+    var confidence: Confidence? = nil
 }

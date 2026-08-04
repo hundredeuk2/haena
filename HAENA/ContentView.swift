@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     let repository: any ProjectRepository
+    let extractor: any WorkStateExtractor
 
     @State private var showingPasteTranscript = false
     @State private var showingProjectBrowser = false
@@ -34,14 +35,17 @@ struct ContentView: View {
         .padding(40)
         .frame(minWidth: 420, minHeight: 280)
         .sheet(isPresented: $showingPasteTranscript) {
-            PasteTranscriptView(service: TextMeetingCaptureService(repository: repository))
+            PasteTranscriptView(
+                service: TextMeetingCaptureService(repository: repository),
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+            )
         }
         .sheet(isPresented: $showingProjectBrowser) {
-            ProjectBrowserView(repository: repository)
+            ProjectBrowserView(repository: repository, extractor: extractor)
         }
     }
 }
 
 #Preview {
-    ContentView(repository: InMemoryProjectRepository())
+    ContentView(repository: InMemoryProjectRepository(), extractor: DeterministicWorkStateExtractor())
 }
