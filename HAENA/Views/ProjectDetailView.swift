@@ -14,15 +14,20 @@ struct ProjectDetailView: View {
     let onWorkStateChanged: () async -> Void
 
     @State private var isConfirmingDeletion = false
-    @State private var pane: Pane = .meetings
+    @State private var pane: Pane = .status
 
     private let dateFormatter = MeetingDateFormatter()
 
     private enum Pane: String, CaseIterable, Identifiable {
+        case status
         case meetings
         case workState
 
         var id: String { rawValue }
+    }
+
+    private var statusSummary: ProjectStatusSummary {
+        ProjectStatusSummary(project: project)
     }
 
     private var sortedMeetings: [Meeting] {
@@ -71,6 +76,7 @@ struct ProjectDetailView: View {
             Divider()
 
             Picker("표시", selection: $pane) {
+                Text("현재 상태").tag(Pane.status)
                 Text("회의").tag(Pane.meetings)
                 Text(pendingProposalCount == 0 ? "업무 상태" : "업무 상태 (\(pendingProposalCount))")
                     .tag(Pane.workState)
@@ -80,6 +86,13 @@ struct ProjectDetailView: View {
             .accessibilityIdentifier("project-detail-pane-picker")
 
             switch pane {
+            case .status:
+                ProjectStatusView(
+                    summary: statusSummary,
+                    participantsByMeeting: participants(forMeeting:),
+                    onOpenWorkState: { pane = .workState }
+                )
+
             case .meetings:
                 if sortedMeetings.isEmpty {
                     Text("저장된 회의가 없습니다.")
@@ -109,6 +122,12 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("project-detail-screen")
+        // Selecting a different project in the sidebar reuses this view rather than rebuilding it,
+        // so the pane has to be sent back to 현재 상태 explicitly — otherwise the second project a
+        // user opens inherits whichever tab they left the first one on.
+        .onChange(of: project.id) { _, _ in
+            pane = .status
+        }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
                 title: "“\(project.name)” 프로젝트를 삭제할까요?",
@@ -124,6 +143,10 @@ struct ProjectDetailView: View {
                 }
             )
         }
+    }
+
+    private func participants(forMeeting meetingID: UUID) -> [Participant] {
+        project.meetings.first { $0.id == meetingID }?.participants ?? []
     }
 }
 

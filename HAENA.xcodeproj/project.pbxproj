@@ -56,6 +56,7 @@
 		8CD5AC65F1111D418187B99A /* PasteTranscriptUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BAB9FB0BCD3553973DEC991 /* PasteTranscriptUITests.swift */; };
 		8F1612B550660725F47F3AA4 /* ProjectBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8BF08BD1B52F083C57F08D0 /* ProjectBrowserView.swift */; };
 		932D0B3B81CBEE6D2DB2317F /* WorkStateReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65BCF799CAB4BB3B60C941F9 /* WorkStateReviewService.swift */; };
+		9845F653A35CA4732CA56B40 /* ProjectStatusSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBD65C76CCEB1A72BB0841E1 /* ProjectStatusSummary.swift */; };
 		9F12EED0DDC51564B6DA9550 /* JSONRepositoryError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA451479B21E3F9FF80C81E /* JSONRepositoryError.swift */; };
 		A30E189ECDC4A7397CD5AF9D /* Confidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA36E048E3E1562A504968 /* Confidence.swift */; };
 		A71818AE46EDF57D9FB9A8FF /* WorkStateProposalMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15168560EF53C8EA5FA3510C /* WorkStateProposalMapperTests.swift */; };
@@ -83,7 +84,9 @@
 		EEC2F6AFBA698A99C72F2381 /* WorkStateReviewServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D910C59D3F033383FB986C9 /* WorkStateReviewServiceTests.swift */; };
 		F77881B2939E5BC4DB06CF59 /* WorkStateDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D45E283537770C81AB5CEA3 /* WorkStateDisplay.swift */; };
 		F9C209AE1CAF67621158ED55 /* InMemoryProjectRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E87DE77DB75B8A0157AF5C2 /* InMemoryProjectRepository.swift */; };
+		F9EAC4067FF358E77A9A5E31 /* ProjectStatusSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86071B9E0DFF50654C8A2CE7 /* ProjectStatusSummaryTests.swift */; };
 		FA19DFD9B21C6F9461F68086 /* HAENAUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065223BAE41C8AEF1B683FCD /* HAENAUITests.swift */; };
+		FD1E7A685227753A3CB07CF9 /* ProjectStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A67D031C3E03903A57ED0FE /* ProjectStatusView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -125,6 +128,7 @@
 		3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift; sourceTree = "<group>"; };
 		429DFFBB39F5375FCF2CBEE0 /* WorkStateInboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateInboxTests.swift; sourceTree = "<group>"; };
 		44D663392DA5F61D2339878F /* ProjectRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepository.swift; sourceTree = "<group>"; };
+		4A67D031C3E03903A57ED0FE /* ProjectStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStatusView.swift; sourceTree = "<group>"; };
 		4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAApp.swift; sourceTree = "<group>"; };
 		50F1578475F964354E38636B /* TranscriptTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTimestampFormatter.swift; sourceTree = "<group>"; };
 		524A8C52737AFBD63CB02D3B /* AgendaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaItem.swift; sourceTree = "<group>"; };
@@ -146,6 +150,7 @@
 		833110D4A29E8D1F6346DB90 /* WorkStateExtractionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateExtractionServiceTests.swift; sourceTree = "<group>"; };
 		8491E5E67DEC49F1ED1766D3 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		84CD28F24A0FF4CDEE68AEBC /* ReviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewFixtures.swift; sourceTree = "<group>"; };
+		86071B9E0DFF50654C8A2CE7 /* ProjectStatusSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStatusSummaryTests.swift; sourceTree = "<group>"; };
 		88553966A026A10267C09C62 /* ProjectDeletionIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeletionIntegrationTests.swift; sourceTree = "<group>"; };
 		89F58341826CA4B29DA56136 /* Decision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Decision.swift; sourceTree = "<group>"; };
 		8D910C59D3F033383FB986C9 /* WorkStateReviewServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateReviewServiceTests.swift; sourceTree = "<group>"; };
@@ -185,6 +190,7 @@
 		F663928FB630BC9FC15309B8 /* WorkStateDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateDisplayTests.swift; sourceTree = "<group>"; };
 		F9147B0F790EC0D479AFBADF /* HAENAUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HAENAUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F9E74850DE2CD61F90B5A4F2 /* ActionItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItem.swift; sourceTree = "<group>"; };
+		FBD65C76CCEB1A72BB0841E1 /* ProjectStatusSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStatusSummary.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -197,6 +203,7 @@
 				A8245AFE23FFF2E11236B990 /* PasteTranscriptView.swift */,
 				B8BF08BD1B52F083C57F08D0 /* ProjectBrowserView.swift */,
 				8491E5E67DEC49F1ED1766D3 /* ProjectDetailView.swift */,
+				4A67D031C3E03903A57ED0FE /* ProjectStatusView.swift */,
 				D4A086222030CFF5C4DC2383 /* WorkStateReviewView.swift */,
 			);
 			path = Views;
@@ -260,6 +267,7 @@
 				88553966A026A10267C09C62 /* ProjectDeletionIntegrationTests.swift */,
 				D3A482648CEE8475A8061C99 /* ProjectDeletionServiceTests.swift */,
 				CCB030E872DA4146351D7778 /* ProjectModelTests.swift */,
+				86071B9E0DFF50654C8A2CE7 /* ProjectStatusSummaryTests.swift */,
 				84CD28F24A0FF4CDEE68AEBC /* ReviewFixtures.swift */,
 				D1EAC0D602C3672018722218 /* TestFixtures.swift */,
 				6B92E95ABB3ACE8E9451AB25 /* TextMeetingCaptureServiceTests.swift */,
@@ -339,6 +347,7 @@
 			children = (
 				05B35283C3C236D21899AAFE /* MeetingDateFormatter.swift */,
 				E648DAF2106FF4559DC0A618 /* MeetingDisplay.swift */,
+				FBD65C76CCEB1A72BB0841E1 /* ProjectStatusSummary.swift */,
 				50F1578475F964354E38636B /* TranscriptTimestampFormatter.swift */,
 				6D45E283537770C81AB5CEA3 /* WorkStateDisplay.swift */,
 				140065D09E7BFEC5C3A7D2EC /* WorkStateInbox.swift */,
@@ -518,6 +527,7 @@
 				64C82C64E23B370FBF13B138 /* ProjectDeletionIntegrationTests.swift in Sources */,
 				52270342C2233739ECD169EC /* ProjectDeletionServiceTests.swift in Sources */,
 				BBBA7F289271932AEF87E89C /* ProjectModelTests.swift in Sources */,
+				F9EAC4067FF358E77A9A5E31 /* ProjectStatusSummaryTests.swift in Sources */,
 				7A6B4EDAF609EF12FB29E47F /* ReviewFixtures.swift in Sources */,
 				B661AD6232302BEF96289F30 /* TestFixtures.swift in Sources */,
 				689B36CA74E8E68D902578A5 /* TextMeetingCaptureServiceTests.swift in Sources */,
@@ -568,6 +578,8 @@
 				B72970AF9382570451116A22 /* ProjectDeletionService.swift in Sources */,
 				D352A6F6C2012C0F069C9770 /* ProjectDetailView.swift in Sources */,
 				EE0EC039EFF85D5B114AB654 /* ProjectRepository.swift in Sources */,
+				9845F653A35CA4732CA56B40 /* ProjectStatusSummary.swift in Sources */,
+				FD1E7A685227753A3CB07CF9 /* ProjectStatusView.swift in Sources */,
 				58EC56EB4F8A6C23C8BFF2C1 /* ProjectStoreFile.swift in Sources */,
 				20CC3C0FAFAD3DEB09F9DEAD /* TextMeetingCaptureService.swift in Sources */,
 				2128F42E60BDBD7E28B47D5F /* TranscriptSegment.swift in Sources */,
