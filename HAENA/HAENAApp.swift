@@ -3,6 +3,8 @@ import SwiftUI
 
 @main
 struct HAENAApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     private let repository: any ProjectRepository
     private let extractor: any WorkStateExtractor
 
