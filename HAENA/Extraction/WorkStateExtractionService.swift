@@ -94,24 +94,23 @@ struct WorkStateExtractionService: Sendable {
     /// so running twice cannot silently double every item.
     ///
     /// Only unreviewed, AI-derived records are removed: an item is superseded when it comes from
-    /// this meeting, still carries its model evidence, is still in the state the extractor created
-    /// it in (`.proposed` / `.open` / `.pending`), and — for the two types whose status cannot
-    /// express "not yet reviewed" — has no `reviewedAt`. Anything a user confirmed, approved,
-    /// resolved, dismissed, or hand-entered fails at least one of those and is kept.
+    /// this meeting *and* `PendingAIProposalPolicy.isPending` says it is still an unreviewed
+    /// proposal — the same test the review inbox uses to decide what to show. Anything a user
+    /// confirmed, approved, resolved, dismissed, or hand-entered fails that test and is kept.
     private func removeSupersededProposals(for meetingID: UUID, from project: inout Project) -> Int {
         var removed = 0
 
         let supersededDecision: (Decision) -> Bool = {
-            $0.meetingID == meetingID && $0.status == .proposed && $0.evidence != nil
+            $0.meetingID == meetingID && PendingAIProposalPolicy.isPending($0)
         }
         let supersededActionItem: (ActionItem) -> Bool = {
-            $0.meetingID == meetingID && $0.status == .proposed && $0.evidence != nil
+            $0.meetingID == meetingID && PendingAIProposalPolicy.isPending($0)
         }
         let supersededQuestion: (OpenQuestion) -> Bool = {
-            $0.meetingID == meetingID && $0.status == .open && $0.evidence != nil && $0.reviewedAt == nil
+            $0.meetingID == meetingID && PendingAIProposalPolicy.isPending($0)
         }
         let supersededAgendaItem: (AgendaItem) -> Bool = {
-            $0.sourceMeetingID == meetingID && $0.status == .pending && $0.evidence != nil && $0.reviewedAt == nil
+            $0.sourceMeetingID == meetingID && PendingAIProposalPolicy.isPending($0)
         }
 
         removed += project.decisions.countMatching(supersededDecision)

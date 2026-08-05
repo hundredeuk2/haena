@@ -90,28 +90,27 @@ enum WorkStateProposal: Identifiable, Equatable, Sendable {
 /// Selects the work state that still needs a person's attention, and the work state that has
 /// already been through review.
 ///
-/// "Unreviewed" is read differently per type because the models differ: Decision and ActionItem
-/// have an explicit `.proposed` status, while OpenQuestion and AgendaItem rely on `reviewedAt`
-/// being nil plus evidence being present — evidence is what marks them as model-derived rather
-/// than hand-entered.
+/// "Still needs attention" is `PendingAIProposalPolicy.isPending` — the same predicate
+/// `WorkStateExtractionService` uses to decide what a re-extraction replaces, so a proposal is
+/// never shown here without also being subject to replacement, or vice versa.
 enum WorkStateInbox {
     static func pendingProposals(in project: Project) -> [WorkStateProposal] {
         var proposals: [WorkStateProposal] = []
 
         proposals += project.decisions
-            .filter { $0.status == .proposed }
+            .filter { PendingAIProposalPolicy.isPending($0) }
             .map(WorkStateProposal.decision)
 
         proposals += project.actionItems
-            .filter { $0.status == .proposed }
+            .filter { PendingAIProposalPolicy.isPending($0) }
             .map(WorkStateProposal.actionItem)
 
         proposals += project.openQuestions
-            .filter { $0.status == .open && $0.reviewedAt == nil && $0.evidence != nil }
+            .filter { PendingAIProposalPolicy.isPending($0) }
             .map(WorkStateProposal.openQuestion)
 
         proposals += project.nextAgenda
-            .filter { $0.status == .pending && $0.reviewedAt == nil && $0.evidence != nil }
+            .filter { PendingAIProposalPolicy.isPending($0) }
             .map(WorkStateProposal.agendaItem)
 
         return proposals.sorted(by: isOrderedBefore)

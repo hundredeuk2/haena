@@ -220,6 +220,112 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         XCTAssertEqual(updated.nextAgenda.filter { $0.evidence != nil }.count, 1)
     }
 
+    private func makeDecision(id: UUID, status: DecisionStatus, evidence: EvidenceReference?) -> Decision {
+        Decision(
+            id: id, projectID: TestFixtures.projectID, meetingID: meeting.id,
+            statement: "결정 \(id.uuidString.prefix(4))", rationale: nil, status: status, evidence: evidence,
+            confidence: Confidence(0.5), createdAt: TestFixtures.fixedDate, updatedAt: TestFixtures.fixedDate
+        )
+    }
+
+    private func makeActionItem(id: UUID, status: ActionItemStatus, evidence: EvidenceReference?) -> ActionItem {
+        ActionItem(
+            id: id, projectID: TestFixtures.projectID, meetingID: meeting.id,
+            title: "업무 \(id.uuidString.prefix(4))", details: nil, assigneeID: nil, dueDate: nil,
+            status: status, evidence: evidence, confidence: Confidence(0.5),
+            createdAt: TestFixtures.fixedDate, updatedAt: TestFixtures.fixedDate
+        )
+    }
+
+    private func makeOpenQuestion(
+        id: UUID, status: OpenQuestionStatus, evidence: EvidenceReference?, reviewedAt: Date?
+    ) -> OpenQuestion {
+        OpenQuestion(
+            id: id, projectID: TestFixtures.projectID, meetingID: meeting.id,
+            question: "질문 \(id.uuidString.prefix(4))", status: status, evidence: evidence,
+            confidence: Confidence(0.5), createdAt: TestFixtures.fixedDate, resolvedAt: nil, reviewedAt: reviewedAt
+        )
+    }
+
+    private func makeAgendaItem(
+        id: UUID, status: AgendaItemStatus, evidence: EvidenceReference?, reviewedAt: Date?
+    ) -> AgendaItem {
+        AgendaItem(
+            id: id, projectID: TestFixtures.projectID, title: "아젠다 \(id.uuidString.prefix(4))",
+            reason: "이유", sourceMeetingID: meeting.id, relatedActionItemID: nil, relatedOpenQuestionID: nil,
+            status: status, createdAt: TestFixtures.fixedDate,
+            evidence: evidence, confidence: evidence == nil ? nil : Confidence(0.5), reviewedAt: reviewedAt
+        )
+    }
+
+    func testReExtractingPreservesEvidencelessProposedDecisionAndActionItem() async throws {
+        // A `.proposed` Decision/ActionItem with no evidence cannot be produced by this app's own
+        // extraction path today (the mapper always attaches grounded evidence), but the policy
+        // must not depend on that — this is the exact bug class `PendingAIProposalPolicy` closes.
+        var project = try await storedProject()
+        project.decisions.append(makeDecision(id: UUID(), status: .proposed, evidence: nil))
+        project.actionItems.append(makeActionItem(id: UUID(), status: .proposed, evidence: nil))
+        try await repository.save(project)
+
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+        _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let updated = try await storedProject()
+        XCTAssertEqual(updated.decisions.filter { $0.evidence == nil }.count, 1, "the evidence-less proposed decision must survive")
+        XCTAssertEqual(updated.decisions.filter { $0.evidence != nil }.count, 1, "the newly extracted decision must still be stored")
+        XCTAssertEqual(updated.actionItems.filter { $0.evidence == nil }.count, 1)
+        XCTAssertEqual(updated.actionItems.filter { $0.evidence != nil }.count, 1)
+    }
+
+    /// The strongest form of "inbox and re-extraction use one policy": build a project covering
+    /// every pending/not-pending combination across all four types, capture what the inbox shows
+    /// as pending, run a re-extraction that adds nothing, and assert the set of items removed is
+    /// exactly the set the inbox called pending — no more, no less.
+    func testInboxPendingSetExactlyMatchesReExtractionRemovalSet() async throws {
+        let evidence = ReviewFixtures.evidence
+
+        var project = try await storedProject()
+        project.decisions = [
+            makeDecision(id: UUID(), status: .proposed, evidence: nil),        // not pending: no evidence
+            makeDecision(id: UUID(), status: .proposed, evidence: evidence),   // pending
+            makeDecision(id: UUID(), status: .confirmed, evidence: evidence)   // not pending: reviewed
+        ]
+        project.actionItems = [
+            makeActionItem(id: UUID(), status: .proposed, evidence: nil)       // not pending: no evidence
+        ]
+        project.openQuestions = [
+            makeOpenQuestion(id: UUID(), status: .open, evidence: evidence, reviewedAt: nil),                  // pending
+            makeOpenQuestion(id: UUID(), status: .open, evidence: nil, reviewedAt: nil),                       // not pending: no evidence
+            makeOpenQuestion(id: UUID(), status: .open, evidence: evidence, reviewedAt: TestFixtures.laterDate) // not pending: approved
+        ]
+        project.nextAgenda = [
+            makeAgendaItem(id: UUID(), status: .pending, evidence: evidence, reviewedAt: nil),                                  // pending
+            makeAgendaItem(id: UUID(), status: .dismissed, evidence: evidence, reviewedAt: TestFixtures.laterDate)              // not pending: reviewed
+        ]
+        try await repository.save(project)
+
+        let seeded = try await storedProject()
+        let allIDsBefore = Set(
+            seeded.decisions.map(\.id) + seeded.actionItems.map(\.id)
+                + seeded.openQuestions.map(\.id) + seeded.nextAgenda.map(\.id)
+        )
+        let pendingIDsPerInbox = Set(WorkStateInbox.pendingProposals(in: seeded).map(\.id))
+
+        // An extraction with nothing to add: the only effect left is what re-extraction removes.
+        let service = makeService(.success(ExtractionFixtures.emptyResult()))
+        _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let after = try await storedProject()
+        let survivingIDs = Set(
+            after.decisions.map(\.id) + after.actionItems.map(\.id)
+                + after.openQuestions.map(\.id) + after.nextAgenda.map(\.id)
+        )
+        let removedIDs = allIDsBefore.subtracting(survivingIDs)
+
+        XCTAssertEqual(removedIDs, pendingIDsPerInbox, "re-extraction must remove exactly what the inbox called pending")
+        XCTAssertEqual(survivingIDs, allIDsBefore.subtracting(pendingIDsPerInbox), "everything not shown as pending must survive")
+    }
+
     func testReExtractingOneMeetingLeavesAnotherMeetingsProposalsAlone() async throws {
         let otherMeeting = ExtractionFixtures.meeting(id: UUID(), segmentID: UUID())
         var project = try await storedProject()

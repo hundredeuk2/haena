@@ -39,12 +39,20 @@ final class WorkStateInboxTests: XCTestCase {
         XCTAssertTrue(WorkStateInbox.pendingProposals(in: project).isEmpty)
     }
 
-    func testHandEnteredAgendaItemsAreNotTreatedAsAIProposals() {
-        // No evidence means no model produced it, so there is nothing for a user to review.
+    func testEvidencelessItemsOfAnyKindAreNotTreatedAsAIProposals() {
+        // No evidence means no model produced it, so there is nothing for a user to review —
+        // across all four types, not just AgendaItem.
+        var decision = ReviewFixtures.decision(status: .proposed)
+        decision.evidence = nil
+        var actionItem = ReviewFixtures.actionItem(status: .proposed)
+        actionItem.evidence = nil
+        var question = ReviewFixtures.openQuestion()
+        question.evidence = nil
+
         let project = ReviewFixtures.project(
-            decisions: [],
-            actionItems: [],
-            openQuestions: [],
+            decisions: [decision],
+            actionItems: [actionItem],
+            openQuestions: [question],
             nextAgenda: [ReviewFixtures.agendaItem(evidence: nil)]
         )
 
