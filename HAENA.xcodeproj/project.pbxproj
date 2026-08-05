@@ -26,7 +26,6 @@
 		373401D6DC2A1B7F15BEA633 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38C719BF60E178CFE55EE0B3 /* ModelProvider.swift */; };
 		3A384C3266FEEA2153B439D1 /* OpenAIResponsesDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4438BA40DDE8667432DFE21 /* OpenAIResponsesDTO.swift */; };
 		3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */; };
-		44690541FDF6487B838A0614 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04AFB7013F274C088C752ED1 /* AppDelegate.swift */; };
 		3BF85FA1E9AAF97CB5C51E0F /* MeetingDateFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B35283C3C236D21899AAFE /* MeetingDateFormatter.swift */; };
 		464A006474FFA302F5855C96 /* OpenQuestionAgendaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E056A9053BE18F89DBC35864 /* OpenQuestionAgendaTests.swift */; };
 		4F1412958629DBD629FE168F /* WorkStateReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A086222030CFF5C4DC2383 /* WorkStateReviewView.swift */; };
@@ -127,7 +126,6 @@
 		429DFFBB39F5375FCF2CBEE0 /* WorkStateInboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateInboxTests.swift; sourceTree = "<group>"; };
 		44D663392DA5F61D2339878F /* ProjectRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepository.swift; sourceTree = "<group>"; };
 		4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAENAApp.swift; sourceTree = "<group>"; };
-		04AFB7013F274C088C752ED1 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		50F1578475F964354E38636B /* TranscriptTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTimestampFormatter.swift; sourceTree = "<group>"; };
 		524A8C52737AFBD63CB02D3B /* AgendaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaItem.swift; sourceTree = "<group>"; };
 		567385CA128CFC7EC315D269 /* ActionItemEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItemEditView.swift; sourceTree = "<group>"; };
@@ -207,7 +205,6 @@
 		3734728E818B595C5967FEDF /* HAENA */ = {
 			isa = PBXGroup;
 			children = (
-				04AFB7013F274C088C752ED1 /* AppDelegate.swift */,
 				3E27AF6BC3EEE0120A317CAF /* AppInfo.swift */,
 				F3496D5F1FA7B99B8C2716FC /* Assets.xcassets */,
 				0B09EF44B431F4D44006E6B9 /* ContentView.swift */,
@@ -539,7 +536,6 @@
 				528460D9D374E85118706BA3 /* ActionItem.swift in Sources */,
 				242F445AAAFF09B7C5E0038D /* ActionItemEditView.swift in Sources */,
 				2D2DFDFD27923AA07E8FD545 /* AgendaItem.swift in Sources */,
-				44690541FDF6487B838A0614 /* AppDelegate.swift in Sources */,
 				76255D5DB6B9620BD1470F72 /* AppInfo.swift in Sources */,
 				A30E189ECDC4A7397CD5AF9D /* Confidence.swift in Sources */,
 				D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */,

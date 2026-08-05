@@ -10,6 +10,8 @@ struct ProjectBrowserView: View {
     let repository: any ProjectRepository
     let extractor: any WorkStateExtractor
 
+    @Environment(\.dismiss) private var dismiss
+
     @State private var loadState: ProjectBrowserLoadState = .idle
     @State private var selectedProjectID: Project.ID?
     @State private var selectedMeetingID: Meeting.ID?
@@ -79,6 +81,14 @@ struct ProjectBrowserView: View {
         .frame(minWidth: 720, minHeight: 480)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("project-browser-screen")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("닫기") {
+                    dismiss()
+                }
+                .accessibilityIdentifier("close-project-browser-button")
+            }
+        }
         .task {
             await load()
         }

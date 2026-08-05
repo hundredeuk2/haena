@@ -1,12 +1,16 @@
+import AppKit
 import Foundation
 import SwiftUI
 
 @main
 struct HAENAApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
     private let repository: any ProjectRepository
     private let extractor: any WorkStateExtractor
+
+    // Hoisted out of `ContentView` (rather than left as its local @State) so the Quit command
+    // below can close an open sheet before terminating: see `terminate()`.
+    @State private var showingPasteTranscript = false
+    @State private var showingProjectBrowser = false
 
     init() {
         // UI tests must never read or write the real Application Support data, nor reach the
@@ -28,7 +32,39 @@ struct HAENAApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(repository: repository, extractor: extractor)
+            ContentView(
+                repository: repository,
+                extractor: extractor,
+                showingPasteTranscript: $showingPasteTranscript,
+                showingProjectBrowser: $showingProjectBrowser
+            )
+        }
+        .commands {
+            // AppKit's own handling of `NSApp.terminate(_:)` silently declines whenever a SwiftUI
+            // `.sheet` is still attached to the window (SwiftUI owns the sheet's presentation
+            // state, so nothing outside these bindings can clear that attachment). Every sheet
+            // also has its own escape route (Cancel/닫기), so the expected path is that a sheet is
+            // already closed by the time Quit is invoked — this only matters when it isn't:
+            // dismiss it through the same SwiftUI state that presented it, then let the dismissal
+            // finish before asking AppKit to terminate on the next run loop turn.
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit \(AppInfo.name)") {
+                    terminate()
+                }
+                .keyboardShortcut("q", modifiers: .command)
+            }
+        }
+    }
+
+    private func terminate() {
+        guard showingPasteTranscript || showingProjectBrowser else {
+            NSApp.terminate(nil)
+            return
+        }
+        showingPasteTranscript = false
+        showingProjectBrowser = false
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
         }
     }
 }

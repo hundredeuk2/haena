@@ -4,8 +4,10 @@ struct ContentView: View {
     let repository: any ProjectRepository
     let extractor: any WorkStateExtractor
 
-    @State private var showingPasteTranscript = false
-    @State private var showingProjectBrowser = false
+    // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
+    // dismiss it first: see `HAENAApp`'s Quit command.
+    @Binding var showingPasteTranscript: Bool
+    @Binding var showingProjectBrowser: Bool
 
     var body: some View {
         VStack(spacing: 24) {
@@ -47,5 +49,10 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(repository: InMemoryProjectRepository(), extractor: DeterministicWorkStateExtractor())
+    ContentView(
+        repository: InMemoryProjectRepository(),
+        extractor: DeterministicWorkStateExtractor(),
+        showingPasteTranscript: .constant(false),
+        showingProjectBrowser: .constant(false)
+    )
 }
