@@ -62,6 +62,15 @@ struct ProjectStatusSummary: Equatable, Sendable {
         upcomingAgendaItems = Self.section(WorkStateInbox.reviewedAgendaItems(in: project), limit: limit)
     }
 
+    /// Every qualifying item rather than the first few.
+    ///
+    /// The screen shows a handful per area on purpose; an export must not, because a truncated
+    /// document silently drops project state at exactly the moment it leaves the app and can no
+    /// longer be checked against the source.
+    static func complete(project: Project, referenceDate: Date = Date()) -> ProjectStatusSummary {
+        ProjectStatusSummary(project: project, referenceDate: referenceDate, limit: .max)
+    }
+
     /// True when this item's deadline has already passed. Work with no due date is never overdue —
     /// a missing deadline is unknown, not breached, and inventing one here would be the same
     /// fabrication the extractor refuses to make.

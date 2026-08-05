@@ -13,12 +13,27 @@ struct ProjectStatusView: View {
     /// Switches the surrounding segmented control over to the review screen. The summary never
     /// shows evidence or confidence itself — that detail stays on the screen built to weigh it.
     let onOpenWorkState: () -> Void
+    /// Renders the export. A closure rather than a string so the document is built at the moment a
+    /// user asks for it — and so both actions below are physically incapable of producing
+    /// different text.
+    let makeMarkdown: () -> String
+    let exportFilename: String
+    let pasteboardWriter: any PasteboardWriter
+    let fileExporter: any MarkdownFileExporter
+
+    @State private var feedback: Feedback?
 
     private let dateFormatter = MeetingDateFormatter()
+
+    private struct Feedback: Equatable {
+        let message: String
+        let isError: Bool
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                exportBar
                 reviewCallout
                 decisionsSection
                 workSection
@@ -31,6 +46,64 @@ struct ProjectStatusView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("project-status-screen")
     }
+
+    // MARK: - Export actions
+
+    private var exportBar: some View {
+        HStack(spacing: 12) {
+            Button("Markdown 내보내기") {
+                exportToFile()
+            }
+            .accessibilityIdentifier("export-markdown-button")
+
+            Button("클립보드 복사") {
+                copyToClipboard()
+            }
+            .accessibilityIdentifier("copy-markdown-button")
+
+            if let feedback {
+                Text(feedback.message)
+                    .font(.callout)
+                    .foregroundStyle(feedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("export-feedback-message")
+            }
+
+            Spacer()
+        }
+    }
+
+    private func exportToFile() {
+        switch fileExporter.export(makeMarkdown(), suggestedFilename: exportFilename) {
+        case .saved:
+            show(Feedback(message: "저장됨", isError: false))
+        case .cancelled:
+            // Nothing to say: the user closed the panel on purpose.
+            break
+        case .failed:
+            show(Feedback(message: "파일을 저장하지 못했습니다.", isError: true))
+        }
+    }
+
+    private func copyToClipboard() {
+        if pasteboardWriter.write(makeMarkdown()) {
+            show(Feedback(message: "복사됨", isError: false))
+        } else {
+            show(Feedback(message: "클립보드에 복사하지 못했습니다.", isError: true))
+        }
+    }
+
+    /// Clears itself so the confirmation reads as being about the action just taken, rather than
+    /// lingering next to a button the user might press again.
+    private func show(_ newFeedback: Feedback) {
+        feedback = newFeedback
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if feedback == newFeedback {
+                feedback = nil
+            }
+        }
+    }
+
 
     // MARK: - Needs review
 

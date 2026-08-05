@@ -12,6 +12,10 @@ struct ProjectDetailView: View {
     let onDeleteProject: () async -> Void
     let reviewService: WorkStateReviewService
     let onWorkStateChanged: () async -> Void
+    /// Defaulted rather than injected from the browser: the real pasteboard is what the app always
+    /// wants, and the seam exists for tests of the copy boundary, not for the view hierarchy.
+    var pasteboardWriter: any PasteboardWriter = SystemPasteboardWriter()
+    var fileExporter: any MarkdownFileExporter = SavePanelMarkdownExporter()
 
     @State private var isConfirmingDeletion = false
     @State private var pane: Pane = .status
@@ -90,7 +94,11 @@ struct ProjectDetailView: View {
                 ProjectStatusView(
                     summary: statusSummary,
                     participantsByMeeting: participants(forMeeting:),
-                    onOpenWorkState: { pane = .workState }
+                    onOpenWorkState: { pane = .workState },
+                    makeMarkdown: exportMarkdown,
+                    exportFilename: ProjectExportFilename.markdownFilename(for: project.name),
+                    pasteboardWriter: pasteboardWriter,
+                    fileExporter: fileExporter
                 )
 
             case .meetings:
@@ -147,6 +155,18 @@ struct ProjectDetailView: View {
 
     private func participants(forMeeting meetingID: UUID) -> [Participant] {
         project.meetings.first { $0.id == meetingID }?.participants ?? []
+    }
+
+    /// Built fresh each time the user asks for it, from one timestamp so the document's header and
+    /// its overdue markers agree, and from the uncapped summary so the export is the whole project
+    /// state rather than the three-per-section preview the screen shows.
+    private func exportMarkdown() -> String {
+        let now = Date()
+        return ProjectMarkdownRenderer().render(
+            project: project,
+            summary: .complete(project: project, referenceDate: now),
+            generatedAt: now
+        )
     }
 }
 

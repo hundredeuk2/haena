@@ -86,10 +86,21 @@ enum WorkStateDisplay {
     }
 
     static func assigneeLabel(_ assigneeID: UUID?, participants: [Participant]) -> String {
-        guard let assigneeID,
-              let participant = participants.first(where: { $0.id == assigneeID }) else {
+        guard let name = assigneeName(assigneeID, participants: participants) else {
             return "담당자 미지정"
         }
-        return "담당 \(participant.displayName)"
+        return "담당 \(name)"
+    }
+
+    /// The assignee's display name alone, or nil when there is nobody to name — either no one was
+    /// assigned, or the stored id matches no participant in that meeting. Callers must supply their
+    /// own "unassigned" wording rather than receiving a placeholder that could be mistaken for a
+    /// person, and must never fall back to printing the raw id.
+    static func assigneeName(_ assigneeID: UUID?, participants: [Participant]) -> String? {
+        guard let assigneeID,
+              let participant = participants.first(where: { $0.id == assigneeID }) else {
+            return nil
+        }
+        return participant.displayName
     }
 }
