@@ -15,3 +15,9 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# Local voice test data. Recordings used for manual verification stay on the
+# machine that made them: audio is never committed, and consent to record does
+# not extend to publishing it in a repository. Anchored to the repository root
+# so a source directory named `data/` elsewhere is unaffected.
+/data/
