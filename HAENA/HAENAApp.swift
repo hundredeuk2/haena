@@ -6,11 +6,14 @@ import SwiftUI
 struct HAENAApp: App {
     private let repository: any ProjectRepository
     private let extractor: any WorkStateExtractor
+    private let transcriptionProvider: any TranscriptionProvider
+    private let audioAssetStore: AudioAssetStore
 
     // Hoisted out of `ContentView` (rather than left as its local @State) so the Quit command
     // below can close an open sheet before terminating: see `terminate()`.
     @State private var showingPasteTranscript = false
     @State private var showingProjectBrowser = false
+    @State private var showingImportAudio = false
 
     init() {
         // UI tests must never read or write the real Application Support data, nor reach the
@@ -24,9 +27,18 @@ struct HAENAApp: App {
         if ProcessInfo.processInfo.environment["HAENA_UI_TESTING"] == "1" {
             repository = InMemoryProjectRepository()
             extractor = DeterministicWorkStateExtractor()
+            transcriptionProvider = DeterministicTranscriptionProvider()
+            // A throwaway directory per launch, so a UI test that imports audio cannot write
+            // into — or delete out of — the real Application Support store.
+            audioAssetStore = AudioAssetStore(
+                directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                    .appendingPathComponent("HAENAUITests-\(UUID().uuidString)", isDirectory: true)
+            )
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             extractor = OpenAIWorkStateExtractor()
+            transcriptionProvider = OpenAITranscriptionProvider()
+            audioAssetStore = AudioAssetStore(directoryURL: AudioAssetStore.defaultDirectoryURL())
         }
     }
 
@@ -35,8 +47,11 @@ struct HAENAApp: App {
             ContentView(
                 repository: repository,
                 extractor: extractor,
+                transcriptionProvider: transcriptionProvider,
+                audioAssetStore: audioAssetStore,
                 showingPasteTranscript: $showingPasteTranscript,
-                showingProjectBrowser: $showingProjectBrowser
+                showingProjectBrowser: $showingProjectBrowser,
+                showingImportAudio: $showingImportAudio
             )
         }
         .commands {
@@ -57,12 +72,13 @@ struct HAENAApp: App {
     }
 
     private func terminate() {
-        guard showingPasteTranscript || showingProjectBrowser else {
+        guard showingPasteTranscript || showingProjectBrowser || showingImportAudio else {
             NSApp.terminate(nil)
             return
         }
         showingPasteTranscript = false
         showingProjectBrowser = false
+        showingImportAudio = false
         DispatchQueue.main.async {
             NSApp.terminate(nil)
         }

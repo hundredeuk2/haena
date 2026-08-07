@@ -9,6 +9,9 @@ import SwiftUI
 struct ProjectBrowserView: View {
     let repository: any ProjectRepository
     let extractor: any WorkStateExtractor
+    /// Supplied so deleting a project or meeting also removes its stored audio. Defaulted to nil
+    /// for previews and for call sites that predate audio import.
+    var audioAssetStore: AudioAssetStore?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -24,7 +27,7 @@ struct ProjectBrowserView: View {
     }
 
     private var deletionService: ProjectDeletionService {
-        ProjectDeletionService(repository: repository)
+        ProjectDeletionService(repository: repository, assetStore: audioAssetStore)
     }
 
     private var reviewService: WorkStateReviewService {

@@ -11,24 +11,39 @@ enum ProjectDeletionError: Error, Equatable, Sendable {
 /// Deletes a whole `Project` aggregate, or one `Meeting` (and everything derived from it) out
 /// of a project, keeping model mutation and repository access out of the View layer.
 ///
+/// **Audio policy:** deleting a meeting or a project also deletes the app's stored copy of any
+/// audio those meetings were imported from. The alternative — keeping the file after its only
+/// reference is gone — would quietly accumulate unreachable recordings of the user's meetings in
+/// Application Support with no way to find or remove them from inside the app.
+///
+/// The record is always removed first and the file second: if the unlink fails, the result is an
+/// orphaned file rather than a stored meeting pointing at audio that no longer exists. Deletion
+/// is a plain unlink, not a secure erase.
+///
 /// `now` is injected (defaulting to `Date.init`) so tests can pin the resulting
 /// `Project.updatedAt` to a fixed value instead of depending on wall-clock time.
 struct ProjectDeletionService: Sendable {
     let repository: any ProjectRepository
+    /// Nil in contexts that never import audio (and in tests that do not exercise it); stored
+    /// audio is then simply not touched.
+    let assetStore: AudioAssetStore?
     let now: @Sendable () -> Date
 
     init(
         repository: any ProjectRepository,
+        assetStore: AudioAssetStore? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.repository = repository
+        self.assetStore = assetStore
         self.now = now
     }
 
     /// Deletes an entire project — meetings, decisions, action items, open questions, and
     /// agenda items all go with it, since they live nested inside the `Project` aggregate.
+    /// Every meeting's stored audio goes too.
     func deleteProject(id: UUID) async throws {
-        guard try await existingProject(id: id) != nil else {
+        guard let project = try await existingProject(id: id) else {
             throw ProjectDeletionError.projectNotFound
         }
         do {
@@ -36,6 +51,7 @@ struct ProjectDeletionService: Sendable {
         } catch {
             throw ProjectDeletionError.repositoryFailure
         }
+        removeStoredAudio(for: project.meetings)
     }
 
     /// Removes one meeting from a project, along with every Decision/ActionItem/OpenQuestion
@@ -48,7 +64,7 @@ struct ProjectDeletionService: Sendable {
         guard var project = try await existingProject(id: projectID) else {
             throw ProjectDeletionError.projectNotFound
         }
-        guard project.meetings.contains(where: { $0.id == meetingID }) else {
+        guard let meeting = project.meetings.first(where: { $0.id == meetingID }) else {
             throw ProjectDeletionError.meetingNotFound
         }
 
@@ -65,7 +81,18 @@ struct ProjectDeletionService: Sendable {
             throw ProjectDeletionError.repositoryFailure
         }
 
+        removeStoredAudio(for: [meeting])
+
         return project
+    }
+
+    private func removeStoredAudio(for meetings: [Meeting]) {
+        guard let assetStore else {
+            return
+        }
+        for asset in meetings.compactMap(\.audioAsset) {
+            assetStore.remove(asset)
+        }
     }
 
     private func existingProject(id: UUID) async throws -> Project? {
