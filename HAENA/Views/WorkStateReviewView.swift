@@ -41,7 +41,7 @@ struct WorkStateReviewView: View {
         .sheet(item: $editingActionItem) { item in
             ActionItemEditView(
                 actionItem: item,
-                participants: participants(forMeeting: item.meetingID),
+                participants: assignableParticipants(forMeeting: item.meetingID),
                 onSave: { assigneeID, dueDate in
                     await perform {
                         try await reviewService.updateActionItem(
@@ -295,7 +295,14 @@ struct WorkStateReviewView: View {
         }
     }
 
+    /// Ids are preserved and only names substituted, so an assignee stored against an anonymous
+    /// speaker keeps resolving and starts showing the confirmed name.
     private func participants(forMeeting meetingID: UUID) -> [Participant] {
-        project.meetings.first { $0.id == meetingID }?.participants ?? []
+        project.meetings.first { $0.id == meetingID }?.displayRoster ?? []
+    }
+
+    /// Choices, so two voices confirmed as one person collapse into a single row.
+    private func assignableParticipants(forMeeting meetingID: UUID) -> [Participant] {
+        project.meetings.first { $0.id == meetingID }?.assignableParticipants ?? []
     }
 }

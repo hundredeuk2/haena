@@ -153,8 +153,10 @@ struct ProjectDetailView: View {
         }
     }
 
+    /// Ids are preserved and only names substituted, so an assignee stored against an anonymous
+    /// speaker keeps resolving and starts showing the confirmed name.
     private func participants(forMeeting meetingID: UUID) -> [Participant] {
-        project.meetings.first { $0.id == meetingID }?.participants ?? []
+        project.meetings.first { $0.id == meetingID }?.displayRoster ?? []
     }
 
     /// Built fresh each time the user asks for it, from one timestamp so the document's header and

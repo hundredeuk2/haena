@@ -34,6 +34,10 @@ struct ProjectBrowserView: View {
         WorkStateReviewService(repository: repository)
     }
 
+    private var speakerConfirmationService: SpeakerConfirmationService {
+        SpeakerConfirmationService(repository: repository)
+    }
+
     private var selectedProject: Project? {
         guard case .loaded(let projects) = loadState else {
             return nil
@@ -73,6 +77,12 @@ struct ProjectBrowserView: View {
                     deletionErrorMessage: meetingDeletionError,
                     onDeleteMeeting: {
                         await confirmDeleteMeeting(meeting.id, from: selectedProject.id)
+                    },
+                    speakerConfirmation: speakerConfirmationService,
+                    // Reload rather than mutating the local copy, so the transcript always shows
+                    // what was actually persisted.
+                    onSpeakersChanged: {
+                        await load()
                     }
                 )
             } else {

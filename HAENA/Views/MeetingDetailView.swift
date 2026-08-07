@@ -5,8 +5,17 @@ struct MeetingDetailView: View {
     let meeting: Meeting
     let deletionErrorMessage: String?
     let onDeleteMeeting: () async -> Void
+    /// Supplied where speaker confirmation is available. Nil keeps this view usable on its own —
+    /// the banner simply never appears.
+    var speakerConfirmation: SpeakerConfirmationService?
+    var onSpeakersChanged: (() async -> Void)?
 
     @State private var isConfirmingDeletion = false
+    @State private var isConfirmingSpeakers = false
+    /// Dismissing the banner hides it for this viewing only. It is not a decision that gets
+    /// stored: nothing is deleted or permanently hidden, and re-opening the meeting offers it
+    /// again for as long as any voice is still unidentified.
+    @State private var isBannerDismissed = false
 
     private let dateFormatter = MeetingDateFormatter()
 
@@ -34,8 +43,8 @@ struct MeetingDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            if !meeting.participants.isEmpty {
-                Text("참석자 " + meeting.participants.map(\.displayName).joined(separator: ", "))
+            if !meeting.assignableParticipants.isEmpty {
+                Text("참석자 " + meeting.assignableParticipants.map(\.displayName).joined(separator: ", "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -45,6 +54,8 @@ struct MeetingDetailView: View {
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
+
+            unconfirmedSpeakerBanner
 
             Divider()
 
@@ -79,6 +90,42 @@ struct MeetingDetailView: View {
                     isConfirmingDeletion = false
                 }
             )
+        }
+        .sheet(isPresented: $isConfirmingSpeakers) {
+            if let speakerConfirmation {
+                SpeakerConfirmationView(
+                    projectID: meeting.projectID,
+                    meetingID: meeting.id,
+                    service: speakerConfirmation,
+                    onChanged: {
+                        await onSpeakersChanged?()
+                    }
+                )
+            }
+        }
+    }
+
+    /// An inline row, never a modal that opens by itself: the meeting is already complete and
+    /// usable, so this is an offer rather than a question the user has to answer.
+    @ViewBuilder
+    private var unconfirmedSpeakerBanner: some View {
+        let unconfirmed = meeting.unconfirmedSpeakers
+        if speakerConfirmation != nil, !unconfirmed.isEmpty, !isBannerDismissed {
+            HStack(spacing: 12) {
+                Text("확인되지 않은 화자 \(unconfirmed.count)명")
+                    .font(.caption)
+                    .accessibilityIdentifier("unconfirmed-speaker-banner")
+
+                Button("화자 확인") {
+                    isConfirmingSpeakers = true
+                }
+                .accessibilityIdentifier("confirm-speakers-button")
+
+                Button("나중에") {
+                    isBannerDismissed = true
+                }
+                .accessibilityIdentifier("dismiss-speaker-banner-button")
+            }
         }
     }
 }

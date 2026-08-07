@@ -35,6 +35,11 @@ enum TranscriptSpeakerDisplay {
         guard let participant = meeting.participants.first(where: { $0.id == speakerID }) else {
             return nil
         }
+        // Once the user has confirmed whose voice this is, that name wins over the provider's own
+        // label. Until then the behaviour is unchanged.
+        if let confirmed = meeting.confirmedParticipant(for: speakerID), confirmed.id != speakerID {
+            return confirmed.displayName
+        }
         return participant.speakerLabel ?? participant.displayName
     }
 }

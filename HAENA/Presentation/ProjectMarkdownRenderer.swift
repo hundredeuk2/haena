@@ -99,6 +99,6 @@ struct ProjectMarkdownRenderer {
     }
 
     private func participants(of meetingID: UUID, in project: Project) -> [Participant] {
-        project.meetings.first { $0.id == meetingID }?.participants ?? []
+        project.meetings.first { $0.id == meetingID }?.displayRoster ?? []
     }
 }
