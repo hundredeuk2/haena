@@ -9,9 +9,17 @@ struct MeetingDetailView: View {
     /// the banner simply never appears.
     var speakerConfirmation: SpeakerConfirmationService?
     var onSpeakersChanged: (() async -> Void)?
+    var pasteboardWriter: any PasteboardWriter = SystemPasteboardWriter()
+    var fileExporter: any MarkdownFileExporter = SavePanelMarkdownExporter()
 
     @State private var isConfirmingDeletion = false
     @State private var isConfirmingSpeakers = false
+    @State private var exportFeedback: ExportFeedback?
+
+    private struct ExportFeedback: Equatable {
+        let message: String
+        let isError: Bool
+    }
     /// Dismissing the banner hides it for this viewing only. It is not a decision that gets
     /// stored: nothing is deleted or permanently hidden, and re-opening the meeting offers it
     /// again for as long as any voice is still unidentified.
@@ -21,18 +29,39 @@ struct MeetingDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Text(meeting.title)
                     .font(.title2)
                     .bold()
+                    // A long title wraps instead of pushing the actions off the pane.
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("meeting-detail-title")
 
-                Spacer()
+                Spacer(minLength: 12)
+
+                Button("원문 복사") {
+                    copyTranscript()
+                }
+                .accessibilityIdentifier("copy-transcript-button")
+                .disabled(!hasExportableTranscript)
+
+                Button("원문 내보내기") {
+                    exportTranscript()
+                }
+                .accessibilityIdentifier("export-transcript-button")
+                .disabled(!hasExportableTranscript)
 
                 Button("회의 삭제", role: .destructive) {
                     isConfirmingDeletion = true
                 }
                 .accessibilityIdentifier("delete-meeting-button")
+            }
+
+            if let exportFeedback {
+                Text(exportFeedback.message)
+                    .font(.callout)
+                    .foregroundStyle(exportFeedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("transcript-export-feedback-message")
             }
 
             HStack(spacing: 16) {
@@ -101,6 +130,63 @@ struct MeetingDetailView: View {
                         await onSpeakersChanged?()
                     }
                 )
+            }
+        }
+    }
+
+    // MARK: - Transcript export
+
+    /// Driven by the transcript, not by the audio: a pasted-text meeting, or one whose recording
+    /// has since been deleted, still has words worth exporting.
+    private var hasExportableTranscript: Bool {
+        MeetingTranscriptMarkdownRenderer.hasExportableContent(meeting)
+    }
+
+    /// Built at the moment it is asked for, and from one function, so the file and the clipboard
+    /// are physically incapable of containing different text.
+    private func transcriptMarkdown() -> String {
+        MeetingTranscriptMarkdownRenderer().render(meeting: meeting)
+    }
+
+    private func copyTranscript() {
+        // Nothing to copy means the pasteboard is left exactly as the user had it.
+        guard hasExportableTranscript else {
+            return
+        }
+        if pasteboardWriter.write(transcriptMarkdown()) {
+            show(ExportFeedback(message: "복사됨", isError: false))
+        } else {
+            show(ExportFeedback(message: "클립보드에 복사하지 못했습니다.", isError: true))
+        }
+    }
+
+    private func exportTranscript() {
+        guard hasExportableTranscript else {
+            return
+        }
+        let outcome = fileExporter.export(
+            transcriptMarkdown(),
+            suggestedFilename: MeetingTranscriptMarkdownRenderer.filename(for: meeting)
+        )
+        switch outcome {
+        case .saved:
+            show(ExportFeedback(message: "저장됨", isError: false))
+        case .cancelled:
+            // Nothing to say: the user closed the panel on purpose.
+            break
+        case .failed:
+            show(ExportFeedback(message: "파일을 저장하지 못했습니다.", isError: true))
+        }
+    }
+
+    /// Clears itself, so the confirmation reads as being about the action just taken rather than
+    /// lingering beside a button the user might press again. Never blocks the screen.
+    private func show(_ newFeedback: ExportFeedback) {
+        exportFeedback = newFeedback
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if exportFeedback == newFeedback {
+                exportFeedback = nil
             }
         }
     }
