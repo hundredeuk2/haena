@@ -2,18 +2,35 @@ import AppKit
 import Foundation
 import SwiftUI
 
+/// The one condition that decides whether the app assembles its real components or the
+/// deterministic doubles.
+///
+/// Extracted from `HAENAApp.init` so it can be asserted directly: choosing a double in a shipped
+/// build would mean a user pressing record and getting silence, or being shown invented meeting
+/// content, and that must not rest on an untested inline comparison.
+enum AppComponentSelection {
+    static func isUITesting(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment["HAENA_UI_TESTING"] == "1"
+    }
+}
+
 @main
 struct HAENAApp: App {
     private let repository: any ProjectRepository
     private let extractor: any WorkStateExtractor
     private let transcriptionProvider: any TranscriptionProvider
     private let audioAssetStore: AudioAssetStore
+    private let audioRecorder: any MeetingAudioRecorder
+    private let recordingScratchStore: RecordingScratchStore
 
     // Hoisted out of `ContentView` (rather than left as its local @State) so the Quit command
     // below can close an open sheet before terminating: see `terminate()`.
     @State private var showingPasteTranscript = false
     @State private var showingProjectBrowser = false
     @State private var showingImportAudio = false
+    @State private var showingRecordAudio = false
 
     init() {
         // UI tests must never read or write the real Application Support data, nor reach the
@@ -24,7 +41,7 @@ struct HAENAApp: App {
         // Note this is the *only* place either implementation is chosen: the deterministic
         // extractor is never substituted for OpenAI when a request fails, because showing a user
         // invented decisions and tasks in place of an error would be worse than showing nothing.
-        if ProcessInfo.processInfo.environment["HAENA_UI_TESTING"] == "1" {
+        if AppComponentSelection.isUITesting() {
             repository = InMemoryProjectRepository()
             extractor = DeterministicWorkStateExtractor()
             transcriptionProvider = DeterministicTranscriptionProvider()
@@ -34,12 +51,28 @@ struct HAENAApp: App {
                 directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
                     .appendingPathComponent("HAENAUITests-\(UUID().uuidString)", isDirectory: true)
             )
+            // Never opens the microphone and never shows a permission prompt, so a UI-test launch
+            // cannot block on a system dialog no automated run can answer.
+            audioRecorder = DeterministicMeetingAudioRecorder()
+            recordingScratchStore = RecordingScratchStore(
+                directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                    .appendingPathComponent("HAENAUITestRecordings-\(UUID().uuidString)", isDirectory: true)
+            )
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             extractor = OpenAIWorkStateExtractor()
             transcriptionProvider = OpenAITranscriptionProvider()
             audioAssetStore = AudioAssetStore(directoryURL: AudioAssetStore.defaultDirectoryURL())
+            audioRecorder = AVFoundationMeetingAudioRecorder()
+            recordingScratchStore = RecordingScratchStore(
+                directoryURL: RecordingScratchStore.defaultDirectoryURL()
+            )
         }
+
+        // Anything a previous session left behind — a recording abandoned by a crash — goes now.
+        // Recordings are scratch by definition: nothing outside a live recording screen refers to
+        // one, so clearing them at launch can never remove something a meeting depends on.
+        recordingScratchStore.removeAll()
     }
 
     var body: some Scene {
@@ -49,9 +82,12 @@ struct HAENAApp: App {
                 extractor: extractor,
                 transcriptionProvider: transcriptionProvider,
                 audioAssetStore: audioAssetStore,
+                audioRecorder: audioRecorder,
+                recordingScratchStore: recordingScratchStore,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
-                showingImportAudio: $showingImportAudio
+                showingImportAudio: $showingImportAudio,
+                showingRecordAudio: $showingRecordAudio
             )
         }
         .commands {
@@ -72,13 +108,16 @@ struct HAENAApp: App {
     }
 
     private func terminate() {
-        guard showingPasteTranscript || showingProjectBrowser || showingImportAudio else {
+        // Closing the recording sheet is what stops the recorder and clears its temporary file:
+        // `RecordAudioView.onDisappear` owns that teardown, and quitting must not skip it.
+        guard showingPasteTranscript || showingProjectBrowser || showingImportAudio || showingRecordAudio else {
             NSApp.terminate(nil)
             return
         }
         showingPasteTranscript = false
         showingProjectBrowser = false
         showingImportAudio = false
+        showingRecordAudio = false
         DispatchQueue.main.async {
             NSApp.terminate(nil)
         }

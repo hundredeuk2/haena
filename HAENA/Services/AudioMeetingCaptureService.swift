@@ -99,11 +99,15 @@ struct AudioMeetingCaptureService: Sendable {
 
     // MARK: - Import
 
+    /// `sourceType` defaults to `.audioFile`, so every existing caller is unaffected. A microphone
+    /// recording passes `.microphone` — by the time it reaches here it is simply a local audio
+    /// file, and the rest of the pipeline is deliberately identical.
     @discardableResult
     func importAudioMeeting(
         projectID: UUID?,
         title: String,
-        fileURL: URL
+        fileURL: URL,
+        sourceType: MeetingSourceType = .audioFile
     ) async throws -> Meeting {
         guard let projectID else {
             throw AudioMeetingCaptureError.noProjectSelected
@@ -152,7 +156,8 @@ struct AudioMeetingCaptureService: Sendable {
             projectID: projectID,
             title: trimmedTitle,
             asset: asset,
-            result: result
+            result: result,
+            sourceType: sourceType
         )
 
         // Step 5: persist. The project is re-read rather than reused, because transcription may
@@ -177,7 +182,8 @@ struct AudioMeetingCaptureService: Sendable {
         projectID: UUID,
         title: String,
         asset: AudioAsset,
-        result: TranscriptionResult
+        result: TranscriptionResult,
+        sourceType: MeetingSourceType
     ) -> Meeting {
         let timestamp = now()
         let meetingID = makeID()
@@ -201,7 +207,7 @@ struct AudioMeetingCaptureService: Sendable {
             projectID: projectID,
             title: title,
             occurredAt: timestamp,
-            sourceType: .audioFile,
+            sourceType: sourceType,
             participants: mapping.participants,
             transcriptSegments: segments,
             createdAt: timestamp,

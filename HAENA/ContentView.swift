@@ -5,12 +5,15 @@ struct ContentView: View {
     let extractor: any WorkStateExtractor
     let transcriptionProvider: any TranscriptionProvider
     let audioAssetStore: AudioAssetStore
+    let audioRecorder: any MeetingAudioRecorder
+    let recordingScratchStore: RecordingScratchStore
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
     @Binding var showingPasteTranscript: Bool
     @Binding var showingProjectBrowser: Bool
     @Binding var showingImportAudio: Bool
+    @Binding var showingRecordAudio: Bool
 
     var body: some View {
         VStack(spacing: 24) {
@@ -20,8 +23,10 @@ struct ContentView: View {
                 .accessibilityIdentifier("product-name")
 
             VStack(spacing: 12) {
-                Button("녹음 시작") {}
-                    .accessibilityIdentifier("record-button")
+                Button("녹음 시작") {
+                    showingRecordAudio = true
+                }
+                .accessibilityIdentifier("record-button")
 
                 Button("파일 불러오기") {
                     showingImportAudio = true
@@ -44,6 +49,18 @@ struct ContentView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+            )
+        }
+        .sheet(isPresented: $showingRecordAudio) {
+            RecordAudioView(
+                recorder: audioRecorder,
+                scratchStore: recordingScratchStore,
+                captureService: AudioMeetingCaptureService(
+                    repository: repository,
+                    provider: transcriptionProvider,
+                    assetStore: audioAssetStore
+                ),
                 extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
             )
         }
@@ -76,8 +93,14 @@ struct ContentView: View {
             directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
                 .appendingPathComponent("HAENAPreview", isDirectory: true)
         ),
+        audioRecorder: DeterministicMeetingAudioRecorder(),
+        recordingScratchStore: RecordingScratchStore(
+            directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("HAENAPreviewRecordings", isDirectory: true)
+        ),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
-        showingImportAudio: .constant(false)
+        showingImportAudio: .constant(false),
+        showingRecordAudio: .constant(false)
     )
 }

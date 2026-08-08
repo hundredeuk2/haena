@@ -8,6 +8,15 @@ import UniformTypeIdentifiers
 struct ImportAudioView: View {
     let service: AudioMeetingCaptureService
     let extractionService: WorkStateExtractionService
+    /// Set when the audio was already produced elsewhere — a finished microphone recording — in
+    /// which case the file picker is replaced by a read-only summary and everything else about
+    /// this screen is unchanged.
+    var preselectedFile: ValidatedAudioFile?
+    var sourceType: MeetingSourceType = .audioFile
+    var heading: String = "오디오 파일 불러오기"
+    /// Called once the audio has been handed to the capture service successfully, so the owner of
+    /// a temporary recording knows it is safe to delete.
+    var onTranscribed: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -32,13 +41,14 @@ struct ImportAudioView: View {
     @State private var isAddingNewProject = false
     @State private var newProjectName = ""
     @State private var meetingTitle = ""
+    /// Seeded from `preselectedFile` on appear; `chooseFile()` is the only other writer.
     @State private var selectedFile: ValidatedAudioFile?
     @State private var validationMessage: String?
     @State private var phase: Phase = .idle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("오디오 파일 불러오기")
+            Text(heading)
                 .font(.title2)
                 .bold()
 
@@ -78,6 +88,12 @@ struct ImportAudioView: View {
         .padding(24)
         .frame(minWidth: 480, minHeight: 460)
         .task {
+            if let preselectedFile {
+                selectedFile = preselectedFile
+                if meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    meetingTitle = defaultRecordingTitle()
+                }
+            }
             do {
                 projects = try await service.allProjects()
             } catch {
@@ -88,13 +104,18 @@ struct ImportAudioView: View {
 
     // MARK: - Sections
 
+    @ViewBuilder
     private var fileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button("오디오 파일 선택") {
-                chooseFile()
+            // A recording is already chosen; offering a file picker here would let the user
+            // silently swap it for something else and orphan the recording.
+            if preselectedFile == nil {
+                Button("오디오 파일 선택") {
+                    chooseFile()
+                }
+                .accessibilityIdentifier("choose-audio-file-button")
+                .disabled(phase.isBusy)
             }
-            .accessibilityIdentifier("choose-audio-file-button")
-            .disabled(phase.isBusy)
 
             if let selectedFile {
                 Text("\(selectedFile.fileName) · \(byteCountText(selectedFile.byteSize))")
@@ -107,6 +128,12 @@ struct ImportAudioView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// A recording has no filename the user chose, so the date stands in — better than an empty
+    /// field they must fill before the button becomes usable.
+    private func defaultRecordingTitle() -> String {
+        "\(MeetingDateFormatter().string(from: Date())) 녹음"
     }
 
     private var projectSection: some View {
@@ -226,7 +253,8 @@ struct ImportAudioView: View {
                 meeting = try await service.importAudioMeeting(
                     projectID: selectedProjectID,
                     title: meetingTitle,
-                    fileURL: selectedFile.url
+                    fileURL: selectedFile.url,
+                    sourceType: sourceType
                 )
             } catch let error as AudioMeetingCaptureError {
                 phase = .failed(message(for: error))
@@ -238,6 +266,11 @@ struct ImportAudioView: View {
 
             // The transcript is safely persisted at this point. Extraction runs after, as a
             // separate step whose failure is reported but never rolls the save back.
+            //
+            // Signalled here rather than after extraction: the capture service has already made
+            // its own copy of the audio, so a temporary recording is redundant from this moment
+            // even if extraction goes on to fail.
+            onTranscribed?()
             phase = .saving
             await runExtraction(for: meeting)
         }

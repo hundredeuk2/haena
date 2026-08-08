@@ -43,6 +43,16 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "14.0"
+        # Shown verbatim in the system permission prompt. macOS refuses to open the microphone
+        # without it — the process is terminated rather than merely denied.
+        NSMicrophoneUsageDescription: HAE.NA가 회의를 녹음하고 전사하기 위해 마이크 접근 권한이 필요합니다.
+    entitlements:
+      path: HAENA/HAENA.entitlements
+      properties:
+        # Declared for microphone capture. App Sandbox itself is deliberately NOT enabled: turning
+        # it on moves the app's container, which would orphan the projects.json and stored audio a
+        # user already has. Sandboxing is a migration of its own, not a flag to flip beside a feature.
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENA
