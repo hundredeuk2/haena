@@ -7,6 +7,9 @@ struct ContentView: View {
     let audioAssetStore: AudioAssetStore
     let audioRecorder: any MeetingAudioRecorder
     let recordingScratchStore: RecordingScratchStore
+    /// A factory, not an instance: playback state belongs to one meeting at a time, so the pane
+    /// showing a meeting gets its own player.
+    let makeAudioPlayer: () -> any MeetingAudioPlayer
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -78,7 +81,8 @@ struct ContentView: View {
             ProjectBrowserView(
                 repository: repository,
                 extractor: extractor,
-                audioAssetStore: audioAssetStore
+                audioAssetStore: audioAssetStore,
+                makeAudioPlayer: makeAudioPlayer
             )
         }
     }
@@ -98,6 +102,7 @@ struct ContentView: View {
             directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
                 .appendingPathComponent("HAENAPreviewRecordings", isDirectory: true)
         ),
+        makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
         showingImportAudio: .constant(false),

@@ -11,6 +11,11 @@ struct MeetingDetailView: View {
     var onSpeakersChanged: (() async -> Void)?
     var pasteboardWriter: any PasteboardWriter = SystemPasteboardWriter()
     var fileExporter: any MarkdownFileExporter = SavePanelMarkdownExporter()
+    /// Supplied where stored audio can be resolved. Nil keeps this view usable on its own — the
+    /// player simply never appears, exactly as for a meeting that has no recording.
+    var audioAssetStore: AudioAssetStore?
+    /// A fresh player per meeting, chosen at the app's assembly point like every other boundary.
+    var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
 
     @State private var isConfirmingDeletion = false
     @State private var isConfirmingSpeakers = false
@@ -84,6 +89,8 @@ struct MeetingDetailView: View {
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
 
+            audioPlayer
+
             unconfirmedSpeakerBanner
 
             Divider()
@@ -131,6 +138,24 @@ struct MeetingDetailView: View {
                     }
                 )
             }
+        }
+    }
+
+    // MARK: - Audio playback
+
+    /// Shown only when this meeting has a stored recording — which is the same condition for a
+    /// microphone recording and an imported file, and never true for pasted text.
+    ///
+    /// `.id` on the asset is what makes switching meetings safe: SwiftUI reuses this pane for the
+    /// next selection, so without a changing identity the previous meeting's player would be
+    /// handed a new file while still holding the old one. A new identity tears the old player
+    /// down — `onDisappear` stops it — and builds a fresh one.
+    @ViewBuilder
+    private var audioPlayer: some View {
+        if let asset = meeting.audioAsset,
+           let url = MeetingAudioPlayback.fileURL(for: meeting, in: audioAssetStore) {
+            MeetingAudioPlayerView(fileURL: url, makePlayer: makeAudioPlayer)
+                .id(asset.id)
         }
     }
 

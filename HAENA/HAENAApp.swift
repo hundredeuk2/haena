@@ -24,6 +24,8 @@ struct HAENAApp: App {
     private let audioAssetStore: AudioAssetStore
     private let audioRecorder: any MeetingAudioRecorder
     private let recordingScratchStore: RecordingScratchStore
+    /// A factory, because playback state belongs to a single meeting at a time.
+    private let makeAudioPlayer: () -> any MeetingAudioPlayer
 
     // Hoisted out of `ContentView` (rather than left as its local @State) so the Quit command
     // below can close an open sheet before terminating: see `terminate()`.
@@ -58,6 +60,9 @@ struct HAENAApp: App {
                 directoryURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
                     .appendingPathComponent("HAENAUITestRecordings-\(UUID().uuidString)", isDirectory: true)
             )
+            // Never opens an audio device either, so an automated run cannot start playing sound
+            // out of whatever machine it happens to be on.
+            makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             extractor = OpenAIWorkStateExtractor()
@@ -67,6 +72,7 @@ struct HAENAApp: App {
             recordingScratchStore = RecordingScratchStore(
                 directoryURL: RecordingScratchStore.defaultDirectoryURL()
             )
+            makeAudioPlayer = { AVFoundationMeetingAudioPlayer() }
         }
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
@@ -84,6 +90,7 @@ struct HAENAApp: App {
                 audioAssetStore: audioAssetStore,
                 audioRecorder: audioRecorder,
                 recordingScratchStore: recordingScratchStore,
+                makeAudioPlayer: makeAudioPlayer,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

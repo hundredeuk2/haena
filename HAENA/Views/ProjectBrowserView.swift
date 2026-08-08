@@ -9,9 +9,12 @@ import SwiftUI
 struct ProjectBrowserView: View {
     let repository: any ProjectRepository
     let extractor: any WorkStateExtractor
-    /// Supplied so deleting a project or meeting also removes its stored audio. Defaulted to nil
-    /// for previews and for call sites that predate audio import.
+    /// Supplied so deleting a project or meeting also removes its stored audio, and so the meeting
+    /// pane can find the file to play. Defaulted to nil for previews and for call sites that
+    /// predate audio import.
     var audioAssetStore: AudioAssetStore?
+    /// Passed through to the meeting pane, which makes one player per meeting.
+    var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -83,7 +86,9 @@ struct ProjectBrowserView: View {
                     // what was actually persisted.
                     onSpeakersChanged: {
                         await load()
-                    }
+                    },
+                    audioAssetStore: audioAssetStore,
+                    makeAudioPlayer: makeAudioPlayer
                 )
             } else {
                 Text("회의를 선택해주세요.")
