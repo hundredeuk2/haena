@@ -62,11 +62,12 @@ actor AVFoundationMeetingAudioPlayer: MeetingAudioPlayer {
         player?.currentTime = 0
     }
 
-    func currentTime() -> TimeInterval {
-        player?.currentTime ?? 0
-    }
-
-    func isPlaying() -> Bool {
-        player?.isPlaying ?? false
+    /// Both values off the same player in one actor-isolated read, so nothing can pause between
+    /// them.
+    func snapshot() -> PlaybackSnapshot {
+        guard let player else {
+            return PlaybackSnapshot(currentTime: 0, isPlaying: false)
+        }
+        return PlaybackSnapshot(currentTime: player.currentTime, isPlaying: player.isPlaying)
     }
 }

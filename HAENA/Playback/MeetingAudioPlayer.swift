@@ -13,6 +13,16 @@ enum MeetingAudioPlayerError: Error, Equatable, Sendable {
     case playbackFailed
 }
 
+/// Where the playhead is, and whether audio is actually coming out — read together.
+///
+/// One value rather than two calls, because the two answers are only meaningful as a pair. Asked
+/// separately they can straddle a pause: a position from before it and a running state from after,
+/// which reads as "stopped at a position it had not reached yet".
+struct PlaybackSnapshot: Equatable, Sendable {
+    let currentTime: TimeInterval
+    let isPlaying: Bool
+}
+
 /// The seam between "play this meeting's recording" and AVFoundation.
 ///
 /// It exists for the same reason as `MeetingAudioRecorder`: the whole playback flow — load,
@@ -30,6 +40,7 @@ protocol MeetingAudioPlayer: Sendable {
     /// Stops and returns to the beginning. Safe to call when nothing is playing, so teardown
     /// paths — a closed pane, a different meeting selected — can call it unconditionally.
     func stop() async
-    func currentTime() async -> TimeInterval
-    func isPlaying() async -> Bool
+    /// Position and running state in a single read, so a caller cannot interleave anything
+    /// between the two.
+    func snapshot() async -> PlaybackSnapshot
 }

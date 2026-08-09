@@ -14,7 +14,12 @@ struct MeetingAudioPlayerView: View {
     }
 
     /// Only ticks while something is playing; the model ignores it otherwise.
-    private let ticker = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+    ///
+    /// `@State` rather than a plain `let`: this struct is rebuilt on every published change — which
+    /// is every tick while playing — and a stored-property initializer would hand `onReceive` a
+    /// brand new publisher each time, tearing down and restarting the timer continuously. One timer
+    /// per player, created once.
+    @State private var ticker = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

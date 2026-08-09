@@ -34,8 +34,9 @@ final class MeetingAudioPlaybackBoundaryTests: XCTestCase {
         let duration = try await player.load(url)
 
         XCTAssertEqual(duration, 1.5, accuracy: 0.05)
-        let time = await player.currentTime()
-        let playing = await player.isPlaying()
+        let snapshot = await player.snapshot()
+        let time = snapshot.currentTime
+        let playing = snapshot.isPlaying
         XCTAssertEqual(time, 0)
         XCTAssertFalse(playing)
     }
@@ -73,8 +74,9 @@ final class MeetingAudioPlaybackBoundaryTests: XCTestCase {
         await player.seekToStart()
         await player.stop()
 
-        let time = await player.currentTime()
-        let playing = await player.isPlaying()
+        let snapshot = await player.snapshot()
+        let time = snapshot.currentTime
+        let playing = snapshot.isPlaying
         XCTAssertEqual(time, 0)
         XCTAssertFalse(playing)
     }

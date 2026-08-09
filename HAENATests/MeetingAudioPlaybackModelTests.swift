@@ -138,6 +138,127 @@ final class MeetingAudioPlaybackModelTests: XCTestCase {
         XCTAssertEqual(seeks, 1)
     }
 
+    // MARK: - Pause must never become a rewind
+
+    /// The defect this suite missed: a timer tick was in flight when the user pressed pause, saw a
+    /// player that was no longer running, and called the file finished. The next press of play then
+    /// started from the top.
+    ///
+    /// Every test above drove `tick()` and `togglePlayPause()` one strictly after the other, which
+    /// is the one ordering the real app never guarantees.
+    func testATickInFlightWhilePausingCannotTurnAPauseIntoARewind() async {
+        let (model, player) = makeModel(duration: 20)
+        await model.load()
+        await model.togglePlayPause()
+        await player.advance(by: 7)
+
+        async let ticking: Void = model.tick()
+        await model.togglePlayPause()
+        await ticking
+
+        XCTAssertEqual(model.phase, .ready, "A pause is not a finish.")
+        XCTAssertEqual(model.currentTime, 7)
+
+        await model.togglePlayPause()
+        XCTAssertEqual(model.phase, .playing)
+        XCTAssertEqual(model.currentTime, 7, "Resuming must continue from where it stopped.")
+        let seeks = await player.seekCount
+        XCTAssertEqual(seeks, 0, "Nothing may seek to zero unless the user asked for it.")
+    }
+
+    /// The state the race produced, reached directly: the player stopped mid-file without this
+    /// model doing it. That is not the end of the file, and must not be reported as one.
+    func testAPlayerStoppedShortOfTheEndIsNotReportedAsFinished() async {
+        let (model, player) = makeModel(duration: 20)
+        await model.load()
+        await model.togglePlayPause()
+        await player.advance(by: 4)
+        await player.interrupt()
+
+        await model.tick()
+
+        XCTAssertEqual(model.phase, .ready)
+        XCTAssertEqual(model.currentTime, 4, "The position it stopped at is what resuming needs.")
+    }
+
+    /// Reaching the end is still detected — the fix must not trade one wrong reading for another.
+    func testReachingTheEndIsStillDetectedAfterTheFix() async {
+        let (model, player) = makeModel(duration: 10)
+        await model.load()
+        await model.togglePlayPause()
+        await player.advance(by: 10)
+
+        await model.tick()
+
+        XCTAssertEqual(model.phase, .finished)
+    }
+
+    /// Some players rewind to zero the instant a file completes. That must read as finished, not as
+    /// a player mysteriously stopped at the start.
+    func testAPlayerThatRewindsItselfAtTheEndIsStillFinished() async {
+        let (model, player) = makeModel(duration: 10)
+        await model.load()
+        await model.togglePlayPause()
+
+        // Playing, all but at the end.
+        await player.advance(by: 9.9)
+        await model.tick()
+        XCTAssertEqual(model.phase, .playing)
+        XCTAssertEqual(model.currentTime, 9.9, accuracy: 0.001)
+
+        // The file runs out and the player rewinds itself before the next tick reads it.
+        await player.interrupt()
+        await player.seekToStart()
+        await model.tick()
+
+        XCTAssertEqual(model.phase, .finished)
+        XCTAssertEqual(model.currentTime, 10)
+    }
+
+    /// Pause and resume, several times over, never loses the position.
+    func testRepeatedPauseAndResumeKeepsAdvancing() async {
+        let (model, player) = makeModel(duration: 60)
+        await model.load()
+
+        for expected in [5.0, 11.0, 18.0] {
+            await model.togglePlayPause()
+            XCTAssertEqual(model.phase, .playing)
+            await player.advance(by: expected - model.currentTime)
+            await model.tick()
+            await model.togglePlayPause()
+            XCTAssertEqual(model.currentTime, expected)
+        }
+
+        let seeks = await player.seekCount
+        XCTAssertEqual(seeks, 0)
+    }
+
+    /// Only the two paths that mean "from the top" may move the playhead to zero.
+    func testOnlyRestartAndPlayingAfterTheEndSeekToZero() async {
+        let (model, player) = makeModel(duration: 20)
+        await model.load()
+        await model.togglePlayPause()
+        await player.advance(by: 9)
+        await model.tick()
+
+        await model.togglePlayPause()   // pause
+        await model.togglePlayPause()   // resume
+        await model.tick()
+        var seeks = await player.seekCount
+        XCTAssertEqual(seeks, 0)
+
+        await model.restart()
+        seeks = await player.seekCount
+        XCTAssertEqual(seeks, 1, "The 처음부터 button is an explicit request to go to zero.")
+
+        await player.advance(by: 20)
+        await model.tick()
+        XCTAssertEqual(model.phase, .finished)
+        await model.togglePlayPause()
+        seeks = await player.seekCount
+        XCTAssertEqual(seeks, 2, "Playing from the end is the other way to mean 'from the top'.")
+    }
+
     // MARK: - Ticking
 
     func testTickIsIgnoredWhileNotPlaying() async {
@@ -180,7 +301,7 @@ final class MeetingAudioPlaybackModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .ready)
         XCTAssertEqual(model.currentTime, 0)
         let stops = await player.stopCount
-        let playing = await player.isPlaying()
+        let playing = await player.snapshot().isPlaying
         XCTAssertEqual(stops, 1)
         XCTAssertFalse(playing, "Leaving the screen must not leave audio running.")
     }

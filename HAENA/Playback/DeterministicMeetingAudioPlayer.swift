@@ -76,12 +76,8 @@ actor DeterministicMeetingAudioPlayer: MeetingAudioPlayer {
         time = 0
     }
 
-    func currentTime() -> TimeInterval {
-        time
-    }
-
-    func isPlaying() -> Bool {
-        playing
+    func snapshot() -> PlaybackSnapshot {
+        PlaybackSnapshot(currentTime: time, isPlaying: playing)
     }
 
     // MARK: - Test control
@@ -97,5 +93,12 @@ actor DeterministicMeetingAudioPlayer: MeetingAudioPlayer {
             time = duration
             playing = false
         }
+    }
+
+    /// Stops playback mid-file without moving the playhead, leaving the player in the state
+    /// something outside the model would leave it in — a pause that has already taken effect, an
+    /// unplugged device. Distinct from reaching the end, and it must not be mistaken for one.
+    func interrupt() {
+        playing = false
     }
 }

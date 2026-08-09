@@ -127,7 +127,9 @@ final class MeetingAudioPlaybackModel: ObservableObject {
             await start(fromBeginning: true)
         case .playing:
             await player.pause()
-            currentTime = await player.currentTime()
+            // Read after pausing, so the stored position is where the audio actually stopped.
+            // This is what resuming continues from — nothing seeks to zero on this path.
+            currentTime = min(await player.snapshot().currentTime, duration)
             phase = .ready
         case .idle, .loading, .failed:
             break
@@ -153,21 +155,52 @@ final class MeetingAudioPlaybackModel: ObservableObject {
 
     /// Refreshes the elapsed time from the player rather than counting ticks, so a delayed or
     /// dropped tick cannot make the readout drift away from what is actually being heard.
+    ///
+    /// This runs on a timer, so it is always racing whatever the user is doing. Two rules keep it
+    /// from overwriting their action: it re-checks the phase after its one suspension point, and it
+    /// only calls a file finished when the playhead actually reached the end. A player that merely
+    /// stopped is not a player that finished — mistaking one for the other is what turned a pause
+    /// into a rewind.
     func tick() async {
         guard phase == .playing else {
             return
         }
-        let time = await player.currentTime()
-        if await player.isPlaying() {
-            currentTime = min(time, duration)
-        } else {
-            // The file ran out on its own.
+        let snapshot = await player.snapshot()
+        // The user may have pressed pause while this read was in flight.
+        guard phase == .playing else {
+            return
+        }
+
+        if snapshot.isPlaying {
+            currentTime = min(snapshot.currentTime, duration)
+        } else if hasReachedEnd(snapshot.currentTime) {
             currentTime = duration
             phase = .finished
+        } else {
+            // Stopped short of the end without going through this model. Keep the position, so
+            // whatever happens next resumes from where the audio actually stopped.
+            currentTime = min(snapshot.currentTime, duration)
+            phase = .ready
         }
     }
 
     // MARK: - Private
+
+    /// Whether a stopped player stopped because the file ran out.
+    ///
+    /// The tolerance is there because a player is not obliged to land exactly on the duration it
+    /// reported, and some rewind to zero the instant a file completes — which is why a playhead at
+    /// the start is read against the position this model last saw rather than taken at face value.
+    private func hasReachedEnd(_ time: TimeInterval) -> Bool {
+        guard duration > 0 else {
+            return false
+        }
+        let tolerance = 0.5
+        if time >= duration - tolerance {
+            return true
+        }
+        return time <= tolerance && currentTime >= duration - tolerance
+    }
 
     private func start(fromBeginning: Bool) async {
         if fromBeginning {
