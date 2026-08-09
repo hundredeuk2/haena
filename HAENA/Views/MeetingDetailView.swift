@@ -11,6 +11,12 @@ private enum MeetingDetailPane: String, CaseIterable, Identifiable {
 }
 
 /// Detail pane for a single meeting: what the meeting produced, with its transcript one tab away.
+///
+/// Built with `.id(meeting.id)` at its call site, so a different meeting is a different view. Every
+/// piece of per-meeting view state below — the selected tab, the export banner, the dismissed
+/// speaker banner, and the scroll offsets and disclosure state inside the two panes — is discarded
+/// with it. That is the only way the scroll offsets can be cleared at all: they belong to SwiftUI,
+/// not to any property here.
 struct MeetingDetailView: View {
     /// The meeting's project, needed because a meeting's results are stored on the project rather
     /// than inside the meeting — and because every verdict is applied by project id.
@@ -55,8 +61,17 @@ struct MeetingDetailView: View {
                 Text(meeting.title)
                     .font(.title2)
                     .bold()
-                    // A long title wraps instead of pushing the actions off the pane.
+                    // A long title wraps rather than pushing 회의 삭제 off the pane — but only so
+                    // far. This header does not scroll, so every line it grows is a line the whole
+                    // browser grows with it: the auto-generated recording title
+                    // "Aug 9, 2026 at 1:00 AM 녹음" wraps to three lines in a narrow column, and
+                    // that alone was enough to push the split view past the height the window could
+                    // give it, leaving the title centred off the top edge. The full title stays
+                    // available on hover.
+                    .lineLimit(2)
+                    .truncationMode(.tail)
                     .fixedSize(horizontal: false, vertical: true)
+                    .help(meeting.title)
                     .accessibilityIdentifier("meeting-detail-title")
 
                 Spacer(minLength: 12)
@@ -76,9 +91,15 @@ struct MeetingDetailView: View {
             .foregroundStyle(.secondary)
 
             if !meeting.assignableParticipants.isEmpty {
-                Text("참석자 " + meeting.assignableParticipants.map(\.displayName).joined(separator: ", "))
+                // Bounded for the same reason as the title: a meeting with many participants must
+                // not be able to grow this header without limit.
+                let roster = meeting.assignableParticipants.map(\.displayName).joined(separator: ", ")
+                Text("참석자 " + roster)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .help(roster)
             }
 
             if let deletionErrorMessage {
@@ -101,31 +122,31 @@ struct MeetingDetailView: View {
             .labelsHidden()
             .accessibilityIdentifier("meeting-detail-pane-picker")
 
-            switch pane {
-            case .results:
-                MeetingResultsView(
-                    project: project,
-                    meeting: meeting,
-                    reviewService: reviewService,
-                    onChanged: onWorkStateChanged
-                )
+            // Whichever pane is showing scrolls within the space left over from the header above,
+            // and never asks for more than that. The header is the one part of this screen that
+            // must always be reachable — it carries the title, the tab picker and 회의 삭제 — so a
+            // pane whose content is taller than the pane must scroll inside itself rather than
+            // grow the column it sits in.
+            Group {
+                switch pane {
+                case .results:
+                    MeetingResultsView(
+                        project: project,
+                        meeting: meeting,
+                        reviewService: reviewService,
+                        onChanged: onWorkStateChanged
+                    )
 
-            case .transcript:
-                transcriptPane
+                case .transcript:
+                    transcriptPane
+                }
             }
+            .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-detail-screen")
-        // Selecting a different meeting reuses this view rather than rebuilding it, so the pane has
-        // to be sent back explicitly — otherwise the transcript a user opened on one meeting
-        // silently becomes the landing screen for every meeting after it.
-        .onChange(of: meeting.id) { _, _ in
-            pane = .results
-            exportFeedback = nil
-            isBannerDismissed = false
-        }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
                 title: "“\(meeting.title)” 회의를 삭제할까요?",
@@ -191,6 +212,8 @@ struct MeetingDetailView: View {
 
             unconfirmedSpeakerBanner
 
+            // The one part of this pane that grows: a long transcript scrolls here rather than
+            // stretching the pane past the bottom of the column.
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(meeting.transcriptSegments) { segment in
@@ -201,10 +224,13 @@ struct MeetingDetailView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Same reasoning as the results pane: a transcript of any length must not become a
+            // height this screen asks the window for. See `MeetingResultsView`.
+            .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("meeting-transcript")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-transcript-pane")
     }

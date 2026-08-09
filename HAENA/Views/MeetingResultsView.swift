@@ -43,6 +43,13 @@ struct MeetingResultsView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // No preferred height of its own — it takes whatever height it is handed and scrolls inside
+        // it. `idealHeight: 0` is the load-bearing part: a bare `ScrollView` reports the full height
+        // of its content as the height it would like, and this pane sits inside a window-sized
+        // sheet that lays its content out at that requested height and then centres it. A meeting
+        // with enough results pushed the request past the sheet, and everything above this screen —
+        // the meeting title, the tab picker, 회의 삭제 — was centred off the top edge.
+        .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-results-screen")
         .sheet(item: $editingActionItem) { item in

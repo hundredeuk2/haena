@@ -102,6 +102,16 @@ struct ProjectBrowserView: View {
                     audioAssetStore: audioAssetStore,
                     makeAudioPlayer: makeAudioPlayer
                 )
+                // Identity per meeting, so selecting a different one builds a fresh pane instead of
+                // pouring new content into the old one. Without this the previous meeting's view
+                // state carries over: both scroll positions, which 처리됨 groups were expanded, the
+                // selected tab, and the audio player. Scroll offset in particular is held by
+                // SwiftUI itself and cannot be reset from an `onChange` — the only way to clear it
+                // is to make the view a different view.
+                //
+                // Keyed on the meeting rather than the project value, so reloading after a verdict
+                // — same meeting, new `Project` — leaves the pane exactly where the user left it.
+                .id(meeting.id)
             } else {
                 Text("회의를 선택해주세요.")
                     .foregroundStyle(.secondary)
