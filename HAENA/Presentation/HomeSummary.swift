@@ -63,11 +63,21 @@ struct HomeSummary: Equatable, Sendable {
     /// proposal total is `pendingProposalCount`.
     let pendingProposalsByProject: ProjectStatusSection<HomePendingProposalCount>
 
+    /// Everyone's work in progress. Always present, and never hidden just because the user set up
+    /// a profile — the app is used by one person, but the meetings were not.
     let activeActionItems: ProjectStatusSection<HomeActionItem>
+    /// The user's own work, or nil when there is no basis for saying which is theirs. Nil is a
+    /// meaningfully different state from empty: empty means "nothing is assigned to you", nil means
+    /// "nobody has said who you are", and the screen answers those two very differently.
+    let myActionItems: ProjectStatusSection<HomeActionItem>?
+
     let unresolvedQuestions: ProjectStatusSection<HomeEntry<OpenQuestion>>
     let upcomingAgendaItems: ProjectStatusSection<HomeEntry<AgendaItem>>
 
     let projectCount: Int
+    /// What the user calls themselves, when they have said. Carried so the screen can show it
+    /// without going back to storage.
+    let localUserName: String?
 
     /// The moment this summary was taken, which is what "overdue" is measured against. Held on the
     /// value rather than read from `Date()` per call, so one rendered home stays internally
@@ -80,11 +90,13 @@ struct HomeSummary: Equatable, Sendable {
 
     init(
         projects: [Project],
+        profile: LocalUserProfile? = nil,
         referenceDate: Date = Date(),
         limit: Int = HomeSummary.representativeLimit
     ) {
         self.referenceDate = referenceDate
         projectCount = projects.count
+        localUserName = profile?.displayName
 
         // Merged in a fixed project order, so the input to every sort below is itself stable.
         let ordered = projects.sorted(by: ProjectBrowserQueryService.isOrderedBefore)
@@ -133,10 +145,16 @@ struct HomeSummary: Equatable, Sendable {
         // "What should I do next" is a question about deadlines, so work is ordered by due date
         // rather than by when it was last touched — the same re-ordering, and the same comparator,
         // the project status screen already applies.
-        activeActionItems = ProjectStatusSection(
-            all: work.sorted { ProjectStatusSummary.isOrderedByDueDate($0.actionItem, $1.actionItem) },
-            limit: limit
-        )
+        let orderedWork = work.sorted { ProjectStatusSummary.isOrderedByDueDate($0.actionItem, $1.actionItem) }
+        activeActionItems = ProjectStatusSection(all: orderedWork, limit: limit)
+
+        // Filtered out of the already-ordered list, so "my work" is a subset of the same list in
+        // the same order rather than a second calculation that could disagree with it. One pass
+        // over the tasks also means a task cannot appear twice however many of the user's linked
+        // identities are involved.
+        myActionItems = MyWorkPolicy.isPersonalised(profile)
+            ? ProjectStatusSection(all: MyWorkPolicy.mine(orderedWork, profile: profile), limit: limit)
+            : nil
 
         // Merging two already-sorted lists does not produce a sorted list, so both are re-sorted
         // with the very comparator `WorkStateInbox` used per project.
@@ -152,8 +170,18 @@ struct HomeSummary: Equatable, Sendable {
 
     /// Every qualifying item rather than the first few, for callers that must not silently drop
     /// state — currently only tests, which need the totals to be checkable item by item.
-    static func complete(projects: [Project], referenceDate: Date = Date()) -> HomeSummary {
-        HomeSummary(projects: projects, referenceDate: referenceDate, limit: .max)
+    static func complete(
+        projects: [Project],
+        profile: LocalUserProfile? = nil,
+        referenceDate: Date = Date()
+    ) -> HomeSummary {
+        HomeSummary(projects: projects, profile: profile, referenceDate: referenceDate, limit: .max)
+    }
+
+    /// Whether the screen can offer a "my work" view at all. False leaves the home showing
+    /// everyone's work, with an invitation rather than a guess.
+    var isPersonalised: Bool {
+        myActionItems != nil
     }
 
     /// True when there is nothing at all to act on. Distinct from having no projects: a user can

@@ -10,6 +10,7 @@ struct ContentView: View {
     /// A factory, not an instance: playback state belongs to one meeting at a time, so the pane
     /// showing a meeting gets its own player.
     let makeAudioPlayer: () -> any MeetingAudioPlayer
+    let profileRepository: any LocalUserProfileRepository
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -25,6 +26,7 @@ struct ContentView: View {
     /// Changed whenever a sheet closes, which is the only way stored data changes while the home is
     /// on screen. The home reloads on it rather than polling.
     @State private var homeReloadToken = UUID()
+    @State private var showingProfile = false
 
     private struct BrowserDestination: Equatable {
         let projectID: UUID
@@ -34,7 +36,9 @@ struct ContentView: View {
     var body: some View {
         HomeView(
             repository: repository,
+            profileRepository: profileRepository,
             reloadToken: homeReloadToken,
+            onOpenProfile: { showingProfile = true },
             onRecord: { showingRecordAudio = true },
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
@@ -60,6 +64,17 @@ struct ContentView: View {
         }
         .onChange(of: showingProjectBrowser) { _, isShowing in
             reloadHomeAfterDismissal(isShowing)
+        }
+        .onChange(of: showingProfile) { _, isShowing in
+            reloadHomeAfterDismissal(isShowing)
+        }
+        .sheet(isPresented: $showingProfile) {
+            ProfileSettingsView(
+                service: LocalUserProfileService(
+                    profileRepository: profileRepository,
+                    projectRepository: repository
+                )
+            )
         }
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
@@ -127,6 +142,7 @@ struct ContentView: View {
                 .appendingPathComponent("HAENAPreviewRecordings", isDirectory: true)
         ),
         makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
+        profileRepository: InMemoryLocalUserProfileRepository(),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
         showingImportAudio: .constant(false),

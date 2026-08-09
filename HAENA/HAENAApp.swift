@@ -24,6 +24,7 @@ struct HAENAApp: App {
     private let audioAssetStore: AudioAssetStore
     private let audioRecorder: any MeetingAudioRecorder
     private let recordingScratchStore: RecordingScratchStore
+    private let profileRepository: any LocalUserProfileRepository
     /// A factory, because playback state belongs to a single meeting at a time.
     private let makeAudioPlayer: () -> any MeetingAudioPlayer
 
@@ -63,6 +64,7 @@ struct HAENAApp: App {
             // Never opens an audio device either, so an automated run cannot start playing sound
             // out of whatever machine it happens to be on.
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
+            profileRepository = InMemoryLocalUserProfileRepository()
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             extractor = OpenAIWorkStateExtractor()
@@ -73,6 +75,9 @@ struct HAENAApp: App {
                 directoryURL: RecordingScratchStore.defaultDirectoryURL()
             )
             makeAudioPlayer = { AVFoundationMeetingAudioPlayer() }
+            profileRepository = JSONLocalUserProfileRepository(
+                fileURL: JSONLocalUserProfileRepository.defaultFileURL()
+            )
         }
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
@@ -91,6 +96,7 @@ struct HAENAApp: App {
                 audioRecorder: audioRecorder,
                 recordingScratchStore: recordingScratchStore,
                 makeAudioPlayer: makeAudioPlayer,
+                profileRepository: profileRepository,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

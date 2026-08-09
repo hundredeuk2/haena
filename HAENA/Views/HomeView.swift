@@ -7,9 +7,11 @@ import SwiftUI
 /// can be judged. It owns no filtering or ordering rules either; those all live in `HomeSummary`.
 struct HomeView: View {
     let repository: any ProjectRepository
+    let profileRepository: any LocalUserProfileRepository
     /// Changed by the owner whenever something might have altered stored data — closing a capture
     /// sheet, returning from the browser — which re-runs the load.
     let reloadToken: UUID
+    let onOpenProfile: () -> Void
     let onRecord: () -> Void
     let onImportAudio: () -> Void
     let onPasteTranscript: () -> Void
@@ -18,6 +20,9 @@ struct HomeView: View {
     let onOpenProject: (UUID, ProjectDetailPane) -> Void
 
     @State private var loadState: LoadState = .loading
+    /// Which list the work area is showing. Session-only on purpose: this is a glance, not a saved
+    /// filter, and persisting it would be one more piece of state to explain.
+    @State private var showingAllWork = false
 
     private enum LoadState: Equatable {
         case loading
@@ -94,6 +99,34 @@ struct HomeView: View {
                 }
                 .accessibilityIdentifier("browse-projects-button")
             }
+
+            profileRow
+        }
+    }
+
+    /// An invitation, never a gate: the app is fully usable without a profile, so this states the
+    /// situation and offers the screen rather than blocking the way in.
+    @ViewBuilder
+    private var profileRow: some View {
+        HStack(spacing: 8) {
+            if case .loaded(let summary) = loadState, let name = summary.localUserName {
+                Text(summary.isPersonalised ? "내 이름: \(name)" : "내 이름: \(name) · 연결된 참석자 없음")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home-profile-name")
+            } else {
+                Text("프로필 미설정")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home-profile-unset")
+            }
+
+            Button("내 프로필") {
+                onOpenProfile()
+            }
+            .accessibilityIdentifier("open-profile-button")
+
+            Spacer(minLength: 0)
         }
     }
 
@@ -160,19 +193,49 @@ struct HomeView: View {
         }
     }
 
+    /// Shows the user's own work once they have identified themselves, and everyone's otherwise.
+    /// The full list stays one press away either way — the meetings involved other people, and
+    /// hiding them behind a profile would lose information the user already had.
     private func workSection(_ summary: HomeSummary) -> some View {
-        HomeSection(
-            title: "진행 업무",
-            countLabel: "\(summary.activeActionItems.totalCount)건",
+        let showingMine = summary.isPersonalised && !showingAllWork
+        let section = showingMine ? (summary.myActionItems ?? summary.activeActionItems) : summary.activeActionItems
+
+        return HomeSection(
+            title: showingMine ? "내 업무" : "진행 업무",
+            countLabel: "\(section.totalCount)건",
             identifier: "home-work"
         ) {
-            if summary.activeActionItems.isEmpty {
-                Text("진행 중인 업무가 없습니다.")
+            if summary.isPersonalised {
+                Button(showingAllWork ? "내 업무만 보기" : "전체 진행 업무 보기") {
+                    showingAllWork.toggle()
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+                .accessibilityIdentifier("toggle-work-scope-button")
+            } else {
+                // Non-blocking: it says what is missing and where to fix it, and the list below is
+                // unaffected either way.
+                HStack(spacing: 6) {
+                    Text("내 업무를 보려면 프로필과 참석자를 연결하세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("내 프로필") {
+                        onOpenProfile()
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .accessibilityIdentifier("home-my-work-hint-button")
+                }
+                .accessibilityIdentifier("home-my-work-hint")
+            }
+
+            if section.isEmpty {
+                Text(showingMine ? "나에게 배정된 진행 업무가 없습니다." : "진행 중인 업무가 없습니다.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-work-empty")
             } else {
-                ForEach(summary.activeActionItems.items) { entry in
+                ForEach(section.items) { entry in
                     HomeRowButton(identifier: "home-work-row-\(entry.id.uuidString)") {
                         onOpenProject(entry.projectID, .workState)
                     } label: {
@@ -202,7 +265,7 @@ struct HomeView: View {
                     }
                 }
                 hiddenCountLabel(
-                    summary.activeActionItems.hiddenCount,
+                    section.hiddenCount,
                     unit: "건",
                     identifier: "home-work-more"
                 )
@@ -292,7 +355,10 @@ struct HomeView: View {
         loadState = .loading
         do {
             let projects = try await ProjectBrowserQueryService(repository: repository).loadProjects()
-            loadState = .loaded(HomeSummary(projects: projects))
+            // A profile that fails to load must not take the whole screen down with it: the four
+            // areas are useful without one, so this degrades to the unpersonalised view.
+            let profile = try? await profileRepository.profile()
+            loadState = .loaded(HomeSummary(projects: projects, profile: profile))
         } catch {
             loadState = .failed("저장된 내용을 불러오지 못했습니다.")
         }
