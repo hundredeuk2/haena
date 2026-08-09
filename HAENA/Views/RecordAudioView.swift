@@ -11,6 +11,9 @@ struct RecordAudioView: View {
     let scratchStore: RecordingScratchStore
     let captureService: AudioMeetingCaptureService
     let extractionService: WorkStateExtractionService
+    /// Forwarded to the import screen this hands over to, so a recording ends on the same
+    /// completion screen — and the same 결과 확인 button — as an imported file.
+    var onOpenResults: ((CaptureDestination) -> Void)?
     /// Injected so the elapsed time is testable and so it is measured from a monotonic-enough
     /// source rather than counted up by the timer's own tick count.
     var now: () -> Date = Date.init
@@ -67,7 +70,8 @@ struct RecordAudioView: View {
                     onTranscribed: {
                         // The capture service has its own copy now.
                         discardScratchFile()
-                    }
+                    },
+                    onOpenResults: onOpenResults
                 )
             } else {
                 recordingScreen

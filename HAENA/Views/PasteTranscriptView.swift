@@ -7,6 +7,9 @@ import SwiftUI
 struct PasteTranscriptView: View {
     let service: TextMeetingCaptureService
     let extractionService: WorkStateExtractionService
+    /// Asked for by the completion screen. The caller records where to go and this sheet closes
+    /// itself; nothing here presents the browser.
+    var onOpenResults: ((CaptureDestination) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -17,11 +20,29 @@ struct PasteTranscriptView: View {
     @State private var meetingTitle = ""
     @State private var transcriptText = ""
     @State private var validationMessage: String?
-    @State private var savedMessage: String?
-    @State private var extractionMessage: String?
     @State private var isExtracting = false
+    /// Set once the meeting is safely stored, which is what replaces this form with the completion
+    /// screen. Never set for a capture that failed before the save — there would be no meeting to
+    /// report or to open.
+    @State private var outcome: CaptureOutcome?
 
     var body: some View {
+        if let outcome {
+            CaptureCompletionView(
+                outcome: outcome,
+                identifiers: .pastedText,
+                onOpenResults: {
+                    onOpenResults?(outcome.destination)
+                    dismiss()
+                },
+                onClose: { dismiss() }
+            )
+        } else {
+            captureForm
+        }
+    }
+
+    private var captureForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("텍스트 회의록 붙여넣기")
                 .font(.title2)
@@ -42,22 +63,9 @@ struct PasteTranscriptView: View {
                     .accessibilityIdentifier("text-meeting-validation-message")
             }
 
-            if let savedMessage {
-                Text(savedMessage)
-                    .foregroundStyle(.green)
-                    .accessibilityIdentifier("text-meeting-saved-message")
-            }
-
             if isExtracting {
                 ProgressView("AI 분석 중…")
                     .accessibilityIdentifier("work-state-extraction-progress")
-            }
-
-            if let extractionMessage {
-                Text(extractionMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("work-state-extraction-message")
             }
 
             HStack {
@@ -133,8 +141,6 @@ struct PasteTranscriptView: View {
 
     private func saveMeeting() {
         validationMessage = nil
-        savedMessage = nil
-        extractionMessage = nil
         Task {
             let meeting: Meeting
             do {
@@ -153,50 +159,37 @@ struct PasteTranscriptView: View {
 
             // The transcript is already safely persisted at this point. Extraction runs after,
             // as a separate step whose failure is reported but never rolls the save back.
-            savedMessage = "회의록이 저장되었습니다."
-            await runExtraction(for: meeting)
+            let notice = await runExtraction(for: meeting)
+            outcome = await CaptureOutcome.make(
+                for: meeting,
+                notice: notice,
+                repository: service.repository
+            )
         }
     }
 
-    private func runExtraction(for meeting: Meeting) async {
+    /// Returns the non-blocking notice to carry onto the completion screen, or nil when extraction
+    /// did what it was asked to. A failure here never undoes the save, so it is reported beside the
+    /// meeting rather than instead of it.
+    private func runExtraction(for meeting: Meeting) async -> String? {
         isExtracting = true
         defer { isExtracting = false }
 
         do {
-            let report = try await extractionService.extractAndApply(
+            try await extractionService.extractAndApply(
                 meetingID: meeting.id,
                 projectID: meeting.projectID
             )
-            extractionMessage = report.storedCount == 0
-                ? "AI가 근거를 확인할 수 있는 제안을 찾지 못했습니다."
-                : "AI 제안 \(report.storedCount)건이 추가되었습니다. 검토·승인 전까지는 제안 상태입니다."
+            return nil
         } catch {
-            extractionMessage = extractionFailureMessage(for: error)
+            return extractionFailureMessage(for: error)
         }
     }
 
     /// Maps extraction failures to fixed Korean copy. Nothing from the provider's response is
     /// interpolated, so no key material or transcript text can reach the screen through an error.
     private func extractionFailureMessage(for error: any Error) -> String {
-        let suffix = "회의록은 저장되었습니다."
-        guard let error = error as? WorkStateExtractionError else {
-            return "AI 분석에 실패했습니다. \(suffix)"
-        }
-
-        switch error {
-        case .missingCredential:
-            return "AI 분석을 사용하려면 OPENAI_API_KEY 환경변수가 필요합니다. \(suffix)"
-        case .unauthorized:
-            return "AI 인증에 실패했습니다. \(suffix)"
-        case .rateLimited:
-            return "AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요. \(suffix)"
-        case .timedOut, .networkUnavailable:
-            return "AI 서버에 연결하지 못했습니다. \(suffix)"
-        case .refused:
-            return "AI가 이 회의록 분석을 거절했습니다. \(suffix)"
-        case .serverError, .requestRejected, .emptyResponse, .malformedResponse, .invalidConfiguration:
-            return "AI 분석에 실패했습니다. \(suffix)"
-        }
+        CaptureFailureCopy.extraction(error)
     }
 
     private func message(for error: TextMeetingCaptureError) -> String {

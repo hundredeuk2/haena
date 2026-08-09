@@ -1,13 +1,19 @@
 import SwiftUI
 
 /// Which half of a meeting is showing.
-private enum MeetingDetailPane: String, CaseIterable, Identifiable {
-    /// What the meeting turned into. The default: a meeting is worth opening for what came of it,
-    /// and the transcript is the evidence behind that rather than the point of it.
+enum MeetingDetailPane: String, CaseIterable, Identifiable {
+    /// What the meeting turned into.
     case results
     case transcript
 
     var id: String { rawValue }
+
+    /// Where a meeting opens: on what came of it. The transcript is the evidence behind that
+    /// rather than the point of it, so it is one tab away rather than in front.
+    ///
+    /// Named rather than written inline at the `@State` so it is a rule that can be stated and
+    /// checked, not an initialiser someone could change without noticing what it decides.
+    static let initial: MeetingDetailPane = .results
 }
 
 /// Detail pane for a single meeting: what the meeting produced, with its transcript one tab away.
@@ -42,7 +48,7 @@ struct MeetingDetailView: View {
     @State private var isConfirmingDeletion = false
     @State private var isConfirmingSpeakers = false
     @State private var exportFeedback: ExportFeedback?
-    @State private var pane: MeetingDetailPane = .results
+    @State private var pane: MeetingDetailPane = .initial
 
     private struct ExportFeedback: Equatable {
         let message: String

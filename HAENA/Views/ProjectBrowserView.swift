@@ -16,8 +16,13 @@ struct ProjectBrowserView: View {
     /// Passed through to the meeting pane, which makes one player per meeting.
     var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
     /// Where to land when the browser opens, for a caller that already knows — the home screen
-    /// tapping a row. Nil opens on nothing selected, as before.
+    /// tapping a row, or a capture that just created a meeting. Nil opens on nothing selected,
+    /// as before.
     var initialProjectID: UUID?
+    /// Selects one meeting inside `initialProjectID`, so a finished capture lands on the meeting it
+    /// created rather than on the project that contains it. Ignored without a project, and ignored
+    /// if that project no longer has the meeting.
+    var initialMeetingID: UUID?
     var initialPane: ProjectDetailPane = .status
 
     @Environment(\.dismiss) private var dismiss
@@ -204,16 +209,28 @@ struct ProjectBrowserView: View {
         }
     }
 
-    /// Selects the project a caller asked to open, once and only while nothing else is selected —
-    /// a reload triggered by approving something must not drag the user back to where they came in.
-    /// A project that no longer exists is simply not selected; `validateSelection` then applies.
+    /// Selects the project — and, when asked for, the meeting — a caller wanted to open. Applied
+    /// once and only while nothing else is selected: a reload triggered by approving something must
+    /// not drag the user back to where they came in.
+    ///
+    /// Anything that no longer exists is simply not selected rather than treated as an error. A
+    /// capture's meeting can be gone by the time the browser opens — deleted from another window,
+    /// or removed from the file underneath — and landing on the project, or on nothing, is a fine
+    /// outcome; `validateSelection` then applies as usual.
     private func applyInitialSelection(against projects: [Project]) {
-        guard selectedProjectID == nil,
-              let initialProjectID,
-              projects.contains(where: { $0.id == initialProjectID }) else {
+        guard selectedProjectID == nil else {
             return
         }
-        selectedProjectID = initialProjectID
+        let selection = BrowserInitialSelection.resolve(
+            projectID: initialProjectID,
+            meetingID: initialMeetingID,
+            in: projects
+        )
+        guard let projectID = selection.projectID else {
+            return
+        }
+        selectedProjectID = projectID
+        selectedMeetingID = selection.meetingID
     }
 
     /// Clears any selection that no longer points at something in `projects` — e.g. after a

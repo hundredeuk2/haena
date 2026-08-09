@@ -24,16 +24,18 @@ struct ContentView: View {
     /// button. Kept here rather than in `HAENAApp` because, unlike the sheet flags, quitting has no
     /// interest in it.
     @State private var browserDestination: BrowserDestination?
+    /// Where to go once the capture sheet currently on screen has finished closing.
+    ///
+    /// One sheet cannot be swapped for another in a single step: asking for the browser while the
+    /// capture sheet is still attached to the window leaves SwiftUI holding two presentations for
+    /// one window, and it drops one of them. So the destination waits here, and the capture
+    /// sheet's own dismissal is what opens the browser.
+    @State private var destinationAfterCapture: BrowserDestination?
     /// Changed whenever a sheet closes, which is the only way stored data changes while the home is
     /// on screen. The home reloads on it rather than polling.
     @State private var homeReloadToken = UUID()
     @State private var showingProfile = false
     @State private var showingAISettings = false
-
-    private struct BrowserDestination: Equatable {
-        let projectID: UUID
-        let pane: ProjectDetailPane
-    }
 
     var body: some View {
         HomeView(
@@ -88,7 +90,8 @@ struct ContentView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                onOpenResults: requestResults
             )
         }
         .sheet(isPresented: $showingRecordAudio) {
@@ -100,7 +103,8 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                onOpenResults: requestResults
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -110,7 +114,8 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                onOpenResults: requestResults
             )
         }
         .sheet(isPresented: $showingProjectBrowser) {
@@ -120,19 +125,48 @@ struct ContentView: View {
                 audioAssetStore: audioAssetStore,
                 makeAudioPlayer: makeAudioPlayer,
                 initialProjectID: browserDestination?.projectID,
+                initialMeetingID: browserDestination?.meetingID,
                 initialPane: browserDestination?.pane ?? .status
             )
         }
     }
 
-    /// Reloads once a sheet has actually closed. A capture sheet can add a meeting and a whole set
-    /// of proposals, and the browser can approve or delete them, so what the home showed before is
-    /// stale by the time the user is looking at it again.
+    /// Records where a finished capture wants to go. The capture sheet closes itself right after
+    /// calling this; opening the browser is left to `openPendingDestination`, once that dismissal
+    /// has actually happened.
+    ///
+    /// Landing on 회의 means the meeting list is the useful middle pane — the meeting the user just
+    /// made is selected in it — while the detail pane opens on 회의 결과 by itself.
+    private func requestResults(_ destination: CaptureDestination) {
+        destinationAfterCapture = .results(of: destination)
+    }
+
+    /// Reloads once a sheet has actually closed, and opens the browser if the capture that just
+    /// closed asked for it.
+    ///
+    /// A capture sheet can add a meeting and a whole set of proposals, and the browser can approve
+    /// or delete them, so what the home showed before is stale by the time the user is looking at
+    /// it again.
     private func reloadHomeAfterDismissal(_ isShowing: Bool) {
         guard !isShowing else {
             return
         }
         homeReloadToken = UUID()
+        openPendingDestination()
+    }
+
+    /// Opens the browser on the next run loop turn rather than immediately: the sheet whose
+    /// dismissal brought us here is still being torn down, and presenting into the same window
+    /// before it has finished is what makes one of the two sheets never appear.
+    private func openPendingDestination() {
+        guard let destination = destinationAfterCapture else {
+            return
+        }
+        destinationAfterCapture = nil
+        DispatchQueue.main.async {
+            browserDestination = destination
+            showingProjectBrowser = true
+        }
     }
 }
 

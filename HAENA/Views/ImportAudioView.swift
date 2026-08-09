@@ -17,6 +17,9 @@ struct ImportAudioView: View {
     /// Called once the audio has been handed to the capture service successfully, so the owner of
     /// a temporary recording knows it is safe to delete.
     var onTranscribed: (() -> Void)?
+    /// Asked for by the completion screen. The caller records where to go and this sheet closes
+    /// itself; nothing here presents the browser.
+    var onOpenResults: ((CaptureDestination) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -26,7 +29,9 @@ struct ImportAudioView: View {
         case idle
         case transcribing
         case saving
-        case completed(String)
+        /// The meeting reached storage. Only ever built from a real saved meeting, so the
+        /// completion screen can always offer it.
+        case completed(CaptureOutcome)
         case failed(String)
 
         /// Both phases where work is in flight. Every control that could start a second run is
@@ -47,6 +52,22 @@ struct ImportAudioView: View {
     @State private var phase: Phase = .idle
 
     var body: some View {
+        if case .completed(let outcome) = phase {
+            CaptureCompletionView(
+                outcome: outcome,
+                identifiers: .audio,
+                onOpenResults: {
+                    onOpenResults?(outcome.destination)
+                    dismiss()
+                },
+                onClose: { dismiss() }
+            )
+        } else {
+            captureForm
+        }
+    }
+
+    private var captureForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(heading)
                 .font(.title2)
@@ -179,10 +200,9 @@ struct ImportAudioView: View {
         case .saving:
             ProgressView("저장하고 AI가 분석하는 중…")
                 .accessibilityIdentifier("audio-saving-progress")
-        case .completed(let message):
-            Text(message)
-                .foregroundStyle(.green)
-                .accessibilityIdentifier("audio-import-completed-message")
+        case .completed:
+            // The whole screen is the completion view by then; see `body`.
+            EmptyView()
         case .failed(let message):
             Text(message)
                 .foregroundStyle(.red)
@@ -276,20 +296,25 @@ struct ImportAudioView: View {
         }
     }
 
+    /// Runs extraction over the already-stored meeting, then reports what the meeting holds.
+    ///
+    /// A failure here is carried onto the completion screen as a notice rather than replacing it:
+    /// the audio, the transcript and the meeting are all safely stored by this point, and hiding
+    /// them behind an error would be a lie about what happened.
     private func runExtraction(for meeting: Meeting) async {
-        let saved = "회의록이 저장되었습니다."
+        var notice: String?
         do {
-            let report = try await extractionService.extractAndApply(
+            try await extractionService.extractAndApply(
                 meetingID: meeting.id,
                 projectID: meeting.projectID
             )
-            let detail = report.storedCount == 0
-                ? "AI가 근거를 확인할 수 있는 제안을 찾지 못했습니다."
-                : "AI 제안 \(report.storedCount)건이 추가되었습니다. 검토·승인 전까지는 제안 상태입니다."
-            phase = .completed("\(saved) \(detail) 프로젝트 보기에서 확인할 수 있습니다.")
         } catch {
-            phase = .completed("\(saved) \(extractionFailureMessage(for: error))")
+            notice = CaptureFailureCopy.extraction(error)
         }
+
+        phase = .completed(
+            await CaptureOutcome.make(for: meeting, notice: notice, repository: service.repository)
+        )
     }
 
     // MARK: - Copy
@@ -350,26 +375,6 @@ struct ImportAudioView: View {
             return "전사 결과가 비어 있습니다. 음성이 들어 있는 파일인지 확인해주세요. \(suffix)"
         case .serverError, .requestRejected, .malformedResponse, .invalidConfiguration:
             return "전사에 실패했습니다. \(suffix)"
-        }
-    }
-
-    private func extractionFailureMessage(for error: any Error) -> String {
-        guard let error = error as? WorkStateExtractionError else {
-            return "AI 분석에 실패했습니다."
-        }
-        switch error {
-        case .missingCredential:
-            return "AI 분석을 사용하려면 OPENAI_API_KEY 환경변수가 필요합니다."
-        case .unauthorized:
-            return "AI 인증에 실패했습니다."
-        case .rateLimited:
-            return "AI 요청이 일시적으로 제한되었습니다."
-        case .timedOut, .networkUnavailable:
-            return "AI 서버에 연결하지 못했습니다."
-        case .refused:
-            return "AI가 이 회의록 분석을 거절했습니다."
-        case .serverError, .requestRejected, .emptyResponse, .malformedResponse, .invalidConfiguration:
-            return "AI 분석에 실패했습니다."
         }
     }
 
