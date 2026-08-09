@@ -18,37 +18,49 @@ struct ContentView: View {
     @Binding var showingImportAudio: Bool
     @Binding var showingRecordAudio: Bool
 
+    /// Where the browser should land when it opens. Set by a home row, cleared by the 프로젝트 보기
+    /// button. Kept here rather than in `HAENAApp` because, unlike the sheet flags, quitting has no
+    /// interest in it.
+    @State private var browserDestination: BrowserDestination?
+    /// Changed whenever a sheet closes, which is the only way stored data changes while the home is
+    /// on screen. The home reloads on it rather than polling.
+    @State private var homeReloadToken = UUID()
+
+    private struct BrowserDestination: Equatable {
+        let projectID: UUID
+        let pane: ProjectDetailPane
+    }
+
     var body: some View {
-        VStack(spacing: 24) {
-            Text(AppInfo.name)
-                .font(.largeTitle)
-                .bold()
-                .accessibilityIdentifier("product-name")
-
-            VStack(spacing: 12) {
-                Button("녹음 시작") {
-                    showingRecordAudio = true
-                }
-                .accessibilityIdentifier("record-button")
-
-                Button("파일 불러오기") {
-                    showingImportAudio = true
-                }
-                .accessibilityIdentifier("import-button")
-
-                Button("텍스트 회의록 붙여넣기") {
-                    showingPasteTranscript = true
-                }
-                .accessibilityIdentifier("paste-transcript-button")
-
-                Button("프로젝트 보기") {
-                    showingProjectBrowser = true
-                }
-                .accessibilityIdentifier("browse-projects-button")
+        HomeView(
+            repository: repository,
+            reloadToken: homeReloadToken,
+            onRecord: { showingRecordAudio = true },
+            onImportAudio: { showingImportAudio = true },
+            onPasteTranscript: { showingPasteTranscript = true },
+            onBrowseProjects: {
+                browserDestination = nil
+                showingProjectBrowser = true
+            },
+            // The home never presents review UI of its own; it opens the screen that already owns
+            // the action, on the area the user asked for.
+            onOpenProject: { projectID, pane in
+                browserDestination = BrowserDestination(projectID: projectID, pane: pane)
+                showingProjectBrowser = true
             }
+        )
+        .onChange(of: showingPasteTranscript) { _, isShowing in
+            reloadHomeAfterDismissal(isShowing)
         }
-        .padding(40)
-        .frame(minWidth: 420, minHeight: 280)
+        .onChange(of: showingRecordAudio) { _, isShowing in
+            reloadHomeAfterDismissal(isShowing)
+        }
+        .onChange(of: showingImportAudio) { _, isShowing in
+            reloadHomeAfterDismissal(isShowing)
+        }
+        .onChange(of: showingProjectBrowser) { _, isShowing in
+            reloadHomeAfterDismissal(isShowing)
+        }
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
@@ -82,9 +94,21 @@ struct ContentView: View {
                 repository: repository,
                 extractor: extractor,
                 audioAssetStore: audioAssetStore,
-                makeAudioPlayer: makeAudioPlayer
+                makeAudioPlayer: makeAudioPlayer,
+                initialProjectID: browserDestination?.projectID,
+                initialPane: browserDestination?.pane ?? .status
             )
         }
+    }
+
+    /// Reloads once a sheet has actually closed. A capture sheet can add a meeting and a whole set
+    /// of proposals, and the browser can approve or delete them, so what the home showed before is
+    /// stale by the time the user is looking at it again.
+    private func reloadHomeAfterDismissal(_ isShowing: Bool) {
+        guard !isShowing else {
+            return
+        }
+        homeReloadToken = UUID()
     }
 }
 

@@ -15,6 +15,10 @@ struct ProjectBrowserView: View {
     var audioAssetStore: AudioAssetStore?
     /// Passed through to the meeting pane, which makes one player per meeting.
     var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
+    /// Where to land when the browser opens, for a caller that already knows — the home screen
+    /// tapping a row. Nil opens on nothing selected, as before.
+    var initialProjectID: UUID?
+    var initialPane: ProjectDetailPane = .status
 
     @Environment(\.dismiss) private var dismiss
 
@@ -65,7 +69,8 @@ struct ProjectBrowserView: View {
                     // always what was actually persisted.
                     onWorkStateChanged: {
                         await load()
-                    }
+                    },
+                    requestedPane: selectedProjectID == initialProjectID ? initialPane : nil
                 )
             } else {
                 Text("프로젝트를 선택해주세요.")
@@ -175,10 +180,23 @@ struct ProjectBrowserView: View {
         do {
             let projects = try await queryService.loadProjects()
             loadState = projects.isEmpty ? .empty : .loaded(projects)
+            applyInitialSelection(against: projects)
             validateSelection(against: projects)
         } catch {
             loadState = .failed("프로젝트를 불러오지 못했습니다.")
         }
+    }
+
+    /// Selects the project a caller asked to open, once and only while nothing else is selected —
+    /// a reload triggered by approving something must not drag the user back to where they came in.
+    /// A project that no longer exists is simply not selected; `validateSelection` then applies.
+    private func applyInitialSelection(against projects: [Project]) {
+        guard selectedProjectID == nil,
+              let initialProjectID,
+              projects.contains(where: { $0.id == initialProjectID }) else {
+            return
+        }
+        selectedProjectID = initialProjectID
     }
 
     /// Clears any selection that no longer points at something in `projects` — e.g. after a

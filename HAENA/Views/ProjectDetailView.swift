@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Which area of a project is showing. Declared at file scope rather than nested privately so a
+/// caller can ask for one directly — the home screen opens a project already on its work state.
+enum ProjectDetailPane: String, CaseIterable, Identifiable {
+    case status
+    case meetings
+    case workState
+
+    var id: String { rawValue }
+}
+
 /// Content pane for one project, switching between its meetings and its work state.
 ///
 /// The two are separated by a picker rather than stacked, because the meeting list is a selection
@@ -17,18 +27,14 @@ struct ProjectDetailView: View {
     var pasteboardWriter: any PasteboardWriter = SystemPasteboardWriter()
     var fileExporter: any MarkdownFileExporter = SavePanelMarkdownExporter()
 
+    /// Set by a caller that already knows which area the user asked for — the home screen opening
+    /// a project's work state, for instance. Nil leaves the pane at its normal default.
+    var requestedPane: ProjectDetailPane?
+
     @State private var isConfirmingDeletion = false
-    @State private var pane: Pane = .status
+    @State private var pane: ProjectDetailPane = .status
 
     private let dateFormatter = MeetingDateFormatter()
-
-    private enum Pane: String, CaseIterable, Identifiable {
-        case status
-        case meetings
-        case workState
-
-        var id: String { rawValue }
-    }
 
     private var statusSummary: ProjectStatusSummary {
         ProjectStatusSummary(project: project)
@@ -80,10 +86,10 @@ struct ProjectDetailView: View {
             Divider()
 
             Picker("표시", selection: $pane) {
-                Text("현재 상태").tag(Pane.status)
-                Text("회의").tag(Pane.meetings)
+                Text("현재 상태").tag(ProjectDetailPane.status)
+                Text("회의").tag(ProjectDetailPane.meetings)
                 Text(pendingProposalCount == 0 ? "업무 상태" : "업무 상태 (\(pendingProposalCount))")
-                    .tag(Pane.workState)
+                    .tag(ProjectDetailPane.workState)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -130,9 +136,17 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("project-detail-screen")
+        // Only on first appearance, and only when a caller asked: arriving from the home screen
+        // lands on the area the user tapped rather than making them find it again.
+        .onAppear {
+            if let requestedPane {
+                pane = requestedPane
+            }
+        }
         // Selecting a different project in the sidebar reuses this view rather than rebuilding it,
         // so the pane has to be sent back to 현재 상태 explicitly — otherwise the second project a
-        // user opens inherits whichever tab they left the first one on.
+        // user opens inherits whichever tab they left the first one on. This deliberately wins over
+        // `requestedPane`: that request was about the project the user arrived on, not this one.
         .onChange(of: project.id) { _, _ in
             pane = .status
         }

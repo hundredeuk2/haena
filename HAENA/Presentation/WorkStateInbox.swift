@@ -147,13 +147,24 @@ enum WorkStateInbox {
     static func reviewedOpenQuestions(in project: Project) -> [OpenQuestion] {
         project.openQuestions
             .filter { $0.status == .open && $0.reviewedAt != nil }
-            .sorted { ($0.createdAt, $0.id.uuidString) > ($1.createdAt, $1.id.uuidString) }
+            .sorted(by: isOrderedBefore)
     }
 
     /// Agenda entries a person kept for the next meeting.
     static func reviewedAgendaItems(in project: Project) -> [AgendaItem] {
         project.nextAgenda
             .filter { $0.status == .pending && $0.reviewedAt != nil }
-            .sorted { ($0.createdAt, $0.id.uuidString) > ($1.createdAt, $1.id.uuidString) }
+            .sorted(by: isOrderedBefore)
+    }
+
+    /// Newest first, then by id — a total order. Named rather than inlined because a screen that
+    /// merges these across projects has to re-sort the merged list, and doing that with a
+    /// second, hand-copied comparator is how two lists of the same thing start disagreeing.
+    static func isOrderedBefore(_ lhs: OpenQuestion, _ rhs: OpenQuestion) -> Bool {
+        (lhs.createdAt, lhs.id.uuidString) > (rhs.createdAt, rhs.id.uuidString)
+    }
+
+    static func isOrderedBefore(_ lhs: AgendaItem, _ rhs: AgendaItem) -> Bool {
+        (lhs.createdAt, lhs.id.uuidString) > (rhs.createdAt, rhs.id.uuidString)
     }
 }

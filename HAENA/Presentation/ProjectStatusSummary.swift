@@ -8,6 +8,18 @@ struct ProjectStatusSection<Item: Equatable & Sendable>: Equatable, Sendable {
     let items: [Item]
     let totalCount: Int
 
+    init(items: [Item], totalCount: Int) {
+        self.items = items
+        self.totalCount = totalCount
+    }
+
+    /// Takes the first `limit` of everything that qualifies, and remembers how many there were.
+    /// The count comes from the full list on purpose — deriving it from the truncated one is
+    /// exactly the misreport this type exists to prevent.
+    init(all items: [Item], limit: Int) {
+        self.init(items: Array(items.prefix(max(0, limit))), totalCount: items.count)
+    }
+
     var isEmpty: Bool { totalCount == 0 }
 
     /// How many exist beyond the ones being shown, for a "+N" affordance. Never negative.
@@ -101,6 +113,6 @@ struct ProjectStatusSummary: Equatable, Sendable {
         _ items: [Item],
         limit: Int
     ) -> ProjectStatusSection<Item> {
-        ProjectStatusSection(items: Array(items.prefix(max(0, limit))), totalCount: items.count)
+        ProjectStatusSection(all: items, limit: limit)
     }
 }
