@@ -25,6 +25,8 @@ struct HAENAApp: App {
     private let audioRecorder: any MeetingAudioRecorder
     private let recordingScratchStore: RecordingScratchStore
     private let profileRepository: any LocalUserProfileRepository
+    /// One resolver, shared by transcription and extraction, so the app cannot use two keys.
+    private let credentialResolver: OpenAICredentialResolver
     /// A factory, because playback state belongs to a single meeting at a time.
     private let makeAudioPlayer: () -> any MeetingAudioPlayer
 
@@ -48,6 +50,8 @@ struct HAENAApp: App {
             repository = InMemoryProjectRepository()
             extractor = DeterministicWorkStateExtractor()
             transcriptionProvider = DeterministicTranscriptionProvider()
+            // Never the real Keychain: an automated run must not read or overwrite the user's key.
+            credentialResolver = OpenAICredentialResolver(store: InMemoryAPICredentialStore())
             // A throwaway directory per launch, so a UI test that imports audio cannot write
             // into — or delete out of — the real Application Support store.
             audioAssetStore = AudioAssetStore(
@@ -67,8 +71,10 @@ struct HAENAApp: App {
             profileRepository = InMemoryLocalUserProfileRepository()
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
-            extractor = OpenAIWorkStateExtractor()
-            transcriptionProvider = OpenAITranscriptionProvider()
+            let resolver = OpenAICredentialResolver.shared
+            credentialResolver = resolver
+            extractor = OpenAIWorkStateExtractor(apiKeyProvider: resolver.apiKeyProvider())
+            transcriptionProvider = OpenAITranscriptionProvider(apiKeyProvider: resolver.apiKeyProvider())
             audioAssetStore = AudioAssetStore(directoryURL: AudioAssetStore.defaultDirectoryURL())
             audioRecorder = AVFoundationMeetingAudioRecorder()
             recordingScratchStore = RecordingScratchStore(
@@ -97,6 +103,7 @@ struct HAENAApp: App {
                 recordingScratchStore: recordingScratchStore,
                 makeAudioPlayer: makeAudioPlayer,
                 profileRepository: profileRepository,
+                credentialResolver: credentialResolver,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

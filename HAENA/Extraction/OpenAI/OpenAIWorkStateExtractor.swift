@@ -15,7 +15,7 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
 
     init(
         configuration: OpenAIConfiguration = .fromEnvironment(),
-        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAIConfiguration.apiKey() },
+        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAICredentialResolver.shared.apiKey() },
         transport: (any HTTPTransport)? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {

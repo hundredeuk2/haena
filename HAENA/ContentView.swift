@@ -11,6 +11,7 @@ struct ContentView: View {
     /// showing a meeting gets its own player.
     let makeAudioPlayer: () -> any MeetingAudioPlayer
     let profileRepository: any LocalUserProfileRepository
+    let credentialResolver: OpenAICredentialResolver
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -27,6 +28,7 @@ struct ContentView: View {
     /// on screen. The home reloads on it rather than polling.
     @State private var homeReloadToken = UUID()
     @State private var showingProfile = false
+    @State private var showingAISettings = false
 
     private struct BrowserDestination: Equatable {
         let projectID: UUID
@@ -39,6 +41,7 @@ struct ContentView: View {
             profileRepository: profileRepository,
             reloadToken: homeReloadToken,
             onOpenProfile: { showingProfile = true },
+            onOpenAISettings: { showingAISettings = true },
             onRecord: { showingRecordAudio = true },
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
@@ -67,6 +70,12 @@ struct ContentView: View {
         }
         .onChange(of: showingProfile) { _, isShowing in
             reloadHomeAfterDismissal(isShowing)
+        }
+        .sheet(isPresented: $showingAISettings) {
+            AISettingsView(
+                resolver: credentialResolver,
+                verifier: OpenAICredentialVerifier()
+            )
         }
         .sheet(isPresented: $showingProfile) {
             ProfileSettingsView(
@@ -143,6 +152,7 @@ struct ContentView: View {
         ),
         makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
         profileRepository: InMemoryLocalUserProfileRepository(),
+        credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
         showingImportAudio: .constant(false),

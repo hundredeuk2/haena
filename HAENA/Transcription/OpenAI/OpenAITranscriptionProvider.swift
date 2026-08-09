@@ -53,7 +53,7 @@ struct OpenAITranscriptionProvider: TranscriptionProvider {
 
     init(
         configuration: OpenAITranscriptionConfiguration = OpenAITranscriptionConfiguration(),
-        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAIConfiguration.apiKey() },
+        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAICredentialResolver.shared.apiKey() },
         transport: (any HTTPTransport)? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         makeBoundary: @escaping @Sendable () -> String = { "haena-\(UUID().uuidString)" }

@@ -56,10 +56,10 @@ struct OpenAIConfiguration: Equatable, Sendable {
     static func apiKey(
         from environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> String? {
-        guard let key = environment[apiKeyEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !key.isEmpty else {
+        guard let raw = environment[apiKeyEnvironmentKey] else {
             return nil
         }
-        return key
+        // Same trimming rule the Keychain path uses, so "what counts as a key" has one definition.
+        return CredentialNormalisation.normalised(raw)
     }
 }

@@ -12,6 +12,7 @@ struct HomeView: View {
     /// sheet, returning from the browser — which re-runs the load.
     let reloadToken: UUID
     let onOpenProfile: () -> Void
+    let onOpenAISettings: () -> Void
     let onRecord: () -> Void
     let onImportAudio: () -> Void
     let onPasteTranscript: () -> Void
@@ -125,6 +126,11 @@ struct HomeView: View {
                 onOpenProfile()
             }
             .accessibilityIdentifier("open-profile-button")
+
+            Button("AI 설정") {
+                onOpenAISettings()
+            }
+            .accessibilityIdentifier("open-ai-settings-button")
 
             Spacer(minLength: 0)
         }
