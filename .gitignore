@@ -21,3 +21,33 @@ xcuserdata/
 # not extend to publishing it in a repository. Anchored to the repository root
 # so a source directory named `data/` elsewhere is unaffected.
 /data/
+
+# Release packaging output and its isolated DerivedData. Build artifacts are
+# published on GitHub Releases, never committed: a binary in the history is
+# unreviewable, bloats every clone, and cannot be verified after the fact.
+/dist/
+/.build/
+
+# Local credentials. Never committed in any form — a key in history stays in
+# history even after the file is deleted.
+.env
+.env.*
+*.pem
+*.p12
+*.key
+.haena-*key*
+
+# Test results and editor state
+*.xcresult
+*.xctestrun
+.swiftpm/
+
+# macOS
+.AppleDouble
+.LSOverride
+._*
+
+# Temporary patches and scratch output
+*.orig
+*.rej
+*.patch.tmp
