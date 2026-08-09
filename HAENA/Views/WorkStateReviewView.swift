@@ -84,76 +84,26 @@ struct WorkStateReviewView: View {
         }
     }
 
+    /// Rendered by the shared `WorkStateProposalCard`, which the per-meeting results screen uses
+    /// too: one card means neither screen can drift into showing a proposal without its evidence,
+    /// or offering a verdict the other does not.
     private func proposalCard(_ proposal: WorkStateProposal) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(WorkStateDisplay.label(for: proposal.kind))
-                    .font(.caption)
-                    .bold()
-                Spacer()
-                if let confidence = WorkStateDisplay.confidenceLabel(proposal.confidence) {
-                    Text(confidence)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("proposal-confidence-\(proposal.id.uuidString)")
-                }
-            }
+        WorkStateProposalCard(
+            proposal: proposal,
+            participants: participants(forMeeting: proposal.meetingID),
+            identifiers: .projectReview(proposal.id),
+            onApprove: { Task { await approve(proposal) } },
+            onExclude: { Task { await exclude(proposal) } },
+            onEdit: editAction(for: proposal)
+        )
+    }
 
-            Text(proposal.headline)
-                .font(.body)
-
-            if let supporting = proposal.supporting {
-                Text(supporting)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if case .actionItem(let item) = proposal {
-                HStack(spacing: 12) {
-                    Text(WorkStateDisplay.assigneeLabel(item.assigneeID, participants: participants(forMeeting: item.meetingID)))
-                    if let due = WorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
-                        Text(due)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            // The evidence is the whole point of the review step: a user should never have to take
-            // the model's word for what was said.
-            if let evidence = proposal.evidence {
-                Text("원문 “\(evidence.quote)”")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("proposal-evidence-\(proposal.id.uuidString)")
-            }
-
-            HStack {
-                Button("승인") {
-                    Task { await approve(proposal) }
-                }
-                .accessibilityIdentifier("approve-proposal-\(proposal.id.uuidString)")
-
-                Button("제외") {
-                    Task { await exclude(proposal) }
-                }
-                .accessibilityIdentifier("exclude-proposal-\(proposal.id.uuidString)")
-
-                if case .actionItem(let item) = proposal {
-                    Button("수정") {
-                        editingActionItem = item
-                    }
-                    .accessibilityIdentifier("edit-action-item-\(item.id.uuidString)")
-                }
-
-                Spacer()
-            }
+    /// Only an action item has fields worth correcting, so every other kind gets no 수정 button.
+    private func editAction(for proposal: WorkStateProposal) -> (() -> Void)? {
+        guard case .actionItem(let item) = proposal else {
+            return nil
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("proposal-card-\(proposal.id.uuidString)")
+        return { editingActionItem = item }
     }
 
     // MARK: - Reviewed work state
@@ -296,9 +246,13 @@ struct WorkStateReviewView: View {
     }
 
     /// Ids are preserved and only names substituted, so an assignee stored against an anonymous
-    /// speaker keeps resolving and starts showing the confirmed name.
-    private func participants(forMeeting meetingID: UUID) -> [Participant] {
-        project.meetings.first { $0.id == meetingID }?.displayRoster ?? []
+    /// speaker keeps resolving and starts showing the confirmed name. Nil for an agenda item with
+    /// no source meeting, which names nobody anyway.
+    private func participants(forMeeting meetingID: UUID?) -> [Participant] {
+        guard let meetingID else {
+            return []
+        }
+        return project.meetings.first { $0.id == meetingID }?.displayRoster ?? []
     }
 
     /// Choices, so two voices confirmed as one person collapse into a single row.

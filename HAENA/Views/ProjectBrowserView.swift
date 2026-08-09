@@ -81,10 +81,17 @@ struct ProjectBrowserView: View {
             if let selectedProject,
                let meeting = selectedProject.meetings.first(where: { $0.id == selectedMeetingID }) {
                 MeetingDetailView(
+                    project: selectedProject,
                     meeting: meeting,
                     deletionErrorMessage: meetingDeletionError,
                     onDeleteMeeting: {
                         await confirmDeleteMeeting(meeting.id, from: selectedProject.id)
+                    },
+                    reviewService: reviewService,
+                    // Reload rather than mutating the local copy, so the meeting's four result
+                    // areas always show what was actually persisted.
+                    onWorkStateChanged: {
+                        await load()
                     },
                     speakerConfirmation: speakerConfirmationService,
                     // Reload rather than mutating the local copy, so the transcript always shows

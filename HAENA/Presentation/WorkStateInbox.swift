@@ -85,6 +85,18 @@ enum WorkStateProposal: Identifiable, Equatable, Sendable {
         case .agendaItem(let value): return value.createdAt
         }
     }
+
+    /// The meeting this came out of, using each type's own direct link. Optional because an agenda
+    /// item is allowed to belong to no meeting — one a user added by hand has no source — and
+    /// naming an arbitrary meeting for it would be worse than naming none.
+    var meetingID: UUID? {
+        switch self {
+        case .decision(let value): return value.meetingID
+        case .actionItem(let value): return value.meetingID
+        case .openQuestion(let value): return value.meetingID
+        case .agendaItem(let value): return value.sourceMeetingID
+        }
+    }
 }
 
 /// Selects the work state that still needs a person's attention, and the work state that has
@@ -133,14 +145,14 @@ enum WorkStateInbox {
     static func confirmedDecisions(in project: Project) -> [Decision] {
         project.decisions
             .filter { $0.status == .confirmed }
-            .sorted { ($0.updatedAt, $0.id.uuidString) > ($1.updatedAt, $1.id.uuidString) }
+            .sorted(by: isOrderedBefore)
     }
 
     /// Work the user accepted and has not finished or cancelled.
     static func activeActionItems(in project: Project) -> [ActionItem] {
         project.actionItems
             .filter { $0.status == .confirmed || $0.status == .inProgress }
-            .sorted { ($0.updatedAt, $0.id.uuidString) > ($1.updatedAt, $1.id.uuidString) }
+            .sorted(by: isOrderedBefore)
     }
 
     /// Questions a person has seen and left open.
@@ -157,9 +169,19 @@ enum WorkStateInbox {
             .sorted(by: isOrderedBefore)
     }
 
-    /// Newest first, then by id — a total order. Named rather than inlined because a screen that
-    /// merges these across projects has to re-sort the merged list, and doing that with a
-    /// second, hand-copied comparator is how two lists of the same thing start disagreeing.
+    /// Most recently touched first, then by id — a total order. Named rather than inlined for the
+    /// same reason as the two below: a screen that narrows these to one meeting, or merges them
+    /// across projects, has to re-sort the result, and doing that with a second, hand-copied
+    /// comparator is how two lists of the same thing start disagreeing.
+    static func isOrderedBefore(_ lhs: Decision, _ rhs: Decision) -> Bool {
+        (lhs.updatedAt, lhs.id.uuidString) > (rhs.updatedAt, rhs.id.uuidString)
+    }
+
+    static func isOrderedBefore(_ lhs: ActionItem, _ rhs: ActionItem) -> Bool {
+        (lhs.updatedAt, lhs.id.uuidString) > (rhs.updatedAt, rhs.id.uuidString)
+    }
+
+    /// Newest first, then by id — a total order.
     static func isOrderedBefore(_ lhs: OpenQuestion, _ rhs: OpenQuestion) -> Bool {
         (lhs.createdAt, lhs.id.uuidString) > (rhs.createdAt, rhs.id.uuidString)
     }

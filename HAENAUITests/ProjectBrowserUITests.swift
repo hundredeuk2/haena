@@ -71,12 +71,15 @@ final class ProjectBrowserUITests: XCTestCase {
 
         projectNameText.click()
 
+        // A project opens on 현재 상태, so the meeting list is one tab over.
+        selectSegment("회의", inPickerWithIdentifier: "project-detail-pane-picker", of: app)
+
         // Select the meeting from the project's meeting list.
         let meetingTitleText = staticText(app, withValue: "Browser Test Meeting")
         XCTAssertTrue(meetingTitleText.waitForExistence(timeout: 5))
         meetingTitleText.click()
 
-        // Meeting detail: title, source type, transcript body.
+        // Meeting detail: title, source type, and — by default — what the meeting produced.
         let detailTitle = app.staticTexts["meeting-detail-title"]
         XCTAssertTrue(detailTitle.waitForExistence(timeout: 5))
         XCTAssertEqual(detailTitle.value as? String, "Browser Test Meeting")
@@ -85,7 +88,46 @@ final class ProjectBrowserUITests: XCTestCase {
         XCTAssertTrue(sourceType.waitForExistence(timeout: 5))
         XCTAssertEqual(sourceType.value as? String, "텍스트 입력")
 
+        let results = app.descendants(matching: .any)["meeting-results-screen"]
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "A meeting opens on its results")
+
+        // The transcript is still there, one tab over, unchanged.
+        selectSegment("원문", inPickerWithIdentifier: "meeting-detail-pane-picker", of: app)
+
         let transcriptBody = staticText(app, withValue: "Browser test transcript body.")
         XCTAssertTrue(transcriptBody.waitForExistence(timeout: 5))
+    }
+
+    /// Clicks one segment of a segmented `Picker`. AppKit exposes those segments as radio buttons
+    /// in some contexts and as buttons in others, so both are tried rather than guessed at.
+    private func selectSegment(
+        _ label: String,
+        inPickerWithIdentifier identifier: String,
+        of app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let picker = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(
+            picker.waitForExistence(timeout: 5),
+            "Picker \(identifier) never appeared",
+            file: file,
+            line: line
+        )
+
+        let radio = picker.radioButtons[label]
+        if radio.waitForExistence(timeout: 2) {
+            radio.click()
+            return
+        }
+
+        let button = picker.buttons[label]
+        XCTAssertTrue(
+            button.waitForExistence(timeout: 2),
+            "Segment \(label) never appeared in \(identifier)",
+            file: file,
+            line: line
+        )
+        button.click()
     }
 }

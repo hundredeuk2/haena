@@ -1,10 +1,26 @@
 import SwiftUI
 
-/// Detail pane for a single meeting: metadata plus its transcript, rendered in stored order.
+/// Which half of a meeting is showing.
+private enum MeetingDetailPane: String, CaseIterable, Identifiable {
+    /// What the meeting turned into. The default: a meeting is worth opening for what came of it,
+    /// and the transcript is the evidence behind that rather than the point of it.
+    case results
+    case transcript
+
+    var id: String { rawValue }
+}
+
+/// Detail pane for a single meeting: what the meeting produced, with its transcript one tab away.
 struct MeetingDetailView: View {
+    /// The meeting's project, needed because a meeting's results are stored on the project rather
+    /// than inside the meeting — and because every verdict is applied by project id.
+    let project: Project
     let meeting: Meeting
     let deletionErrorMessage: String?
     let onDeleteMeeting: () async -> Void
+    let reviewService: WorkStateReviewService
+    /// Reloads the project after a verdict, so the four areas show what was actually persisted.
+    let onWorkStateChanged: () async -> Void
     /// Supplied where speaker confirmation is available. Nil keeps this view usable on its own —
     /// the banner simply never appears.
     var speakerConfirmation: SpeakerConfirmationService?
@@ -20,6 +36,7 @@ struct MeetingDetailView: View {
     @State private var isConfirmingDeletion = false
     @State private var isConfirmingSpeakers = false
     @State private var exportFeedback: ExportFeedback?
+    @State private var pane: MeetingDetailPane = .results
 
     private struct ExportFeedback: Equatable {
         let message: String
@@ -44,29 +61,10 @@ struct MeetingDetailView: View {
 
                 Spacer(minLength: 12)
 
-                Button("원문 복사") {
-                    copyTranscript()
-                }
-                .accessibilityIdentifier("copy-transcript-button")
-                .disabled(!hasExportableTranscript)
-
-                Button("원문 내보내기") {
-                    exportTranscript()
-                }
-                .accessibilityIdentifier("export-transcript-button")
-                .disabled(!hasExportableTranscript)
-
                 Button("회의 삭제", role: .destructive) {
                     isConfirmingDeletion = true
                 }
                 .accessibilityIdentifier("delete-meeting-button")
-            }
-
-            if let exportFeedback {
-                Text(exportFeedback.message)
-                    .font(.callout)
-                    .foregroundStyle(exportFeedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-                    .accessibilityIdentifier("transcript-export-feedback-message")
             }
 
             HStack(spacing: 16) {
@@ -89,29 +87,45 @@ struct MeetingDetailView: View {
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
 
+            // Above the picker on purpose: listening back is how a user checks either half, and
+            // having the player disappear when they switch tabs would stop the recording mid-word.
             audioPlayer
-
-            unconfirmedSpeakerBanner
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(meeting.transcriptSegments) { segment in
-                        TranscriptSegmentRow(segment: segment, meeting: meeting)
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("transcript-segment-\(segment.id.uuidString)")
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Picker("표시", selection: $pane) {
+                Text("회의 결과").tag(MeetingDetailPane.results)
+                Text("원문").tag(MeetingDetailPane.transcript)
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("meeting-transcript")
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityIdentifier("meeting-detail-pane-picker")
+
+            switch pane {
+            case .results:
+                MeetingResultsView(
+                    project: project,
+                    meeting: meeting,
+                    reviewService: reviewService,
+                    onChanged: onWorkStateChanged
+                )
+
+            case .transcript:
+                transcriptPane
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-detail-screen")
+        // Selecting a different meeting reuses this view rather than rebuilding it, so the pane has
+        // to be sent back explicitly — otherwise the transcript a user opened on one meeting
+        // silently becomes the landing screen for every meeting after it.
+        .onChange(of: meeting.id) { _, _ in
+            pane = .results
+            exportFeedback = nil
+            isBannerDismissed = false
+        }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
                 title: "“\(meeting.title)” 회의를 삭제할까요?",
@@ -139,6 +153,60 @@ struct MeetingDetailView: View {
                 )
             }
         }
+    }
+
+    // MARK: - Transcript pane
+
+    /// Everything the transcript view had before the results screen was put in front of it: the
+    /// speaker banner, the segments in stored order, and the two ways to take the text out.
+    ///
+    /// Copy and export live here rather than in the header because they are about the transcript
+    /// specifically — and they behave identically for a recorded meeting, an imported file and
+    /// pasted text, since all three arrive here as the same segments.
+    @ViewBuilder
+    private var transcriptPane: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button("원문 복사") {
+                    copyTranscript()
+                }
+                .accessibilityIdentifier("copy-transcript-button")
+                .disabled(!hasExportableTranscript)
+
+                Button("원문 내보내기") {
+                    exportTranscript()
+                }
+                .accessibilityIdentifier("export-transcript-button")
+                .disabled(!hasExportableTranscript)
+
+                if let exportFeedback {
+                    Text(exportFeedback.message)
+                        .font(.callout)
+                        .foregroundStyle(exportFeedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .accessibilityIdentifier("transcript-export-feedback-message")
+                }
+
+                Spacer()
+            }
+
+            unconfirmedSpeakerBanner
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(meeting.transcriptSegments) { segment in
+                        TranscriptSegmentRow(segment: segment, meeting: meeting)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("transcript-segment-\(segment.id.uuidString)")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("meeting-transcript")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("meeting-transcript-pane")
     }
 
     // MARK: - Audio playback
