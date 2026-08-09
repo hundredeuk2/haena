@@ -6,6 +6,12 @@ struct BrowserDestination: Equatable, Sendable {
     let projectID: UUID
     /// Set when the caller knows which meeting, not only which project.
     var meetingID: UUID?
+    /// Set when the caller can name the exact task the user pressed — the home's 지금 할 일 card.
+    ///
+    /// A one-shot request to look at something, not a filter and not stored state: 업무 상태 opens
+    /// scrolled to that task and then behaves exactly as it always does. Making it anything more
+    /// would mean the user could not navigate away from the item the home picked for them.
+    var actionItemID: UUID?
     let pane: ProjectDetailPane
 
     /// Where a finished capture sends the user.
@@ -20,6 +26,29 @@ struct BrowserDestination: Equatable, Sendable {
             meetingID: capture.meetingID,
             pane: .meetings
         )
+    }
+
+    /// Where the home's 지금 할 일 card sends the user.
+    ///
+    /// Both kinds land on 업무 상태 of the recommended project, because that one screen already
+    /// owns both halves of what the card can recommend: the review list at the top, and the
+    /// 진행 중인 업무 list below it. The home presents no review or editing UI of its own, so a
+    /// recommendation is only ever a way into a screen that already exists.
+    ///
+    /// Only the task recommendation names an item. A review recommendation deliberately does not —
+    /// it is about a pile of proposals, and singling one out would be the home making a judgement
+    /// it has no basis for.
+    static func nextAction(_ action: NextAction) -> BrowserDestination {
+        switch action {
+        case .review(let review):
+            return BrowserDestination(projectID: review.projectID, pane: .workState)
+        case .work(let work):
+            return BrowserDestination(
+                projectID: work.projectID,
+                actionItemID: work.actionItemID,
+                pane: .workState
+            )
+        }
     }
 }
 

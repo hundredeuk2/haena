@@ -17,8 +17,9 @@ struct HomeView: View {
     let onImportAudio: () -> Void
     let onPasteTranscript: () -> Void
     let onBrowseProjects: () -> Void
-    /// Opens an existing screen for that project. The home never presents review UI of its own.
-    let onOpenProject: (UUID, ProjectDetailPane) -> Void
+    /// Opens an existing screen at the place a row or the 지금 할 일 card points at. The home never
+    /// presents review UI of its own, and every way out of it is one of these.
+    let onOpen: (BrowserDestination) -> Void
 
     @State private var loadState: LoadState = .loading
     /// Which list the work area is showing. Session-only on purpose: this is a glance, not a saved
@@ -154,6 +155,7 @@ struct HomeView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    nextActionCard(summary)
                     pendingSection(summary)
                     workSection(summary)
                     questionSection(summary)
@@ -163,6 +165,121 @@ struct HomeView: View {
             }
         }
     }
+
+    // MARK: - 지금 할 일
+
+    /// One highlighted recommendation above the four areas, never a fifth list.
+    ///
+    /// The four areas below are a complete picture and answer "what is going on"; this answers the
+    /// different question a user actually opens the app with — "what do I do now" — and it can only
+    /// answer it with one thing, or honestly say it has nothing. Which one is `NextActionPolicy`'s
+    /// decision, not this view's: everything here is rendering.
+    private func nextActionCard(_ summary: HomeSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("지금 할 일")
+                .font(.headline)
+                .accessibilityIdentifier("home-next-action-title")
+
+            switch summary.nextAction {
+            case .review(let review):
+                reviewRecommendation(review)
+            case .work(let work):
+                workRecommendation(work)
+            case nil:
+                emptyRecommendation(summary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.accentColor.opacity(0.35))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-next-action-card")
+    }
+
+    /// A count and the project it is in — never the proposals themselves, for the same reason
+    /// 확인 필요 shows counts: judging a suggestion needs its evidence, and that lives on the
+    /// review screen this leads to.
+    private func reviewRecommendation(_ review: NextAction.Review) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("결과 검토 \(review.pendingCount)건")
+                .font(.title3)
+                .accessibilityIdentifier("home-next-action-headline")
+
+            Text(review.projectName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("home-next-action-project")
+
+            Button("검토하기") {
+                onOpen(BrowserDestination.nextAction(.review(review)))
+            }
+            .accessibilityIdentifier("home-next-action-button")
+        }
+    }
+
+    private func workRecommendation(_ work: NextAction.Work) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(work.title)
+                .font(.title3)
+                .accessibilityIdentifier("home-next-action-headline")
+
+            HStack(spacing: 12) {
+                Text(work.projectName)
+                    .accessibilityIdentifier("home-next-action-project")
+
+                // Named even though this is by definition the user's own work: the card sits above
+                // a list that names everybody, and a row that quietly omits the assignee reads as
+                // unassigned rather than as mine.
+                Text(work.assigneeName ?? "담당자 미정")
+                    .accessibilityIdentifier("home-next-action-assignee")
+
+                // Colour alone does not survive being unable to see it, so a passed deadline says
+                // so in words as well — the same 지남 wording the project status screen uses.
+                Text(work.isOverdue ? "\(work.dueDateLabel) · 지남" : work.dueDateLabel)
+                    .foregroundStyle(work.isOverdue ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("home-next-action-due")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Button("업무 보기") {
+                onOpen(BrowserDestination.nextAction(.work(work)))
+            }
+            .accessibilityIdentifier("home-next-action-button")
+        }
+    }
+
+    /// Nothing to recommend. The profile line below it is an aside, not a demotion of some lesser
+    /// recommendation: with no linked participant the app genuinely cannot name the user's own
+    /// work, and offering somebody else's instead is the one thing it must not do.
+    @ViewBuilder
+    private func emptyRecommendation(_ summary: HomeSummary) -> some View {
+        Text("지금 확인할 일이 없습니다")
+            .font(.title3)
+            .accessibilityIdentifier("home-next-action-empty")
+
+        if !summary.isPersonalised {
+            HStack(spacing: 6) {
+                Text("프로필에 참석자를 연결하면 내 업무를 추천할 수 있습니다.")
+                Button("내 프로필") {
+                    onOpenProfile()
+                }
+                .buttonStyle(.link)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("home-next-action-profile-hint")
+        }
+    }
+
+    // MARK: - Areas
 
     /// Always rendered, even at zero: an area that disappears when it empties leaves the user
     /// unable to tell "nothing to review" from "this app does not track that".
@@ -180,7 +297,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.pendingProposalsByProject.items) { entry in
                     HomeRowButton(identifier: "home-pending-row-\(entry.projectID.uuidString)") {
-                        onOpenProject(entry.projectID, .workState)
+                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
                     } label: {
                         HStack {
                             Text(entry.projectName)
@@ -243,7 +360,7 @@ struct HomeView: View {
             } else {
                 ForEach(section.items) { entry in
                     HomeRowButton(identifier: "home-work-row-\(entry.id.uuidString)") {
-                        onOpenProject(entry.projectID, .workState)
+                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.actionItem.title)
@@ -293,7 +410,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.unresolvedQuestions.items) { entry in
                     HomeRowButton(identifier: "home-question-row-\(entry.id.uuidString)") {
-                        onOpenProject(entry.projectID, .workState)
+                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.value.question)
@@ -326,7 +443,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.upcomingAgendaItems.items) { entry in
                     HomeRowButton(identifier: "home-agenda-row-\(entry.id.uuidString)") {
-                        onOpenProject(entry.projectID, .workState)
+                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.value.title)

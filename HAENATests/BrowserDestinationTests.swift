@@ -34,6 +34,78 @@ final class BrowserDestinationTests: XCTestCase {
         XCTAssertEqual(MeetingDetailPane.initial, .results)
     }
 
+    // MARK: - What the home's 지금 할 일 card asks for
+
+    /// A review recommendation opens the project it named, on the pane that holds the proposals.
+    /// The project has to be the exact one the card counted — landing on any other would show the
+    /// user a different number than the one they pressed.
+    func testAReviewRecommendationOpensThatProjectsWorkState() {
+        let review = NextAction.Review(
+            projectID: Fixtures.projectB,
+            projectName: "고객 온보딩",
+            pendingCount: 3
+        )
+
+        let destination = BrowserDestination.nextAction(.review(review))
+
+        XCTAssertEqual(destination.projectID, Fixtures.projectB)
+        XCTAssertEqual(destination.pane, .workState)
+        XCTAssertNil(
+            destination.actionItemID,
+            "A pile of proposals is not one item, and singling one out would be a judgement the home cannot make"
+        )
+        XCTAssertNil(destination.meetingID)
+    }
+
+    /// A task recommendation names the task as well as the project, so 업무 상태 can open on the
+    /// item rather than on a list the user has to search for what they just pressed.
+    func testATaskRecommendationOpensTheExactProjectAndItem() {
+        let work = NextAction.Work(
+            actionItemID: Fixtures.uuid(700),
+            title: "지표 정의",
+            projectID: Fixtures.projectB,
+            projectName: "고객 온보딩",
+            assigneeName: "이헌득",
+            dueDateLabel: "마감일 없음",
+            isOverdue: false
+        )
+
+        let destination = BrowserDestination.nextAction(.work(work))
+
+        XCTAssertEqual(destination.projectID, Fixtures.projectB)
+        XCTAssertEqual(destination.actionItemID, Fixtures.uuid(700))
+        XCTAssertEqual(destination.pane, .workState)
+        XCTAssertNil(destination.meetingID, "The task is reached through the project, not through a meeting")
+    }
+
+    /// The item request is answered by the same resolver every other initial selection goes
+    /// through, so a project deleted since the home last loaded selects nothing rather than
+    /// half-opening on a task that is gone with it.
+    func testATaskRecommendationForAMissingProjectSelectsNothing() {
+        let destination = BrowserDestination.nextAction(
+            .work(
+                NextAction.Work(
+                    actionItemID: Fixtures.uuid(700),
+                    title: "지표 정의",
+                    projectID: Fixtures.uuid(998),
+                    projectName: "삭제된 프로젝트",
+                    assigneeName: nil,
+                    dueDateLabel: "마감일 없음",
+                    isOverdue: false
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            BrowserInitialSelection.resolve(
+                projectID: destination.projectID,
+                meetingID: destination.meetingID,
+                in: projects
+            ),
+            .none
+        )
+    }
+
     // MARK: - Resolving against what is actually stored
 
     func testSelectsTheRequestedMeetingWhenItExists() {

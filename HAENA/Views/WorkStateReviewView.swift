@@ -11,9 +11,16 @@ struct WorkStateReviewView: View {
     let project: Project
     let reviewService: WorkStateReviewService
     let onChanged: () async -> Void
+    /// One task to bring into view, from the home's 지금 할 일 card. Scrolled to once when this pane
+    /// appears and marked while it stays; the parent drops it as soon as the user moves on, so this
+    /// never becomes a filter over what the screen shows.
+    var highlightedActionItemID: UUID?
 
     @State private var errorMessage: String?
     @State private var editingActionItem: ActionItem?
+    /// Guards the scroll against re-running when the parent reloads the project after a verdict —
+    /// which would yank the user back mid-review.
+    @State private var didScrollToHighlight = false
 
     private let dateFormatter = MeetingDateFormatter()
 
@@ -22,19 +29,24 @@ struct WorkStateReviewView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("work-state-review-error-message")
-                }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("work-state-review-error-message")
+                    }
 
-                proposalsSection
-                reviewedSections
+                    proposalsSection
+                    reviewedSections
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear {
+                scrollToHighlightedItem(using: proxy)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("work-state-review-screen")
@@ -152,6 +164,16 @@ struct WorkStateReviewView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
+                // A tint rather than a selection: it says "this is the one you came for" without
+                // implying the row is now in a state the user has to get it out of.
+                .padding(.vertical, item.id == highlightedActionItemID ? 4 : 0)
+                .background(
+                    item.id == highlightedActionItemID
+                        ? AnyShapeStyle(Color.accentColor.opacity(0.12))
+                        : AnyShapeStyle(.clear)
+                )
+                // The anchor `scrollToHighlightedItem` aims at.
+                .id(item.id)
                 .accessibilityIdentifier("active-action-item-\(item.id.uuidString)")
             }
         }
@@ -197,6 +219,26 @@ struct WorkStateReviewView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
+    }
+
+    // MARK: - Arriving on one task
+
+    /// Brings the requested task into view, once.
+    ///
+    /// Deferred to the next run loop turn because the rows this aims at are only laid out after
+    /// this appearance has finished — asking for an anchor that does not exist yet does nothing at
+    /// all. Silently does nothing when the task is not on screen either, which is the right outcome
+    /// for one approved or completed in another window since the home last loaded.
+    private func scrollToHighlightedItem(using proxy: ScrollViewProxy) {
+        guard let highlightedActionItemID, !didScrollToHighlight else {
+            return
+        }
+        didScrollToHighlight = true
+        DispatchQueue.main.async {
+            withAnimation {
+                proxy.scrollTo(highlightedActionItemID, anchor: .center)
+            }
+        }
     }
 
     // MARK: - Actions
