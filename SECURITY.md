@@ -81,7 +81,7 @@ Developer Preview이며, **보안 수정은 `main`의 최신 상태에만** 반�
 - 따라서 **출처와 SHA-256 체크섬 확인이 사용자 몫**입니다. 공식 릴리스 페이지의 값과 대조하세요.
 
 ```bash
-shasum -a 256 HAE.NA-<버전>-unsigned.app.zip
+shasum -a 256 HAE.NA-<버전>-<빌드>-unsigned.app.zip
 ```
 
 - Gatekeeper를 전역으로 끄는 방법(`spctl --master-disable`)은 권장하지 않습니다. 앱 하나 때문에
