@@ -34,6 +34,10 @@ log "Regenerating HAENA.xcodeproj from project.yml"
 ( cd "${REPO_ROOT}" && xcodegen generate >/dev/null )
 
 log "Building ${CONFIGURATION} (unsigned) into .build/DerivedData"
+# The build log sits beside the DerivedData directory, so `.build/` has to exist before the
+# redirect below opens the file — in a fresh clone it does not, and the shell fails on the
+# redirect before xcodebuild ever runs.
+mkdir -p "$(dirname "${DERIVED_DATA}")"
 xcodebuild \
     -project "${REPO_ROOT}/HAENA.xcodeproj" \
     -scheme HAENA \
