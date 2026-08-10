@@ -1,4 +1,6 @@
-# HAE.NA
+# HAE.NA — Turn conversations into next actions
+
+![HAE.NA — Turn conversations into next actions](docs/banner.png)
 
 **회의를 한 사람의 업무 기억과 실행으로 바꾸는 로컬 우선 macOS 앱입니다.**
 
