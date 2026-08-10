@@ -27,6 +27,9 @@ struct ActionItemReminderService: Sendable {
     let projectRepository: any ProjectRepository
     let profileRepository: any LocalUserProfileRepository
     let notifications: any LocalNotificationScheduler
+    /// Observation-only sidecar. Its failures are swallowed by `AgentLedgerService`, so the
+    /// reminder transaction above it keeps the same success and rollback guarantees.
+    let ledger: AgentLedgerService?
     let calendar: Calendar
     let now: @Sendable () -> Date
     let makeID: @Sendable () -> UUID
@@ -36,6 +39,7 @@ struct ActionItemReminderService: Sendable {
         projectRepository: any ProjectRepository,
         profileRepository: any LocalUserProfileRepository,
         notifications: any LocalNotificationScheduler,
+        ledger: AgentLedgerService? = nil,
         calendar: Calendar = .current,
         now: @escaping @Sendable () -> Date = Date.init,
         makeID: @escaping @Sendable () -> UUID = UUID.init
@@ -44,6 +48,7 @@ struct ActionItemReminderService: Sendable {
         self.projectRepository = projectRepository
         self.profileRepository = profileRepository
         self.notifications = notifications
+        self.ledger = ledger
         self.calendar = calendar
         self.now = now
         self.makeID = makeID
@@ -130,13 +135,22 @@ struct ActionItemReminderService: Sendable {
         } catch {
             throw ActionItemReminderError.storageFailure
         }
+        // Permission and repository work above can take long enough for an old run to fire. Use a
+        // fresh boundary after reading it; the function-entry timestamp is no longer truthful.
+        let runBoundaryTime = now()
+        let activePrevious = previous.flatMap {
+            $0.status == .scheduled && $0.fireAt > runBoundaryTime ? $0 : nil
+        }
+        let isReschedule = activePrevious != nil
         let reminder = ActionItemReminder(
-            id: previous?.id ?? makeID(),
+            // A schedule after a delivered/cancelled reminder is a new run. Keeping an id only
+            // while editing an active schedule makes one feedback choice mean one reminder run.
+            id: activePrevious?.id ?? makeID(),
             projectID: projectID,
             actionItemID: actionItemID,
             fireAt: fireAt,
             status: .scheduled,
-            createdAt: previous?.createdAt ?? timestamp,
+            createdAt: activePrevious?.createdAt ?? timestamp,
             updatedAt: timestamp,
             cancellationReason: nil
         )
@@ -167,6 +181,21 @@ struct ActionItemReminderService: Sendable {
                 )
             }
             throw ActionItemReminderError.storageFailure
+        }
+        if isReschedule {
+            await ledger?.recordRescheduled(
+                reminderID: reminder.id,
+                projectID: reminder.projectID,
+                actionItemID: reminder.actionItemID,
+                scheduledFor: reminder.fireAt
+            )
+        } else {
+            await ledger?.recordScheduled(
+                reminderID: reminder.id,
+                projectID: reminder.projectID,
+                actionItemID: reminder.actionItemID,
+                scheduledFor: reminder.fireAt
+            )
         }
         return reminder
     }
@@ -202,6 +231,13 @@ struct ActionItemReminderService: Sendable {
             throw ActionItemReminderError.storageFailure
         }
         await notifications.remove(identifier: reminder.notificationIdentifier)
+        await ledger?.recordCancelled(
+            reminderID: reminder.id,
+            projectID: reminder.projectID,
+            actionItemID: reminder.actionItemID,
+            scheduledFor: reminder.fireAt,
+            reason: reason
+        )
         return reminder
     }
 
@@ -216,16 +252,56 @@ struct ActionItemReminderService: Sendable {
         let pending = await notifications.pendingIdentifiers()
         let permission = await notifications.authorizationStatus()
         let projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        let reconciliationTime = now()
 
-        for var reminder in reminders where reminder.status == .scheduled {
+        for var reminder in reminders where reminder.status == .scheduled || reminder.status == .delivered {
+            // This says only what reconcile can prove from its clock: the approved fire time is in
+            // the past. It does not infer OS delivery or user attention, and it remains recordable
+            // even if the related project/task was deleted after scheduling.
+            let fireTimeWasReached = reminder.status == .delivered || reminder.fireAt <= reconciliationTime
+            if reminder.fireAt <= reconciliationTime {
+                await ledger?.recordFireTimeReached(
+                    reminderID: reminder.id,
+                    projectID: reminder.projectID,
+                    actionItemID: reminder.actionItemID,
+                    scheduledFor: reminder.fireAt
+                )
+            }
+
             guard let project = projectsByID[reminder.projectID] else {
-                _ = try? await cancel(actionItemID: reminder.actionItemID, reason: .projectDeleted)
+                if reminder.status == .scheduled {
+                    _ = try? await cancel(actionItemID: reminder.actionItemID, reason: .projectDeleted)
+                }
                 continue
             }
             guard let item = project.actionItems.first(where: { $0.id == reminder.actionItemID }) else {
-                _ = try? await cancel(actionItemID: reminder.actionItemID, reason: .actionItemDeleted)
+                if reminder.status == .scheduled {
+                    _ = try? await cancel(actionItemID: reminder.actionItemID, reason: .actionItemDeleted)
+                }
                 continue
             }
+
+            if item.status == .completed {
+                // A completion before a future reminder is not evidence that the reminder helped
+                // recover the task. Keep the cancellation fact, but only add this relationship
+                // once the approved fire time has passed (or the job was already reconciled).
+                if fireTimeWasReached {
+                    await ledger?.recordTaskCompletedAfterReminder(
+                        reminderID: reminder.id,
+                        projectID: reminder.projectID,
+                        actionItemID: reminder.actionItemID,
+                        scheduledFor: reminder.fireAt
+                    )
+                }
+                if reminder.status == .scheduled {
+                    _ = try? await cancel(actionItemID: item.id, reason: .actionItemCompleted)
+                }
+                continue
+            }
+
+            // A delivered reminder has no OS request left to repair. It remains useful as the
+            // relationship anchor for a later task-completion fact above.
+            guard reminder.status == .scheduled else { continue }
 
             let eligibility = Self.eligibility(of: item, profile: profile)
             if eligibility != .eligible {
@@ -244,7 +320,7 @@ struct ActionItemReminderService: Sendable {
                 continue
             }
 
-            if reminder.fireAt <= now(), !pending.contains(reminder.notificationIdentifier) {
+            if reminder.fireAt <= reconciliationTime, !pending.contains(reminder.notificationIdentifier) {
                 reminder.status = .delivered
                 reminder.updatedAt = now()
                 try? await reminderRepository.save(reminder)
@@ -269,7 +345,8 @@ struct ActionItemReminderService: Sendable {
             identifier: reminder.notificationIdentifier,
             title: actionItem.title,
             body: "\(project.name) · 마감 업무를 확인할 시간입니다.",
-            fireAt: reminder.fireAt
+            fireAt: reminder.fireAt,
+            reminderID: reminder.id
         )
     }
 }

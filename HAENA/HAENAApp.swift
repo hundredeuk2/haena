@@ -26,6 +26,7 @@ struct HAENAApp: App {
     private let recordingScratchStore: RecordingScratchStore
     private let profileRepository: any LocalUserProfileRepository
     private let reminderRepository: any ActionItemReminderRepository
+    private let ledgerRepository: any AgentLedgerRepository
     private let notificationScheduler: any LocalNotificationScheduler
     /// One resolver, shared by transcription and extraction, so the app cannot use two keys.
     private let credentialResolver: OpenAICredentialResolver
@@ -72,6 +73,9 @@ struct HAENAApp: App {
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
             profileRepository = InMemoryLocalUserProfileRepository()
             reminderRepository = InMemoryActionItemReminderRepository()
+            ledgerRepository = InMemoryAgentLedgerRepository(
+                events: Self.uiTestLedgerSeed(environment: ProcessInfo.processInfo.environment)
+            )
             notificationScheduler = InMemoryLocalNotificationScheduler()
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
@@ -88,10 +92,23 @@ struct HAENAApp: App {
             profileRepository = JSONLocalUserProfileRepository(
                 fileURL: JSONLocalUserProfileRepository.defaultFileURL()
             )
-            reminderRepository = JSONActionItemReminderRepository(
+            let assembledReminderRepository = JSONActionItemReminderRepository(
                 fileURL: JSONActionItemReminderRepository.defaultFileURL()
             )
-            notificationScheduler = UserNotificationScheduler()
+            let assembledLedgerRepository = JSONAgentLedgerRepository(
+                fileURL: JSONAgentLedgerRepository.defaultFileURL()
+            )
+            reminderRepository = assembledReminderRepository
+            ledgerRepository = assembledLedgerRepository
+            let notificationLedgerBridge = AgentNotificationLedgerBridge(
+                reminderRepository: assembledReminderRepository,
+                ledger: AgentLedgerService(repository: assembledLedgerRepository)
+            )
+            notificationScheduler = UserNotificationScheduler(
+                foregroundDelegate: ForegroundNotificationDelegate { callback in
+                    Task { await notificationLedgerBridge.record(callback) }
+                }
+            )
         }
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
@@ -112,6 +129,7 @@ struct HAENAApp: App {
                 makeAudioPlayer: makeAudioPlayer,
                 profileRepository: profileRepository,
                 reminderRepository: reminderRepository,
+                ledgerRepository: ledgerRepository,
                 notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
                 showingPasteTranscript: $showingPasteTranscript,
@@ -151,5 +169,22 @@ struct HAENAApp: App {
         DispatchQueue.main.async {
             NSApp.terminate(nil)
         }
+    }
+
+    private static func uiTestLedgerSeed(environment: [String: String]) -> [AgentLedgerEvent] {
+        guard environment["HAENA_UI_TESTING_AGENT_LEDGER"] == "1" else { return [] }
+        let occurredAt = Date(timeIntervalSince1970: 1_786_358_400)
+        return [
+            AgentLedgerEvent(
+                id: UUID(uuidString: "A7000000-0000-4000-8000-000000000001")!,
+                deduplicationKey: "fireTimeReached:a7000000-ui-test",
+                reminderID: UUID(uuidString: "A7000000-0000-4000-8000-000000000002")!,
+                projectID: UUID(uuidString: "A7000000-0000-4000-8000-000000000003")!,
+                actionItemID: UUID(uuidString: "A7000000-0000-4000-8000-000000000004")!,
+                type: .fireTimeReached,
+                occurredAt: occurredAt,
+                scheduledFor: occurredAt.addingTimeInterval(3_600)
+            )
+        ]
     }
 }

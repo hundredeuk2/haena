@@ -12,6 +12,7 @@ struct ContentView: View {
     let makeAudioPlayer: () -> any MeetingAudioPlayer
     let profileRepository: any LocalUserProfileRepository
     let reminderRepository: any ActionItemReminderRepository
+    let ledgerRepository: any AgentLedgerRepository
     let notificationScheduler: any LocalNotificationScheduler
     let credentialResolver: OpenAICredentialResolver
 
@@ -38,13 +39,19 @@ struct ContentView: View {
     @State private var homeReloadToken = UUID()
     @State private var showingProfile = false
     @State private var showingAISettings = false
+    @State private var showingAgentLedger = false
+
+    private var ledgerService: AgentLedgerService {
+        AgentLedgerService(repository: ledgerRepository)
+    }
 
     private var reminderService: ActionItemReminderService {
         ActionItemReminderService(
             reminderRepository: reminderRepository,
             projectRepository: repository,
             profileRepository: profileRepository,
-            notifications: notificationScheduler
+            notifications: notificationScheduler,
+            ledger: ledgerService
         )
     }
 
@@ -56,6 +63,7 @@ struct ContentView: View {
             reloadToken: homeReloadToken,
             onOpenProfile: { showingProfile = true },
             onOpenAISettings: { showingAISettings = true },
+            onOpenAgentLedger: { showingAgentLedger = true },
             onRecord: { showingRecordAudio = true },
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
@@ -89,6 +97,13 @@ struct ContentView: View {
             AISettingsView(
                 resolver: credentialResolver,
                 verifier: OpenAICredentialVerifier()
+            )
+        }
+        .sheet(isPresented: $showingAgentLedger) {
+            AgentLedgerView(
+                projectRepository: repository,
+                service: ledgerService,
+                onClose: { showingAgentLedger = false }
             )
         }
         .sheet(isPresented: $showingProfile) {
@@ -207,6 +222,7 @@ struct ContentView: View {
         makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
         profileRepository: InMemoryLocalUserProfileRepository(),
         reminderRepository: InMemoryActionItemReminderRepository(),
+        ledgerRepository: InMemoryAgentLedgerRepository(),
         notificationScheduler: InMemoryLocalNotificationScheduler(),
         credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
         showingPasteTranscript: .constant(false),

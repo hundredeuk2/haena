@@ -15,6 +15,7 @@ struct HomeView: View {
     let reloadToken: UUID
     let onOpenProfile: () -> Void
     let onOpenAISettings: () -> Void
+    let onOpenAgentLedger: () -> Void
     let onRecord: () -> Void
     let onImportAudio: () -> Void
     let onPasteTranscript: () -> Void
@@ -124,31 +125,46 @@ struct HomeView: View {
     /// situation and offers the screen rather than blocking the way in.
     @ViewBuilder
     private var profileRow: some View {
-        HStack(spacing: 8) {
-            if case .loaded(let loaded) = loadState, let name = loaded.summary.localUserName {
-                let summary = loaded.summary
-                Text(summary.isPersonalised ? "내 이름: \(name)" : "내 이름: \(name) · 연결된 참석자 없음")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("home-profile-name")
-            } else {
-                Text("프로필 미설정")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("home-profile-unset")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                profileSummary
+                profileButtons
+                Spacer(minLength: 0)
             }
-
-            Button("내 프로필") {
-                onOpenProfile()
+            VStack(alignment: .leading, spacing: 8) {
+                profileSummary
+                HStack(spacing: 8) {
+                    profileButtons
+                    Spacer(minLength: 0)
+                }
             }
-            .accessibilityIdentifier("open-profile-button")
+        }
+    }
 
-            Button("AI 설정") {
-                onOpenAISettings()
-            }
-            .accessibilityIdentifier("open-ai-settings-button")
+    @ViewBuilder
+    private var profileSummary: some View {
+        if case .loaded(let loaded) = loadState, let name = loaded.summary.localUserName {
+            let summary = loaded.summary
+            Text(summary.isPersonalised ? "내 이름: \(name)" : "내 이름: \(name) · 연결된 참석자 없음")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("home-profile-name")
+        } else {
+            Text("프로필 미설정")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("home-profile-unset")
+        }
+    }
 
-            Spacer(minLength: 0)
+    private var profileButtons: some View {
+        Group {
+            Button("내 프로필") { onOpenProfile() }
+                .accessibilityIdentifier("open-profile-button")
+            Button("AI 설정") { onOpenAISettings() }
+                .accessibilityIdentifier("open-ai-settings-button")
+            Button("Agent 기록") { onOpenAgentLedger() }
+                .accessibilityIdentifier("open-agent-ledger-button")
         }
     }
 
