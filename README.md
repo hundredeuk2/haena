@@ -35,6 +35,8 @@ HAE.NA는 그 한 사람을 위한 앱입니다. 녹음하거나 음성 파일�
 - **지금 할 일** — 홈 맨 위에 지금 해야 할 **한 건만** 강조합니다. 검토를 기다리는 AI 제안이 있으면
   그것을, 없으면 마감이 지났거나 가장 임박한 내 업무를 제안하고, 누르면 해당 위치로 이동합니다
 - **내 업무** — 이름을 설정하고 본인에 해당하는 참석자를 연결하면 내 업무만 구분해 볼 수 있습니다
+- **내 업무 알림** — 마감일이 있는 확정된 내 업무의 알림 시각을 직접 확인해 macOS 로컬 알림으로
+  예약합니다. 앱을 다시 열어도 유지되며 업무가 끝나면 자동으로 취소됩니다
 - **원본 오디오 재생** — 저장된 녹음을 다시 듣기(재생/일시정지, 처음부터, 현재 시간·전체 길이)
 - **Markdown 내보내기·복사** — 프로젝트 현재 상태, 회의 전사 원문
 
@@ -139,6 +141,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 | --- | --- |
 | 프로젝트·회의·전사·업무 상태 | `~/Library/Application Support/com.haena.HAENA/projects.json` |
 | 로컬 사용자 프로필 | `~/Library/Application Support/com.haena.HAENA/profile.json` |
+| 로컬 알림 예약·취소 이력 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
 | 앱이 보관하는 오디오 사본 | `~/Library/Application Support/com.haena.HAENA/Audio/` |
 | OpenAI API 키 | macOS Keychain (`com.haena.HAENA` / `openai-api-key`) |
 | 녹음 중 임시 파일 | 시스템 임시 폴더 (앱 시작 시 정리) |
@@ -157,7 +160,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 - 영어 등 다른 언어는 전체 회의 기준으로 검증되지 않았습니다(한국어 위주로 확인)
 - 혼합 언어 자동 감지, 회의 후 번역 미구현
 - 전사 품질(WER·화자 분리 정확도)의 정량 측정은 아직 하지 않았습니다
-- 변경 이력(감사 로그) 미구현
+- 범용 실행 이력은 미구현이며, 현재는 ActionItem 로컬 알림 예약·취소 이력만 저장합니다
 - 다중 사용자·팀·동기화 없음. 의도된 범위입니다
 - 앱이 여러 개 동시에 실행되면 같은 저장 파일을 두고 경합할 수 있습니다
 - 삭제는 일반 파일 삭제이며 secure erase가 아닙니다
@@ -175,7 +178,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 ## 버그 신고와 기여
 
 - 버그·제안은 GitHub Issues로 올려주세요.
-- **이슈에 회의 오디오, 전사 원문, API 키, `projects.json`을 첨부하지 마세요.**
+- **이슈에 회의 오디오, 전사 원문, API 키, `projects.json`, `agent-jobs.json`을 첨부하지 마세요.**
   무엇을 보내도 되고 안 되는지는 [SECURITY.md](SECURITY.md)에 정리했습니다.
 - 코드 기여는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고해주세요.
 

@@ -25,6 +25,8 @@ struct HAENAApp: App {
     private let audioRecorder: any MeetingAudioRecorder
     private let recordingScratchStore: RecordingScratchStore
     private let profileRepository: any LocalUserProfileRepository
+    private let reminderRepository: any ActionItemReminderRepository
+    private let notificationScheduler: any LocalNotificationScheduler
     /// One resolver, shared by transcription and extraction, so the app cannot use two keys.
     private let credentialResolver: OpenAICredentialResolver
     /// A factory, because playback state belongs to a single meeting at a time.
@@ -69,6 +71,8 @@ struct HAENAApp: App {
             // out of whatever machine it happens to be on.
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
             profileRepository = InMemoryLocalUserProfileRepository()
+            reminderRepository = InMemoryActionItemReminderRepository()
+            notificationScheduler = InMemoryLocalNotificationScheduler()
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             let resolver = OpenAICredentialResolver.shared
@@ -84,6 +88,10 @@ struct HAENAApp: App {
             profileRepository = JSONLocalUserProfileRepository(
                 fileURL: JSONLocalUserProfileRepository.defaultFileURL()
             )
+            reminderRepository = JSONActionItemReminderRepository(
+                fileURL: JSONActionItemReminderRepository.defaultFileURL()
+            )
+            notificationScheduler = UserNotificationScheduler()
         }
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
@@ -103,6 +111,8 @@ struct HAENAApp: App {
                 recordingScratchStore: recordingScratchStore,
                 makeAudioPlayer: makeAudioPlayer,
                 profileRepository: profileRepository,
+                reminderRepository: reminderRepository,
+                notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,

@@ -21,6 +21,9 @@ struct ProjectDetailView: View {
     let deletionErrorMessage: String?
     let onDeleteProject: () async -> Void
     let reviewService: WorkStateReviewService
+    let profileRepository: any LocalUserProfileRepository
+    let reminderRepository: any ActionItemReminderRepository
+    let reminderService: ActionItemReminderService?
     let onWorkStateChanged: () async -> Void
     /// Defaulted rather than injected from the browser: the real pasteboard is what the app always
     /// wants, and the seam exists for tests of the copy boundary, not for the view hierarchy.
@@ -133,6 +136,9 @@ struct ProjectDetailView: View {
                 WorkStateReviewView(
                     project: project,
                     reviewService: reviewService,
+                    profileRepository: profileRepository,
+                    reminderRepository: reminderRepository,
+                    reminderService: reminderService,
                     onChanged: onWorkStateChanged,
                     highlightedActionItemID: highlightedActionItemID
                 )

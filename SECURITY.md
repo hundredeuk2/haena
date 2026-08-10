@@ -10,7 +10,7 @@ HAE.NA는 회의 오디오와 전사 원문을 다루고 사용자의 OpenAI API
 - **API 키** — 일부만, 앞 몇 글자만도 안 됩니다
 - **회의 오디오 파일**
 - **전사 원문** — 실제 회의 내용
-- **`projects.json`, `profile.json`** — 회의·참석자·업무가 모두 들어 있습니다
+- **`projects.json`, `profile.json`, `agent-jobs.json`** — 회의·참석자·업무·알림 시각이 들어 있습니다
 - OpenAI API 응답 원문
 - 참석자 실명이 보이는 스크린샷
 

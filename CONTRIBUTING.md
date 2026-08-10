@@ -60,7 +60,7 @@ xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Release clean b
 
 - **API 키**, 토큰, 비밀번호 — 어떤 형태로도
 - **회의 오디오와 실제 전사 원문**
-- `projects.json`, `profile.json` 등 사용자 데이터
+- `projects.json`, `profile.json`, `agent-jobs.json` 등 사용자 데이터
 - OpenAI API 응답 원문
 - 빌드 산출물, `DerivedData/`, `.xcresult`, `xcuserdata/`
 - 사용자 홈 디렉터리 절대 경로

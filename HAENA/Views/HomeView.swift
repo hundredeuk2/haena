@@ -3,11 +3,13 @@ import SwiftUI
 /// The app's opening screen: what needs attention across every project, in one place.
 ///
 /// Read-only by design. Nothing is approved, edited, or dismissed here — every row leads to the
-/// screen that already owns that action, so there is exactly one place in the app where a proposal
-/// can be judged. It owns no filtering or ordering rules either; those all live in `HomeSummary`.
+/// screen that already owns that action. The one explicit Private-beta exception is the reminder
+/// validation sample: when no eligible task exists, the user can add a clearly named local sample
+/// and is taken to the existing work-state screen to operate it there.
 struct HomeView: View {
     let repository: any ProjectRepository
     let profileRepository: any LocalUserProfileRepository
+    let reminderRepository: any ActionItemReminderRepository
     /// Changed by the owner whenever something might have altered stored data — closing a capture
     /// sheet, returning from the browser — which re-runs the load.
     let reloadToken: UUID
@@ -25,11 +27,19 @@ struct HomeView: View {
     /// Which list the work area is showing. Session-only on purpose: this is a glance, not a saved
     /// filter, and persisting it would be one more piece of state to explain.
     @State private var showingAllWork = false
+    @State private var isCreatingReminderSample = false
+    @State private var reminderSampleError: String?
 
     private enum LoadState: Equatable {
         case loading
-        case loaded(HomeSummary)
+        case loaded(LoadedHome)
         case failed(String)
+    }
+
+    private struct LoadedHome: Equatable {
+        let summary: HomeSummary
+        let remindersByActionItem: [UUID: ActionItemReminder]
+        let hasEligibleReminderTask: Bool
     }
 
     private let dateFormatter = MeetingDateFormatter()
@@ -56,8 +66,12 @@ struct HomeView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            case .loaded(let summary):
-                summaryBody(summary)
+            case .loaded(let loaded):
+                summaryBody(
+                    loaded.summary,
+                    reminders: loaded.remindersByActionItem,
+                    hasEligibleReminderTask: loaded.hasEligibleReminderTask
+                )
             }
         }
         .padding(24)
@@ -111,7 +125,8 @@ struct HomeView: View {
     @ViewBuilder
     private var profileRow: some View {
         HStack(spacing: 8) {
-            if case .loaded(let summary) = loadState, let name = summary.localUserName {
+            if case .loaded(let loaded) = loadState, let name = loaded.summary.localUserName {
+                let summary = loaded.summary
                 Text(summary.isPersonalised ? "내 이름: \(name)" : "내 이름: \(name) · 연결된 참석자 없음")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -140,13 +155,18 @@ struct HomeView: View {
     // MARK: - Summary
 
     @ViewBuilder
-    private func summaryBody(_ summary: HomeSummary) -> some View {
+    private func summaryBody(
+        _ summary: HomeSummary,
+        reminders: [UUID: ActionItemReminder],
+        hasEligibleReminderTask: Bool
+    ) -> some View {
         if summary.projectCount == 0 {
             VStack(spacing: 12) {
                 Text("아직 저장된 프로젝트가 없습니다.")
                 Text("회의를 녹음하거나 음성 파일을 불러오면 여기에 확인할 내용이 모입니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                reminderSampleButton
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -155,14 +175,49 @@ struct HomeView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    nextActionCard(summary)
+                    if !hasEligibleReminderTask {
+                        reminderSampleCallout
+                    }
+                    nextActionCard(summary, reminders: reminders)
                     pendingSection(summary)
-                    workSection(summary)
+                    workSection(summary, reminders: reminders)
                     questionSection(summary)
                     agendaSection(summary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    private var reminderSampleCallout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("알림을 검증할 확정된 내 업무가 없습니다.")
+                .font(.headline)
+            Text("기존 데이터는 그대로 두고, 내 프로필과 연결된 마감일 있는 샘플 업무 한 건을 추가합니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            reminderSampleButton
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("reminder-sample-callout")
+    }
+
+    @ViewBuilder
+    private var reminderSampleButton: some View {
+        Button(isCreatingReminderSample ? "샘플 만드는 중…" : "알림 검증 샘플 만들기") {
+            Task { await createReminderSample() }
+        }
+        .disabled(isCreatingReminderSample)
+        .accessibilityIdentifier("create-reminder-sample-button")
+
+        if let reminderSampleError {
+            Text(reminderSampleError)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("reminder-sample-error")
         }
     }
 
@@ -174,7 +229,10 @@ struct HomeView: View {
     /// different question a user actually opens the app with — "what do I do now" — and it can only
     /// answer it with one thing, or honestly say it has nothing. Which one is `NextActionPolicy`'s
     /// decision, not this view's: everything here is rendering.
-    private func nextActionCard(_ summary: HomeSummary) -> some View {
+    private func nextActionCard(
+        _ summary: HomeSummary,
+        reminders: [UUID: ActionItemReminder]
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("지금 할 일")
                 .font(.headline)
@@ -184,7 +242,7 @@ struct HomeView: View {
             case .review(let review):
                 reviewRecommendation(review)
             case .work(let work):
-                workRecommendation(work)
+                workRecommendation(work, reminder: reminders[work.actionItemID])
             case nil:
                 emptyRecommendation(summary)
             }
@@ -224,7 +282,7 @@ struct HomeView: View {
         }
     }
 
-    private func workRecommendation(_ work: NextAction.Work) -> some View {
+    private func workRecommendation(_ work: NextAction.Work, reminder: ActionItemReminder?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(work.title)
                 .font(.title3)
@@ -248,6 +306,13 @@ struct HomeView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if let reminder, reminder.status == .scheduled {
+                Text("알림 · \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home-next-action-reminder")
+            }
 
             Button("업무 보기") {
                 onOpen(BrowserDestination.nextAction(.work(work)))
@@ -319,7 +384,10 @@ struct HomeView: View {
     /// Shows the user's own work once they have identified themselves, and everyone's otherwise.
     /// The full list stays one press away either way — the meetings involved other people, and
     /// hiding them behind a profile would lose information the user already had.
-    private func workSection(_ summary: HomeSummary) -> some View {
+    private func workSection(
+        _ summary: HomeSummary,
+        reminders: [UUID: ActionItemReminder]
+    ) -> some View {
         let showingMine = summary.isPersonalised && !showingAllWork
         let section = showingMine ? (summary.myActionItems ?? summary.activeActionItems) : summary.activeActionItems
 
@@ -381,6 +449,10 @@ struct HomeView: View {
                                         )
                                 }
                                 Text(entry.projectName)
+                                if let reminder = reminders[entry.id], reminder.status == .scheduled {
+                                    Text("알림 \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                                        .accessibilityIdentifier("home-work-reminder-\(entry.id.uuidString)")
+                                }
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -481,9 +553,48 @@ struct HomeView: View {
             // A profile that fails to load must not take the whole screen down with it: the four
             // areas are useful without one, so this degrades to the unpersonalised view.
             let profile = try? await profileRepository.profile()
-            loadState = .loaded(HomeSummary(projects: projects, profile: profile))
+            let reminders = (try? await reminderRepository.allReminders()) ?? []
+            let active = reminders.filter { $0.status == .scheduled }
+            loadState = .loaded(
+                LoadedHome(
+                    summary: HomeSummary(projects: projects, profile: profile),
+                    remindersByActionItem: Dictionary(
+                        uniqueKeysWithValues: active.map { ($0.actionItemID, $0) }
+                    ),
+                    hasEligibleReminderTask: projects
+                        .flatMap(\.actionItems)
+                        .contains {
+                            ActionItemReminderService.eligibility(of: $0, profile: profile) == .eligible
+                        }
+                )
+            )
         } catch {
             loadState = .failed("저장된 내용을 불러오지 못했습니다.")
+        }
+    }
+
+    private func createReminderSample() async {
+        guard !isCreatingReminderSample else { return }
+        isCreatingReminderSample = true
+        reminderSampleError = nil
+        defer { isCreatingReminderSample = false }
+
+        do {
+            let result = try await ActionItemReminderSampleService(
+                projectRepository: repository,
+                profileRepository: profileRepository
+            ).createOrReset()
+            await load()
+            onOpen(
+                BrowserDestination(
+                    projectID: result.projectID,
+                    meetingID: result.meetingID,
+                    actionItemID: result.actionItemID,
+                    pane: .workState
+                )
+            )
+        } catch {
+            reminderSampleError = "알림 검증 샘플을 만들지 못했습니다."
         }
     }
 }

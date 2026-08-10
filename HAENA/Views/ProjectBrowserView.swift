@@ -15,6 +15,9 @@ struct ProjectBrowserView: View {
     var audioAssetStore: AudioAssetStore?
     /// Passed through to the meeting pane, which makes one player per meeting.
     var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
+    var profileRepository: any LocalUserProfileRepository = InMemoryLocalUserProfileRepository()
+    var reminderRepository: any ActionItemReminderRepository = InMemoryActionItemReminderRepository()
+    var reminderService: ActionItemReminderService?
     /// Where to land when the browser opens, for a caller that already knows — the home screen
     /// tapping a row, or a capture that just created a meeting. Nil opens on nothing selected,
     /// as before.
@@ -74,6 +77,9 @@ struct ProjectBrowserView: View {
                         await confirmDeleteProject(selectedProject.id)
                     },
                     reviewService: reviewService,
+                    profileRepository: profileRepository,
+                    reminderRepository: reminderRepository,
+                    reminderService: reminderService,
                     // Reload rather than mutating the local copy, so what the review list shows is
                     // always what was actually persisted.
                     onWorkStateChanged: {
@@ -206,6 +212,7 @@ struct ProjectBrowserView: View {
         loadState = .loading
         do {
             let projects = try await queryService.loadProjects()
+            await reminderService?.reconcile()
             loadState = projects.isEmpty ? .empty : .loaded(projects)
             applyInitialSelection(against: projects)
             validateSelection(against: projects)

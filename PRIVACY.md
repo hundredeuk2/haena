@@ -12,11 +12,13 @@
 | --- | --- |
 | 프로젝트, 회의, 전사 원문, 참석자, 결정·업무·질문·아젠다 | `~/Library/Application Support/com.haena.HAENA/projects.json` |
 | 로컬 사용자 프로필(표시 이름, 나로 연결한 참석자 ID) | `~/Library/Application Support/com.haena.HAENA/profile.json` |
+| ActionItem 로컬 알림 예약·상태·취소 이유 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
 | 앱이 만든 오디오 사본 | `~/Library/Application Support/com.haena.HAENA/Audio/` |
 | 녹음 중 임시 파일 | 시스템 임시 폴더. 저장되면 삭제되고, 앱 시작 시 이전 잔여물도 정리됩니다 |
 
 - 평문 JSON입니다. 이 Mac의 사용자 계정으로 접근할 수 있는 사람은 읽을 수 있습니다.
 - 파일 권한은 소유자 전용(`0600`)으로 설정합니다.
+- 알림 예약과 실행에는 macOS `UserNotifications`만 사용하며 외부 서버로 전송하지 않습니다.
 - FileVault를 켜두시면 디스크 수준에서 함께 보호됩니다.
 
 ## 2. API 키
@@ -26,7 +28,7 @@ OpenAI API 키는 **macOS Keychain에만** 저장됩니다.
 - 항목: `com.haena.HAENA` / `openai-api-key`
 - 접근성: `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` — **백업으로 다른 기기에 넘어가지
   않습니다**
-- `projects.json`·`profile.json`·UserDefaults·설정 파일·소스코드에는 **저장하지 않습니다**
+- `projects.json`·`profile.json`·`agent-jobs.json`·UserDefaults·설정 파일·소스코드에는 **저장하지 않습니다**
 - 저장한 뒤에는 화면에 다시 표시하지 않습니다. 마스킹된 형태로도 보여주지 않고, 상태로 "설정됨"만
   표시합니다
 - 오류 메시지·로그·상태 값 어디에도 키가 포함되지 않도록 하고 있으며, 이를 자동 테스트로 확인합니다

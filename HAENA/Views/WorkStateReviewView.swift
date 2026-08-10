@@ -10,6 +10,9 @@ import SwiftUI
 struct WorkStateReviewView: View {
     let project: Project
     let reviewService: WorkStateReviewService
+    let profileRepository: any LocalUserProfileRepository
+    let reminderRepository: any ActionItemReminderRepository
+    let reminderService: ActionItemReminderService?
     let onChanged: () async -> Void
     /// One task to bring into view, from the home's 지금 할 일 card. Scrolled to once when this pane
     /// appears and marked while it stays; the parent drops it as soon as the user moves on, so this
@@ -18,6 +21,9 @@ struct WorkStateReviewView: View {
 
     @State private var errorMessage: String?
     @State private var editingActionItem: ActionItem?
+    @State private var reminderActionItem: ActionItem?
+    @State private var profile: LocalUserProfile?
+    @State private var remindersByActionItem: [UUID: ActionItemReminder] = [:]
     /// Guards the scroll against re-running when the parent reloads the project after a verdict —
     /// which would yank the user back mid-review.
     @State private var didScrollToHighlight = false
@@ -67,6 +73,24 @@ struct WorkStateReviewView: View {
                 },
                 onCancel: { editingActionItem = nil }
             )
+        }
+        .sheet(item: $reminderActionItem) { item in
+            if let reminderService {
+                ActionItemReminderView(
+                    project: project,
+                    actionItem: item,
+                    service: reminderService,
+                    existingReminder: remindersByActionItem[item.id],
+                    onChanged: {
+                        await loadReminderState()
+                        await onChanged()
+                    },
+                    onClose: { reminderActionItem = nil }
+                )
+            }
+        }
+        .task(id: project.updatedAt) {
+            await loadReminderState()
         }
     }
 
@@ -145,17 +169,16 @@ struct WorkStateReviewView: View {
 
         section("진행 중인 업무", identifier: "active-work-section", isEmpty: actionItems.isEmpty) {
             ForEach(actionItems) { item in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(item.title)
-                        Spacer()
-                        Button("수정") {
-                            editingActionItem = item
-                        }
-                        .accessibilityIdentifier("edit-action-item-\(item.id.uuidString)")
-                    }
-                    HStack(spacing: 12) {
-                        Text(WorkStateDisplay.label(for: item.status))
+                VStack(alignment: .leading, spacing: 8) {
+                    // The project browser's middle column can be narrow. Giving the title its own
+                    // row prevents the action buttons from squeezing Korean text down to one
+                    // character per line, which used to hide both the task and its reminder CTA.
+                    Text(item.title)
+                        .fontWeight(.semibold)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("상태 · \(WorkStateDisplay.label(for: item.status))")
                         Text(WorkStateDisplay.assigneeLabel(item.assigneeID, participants: participants(forMeeting: item.meetingID)))
                         if let due = WorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
                             Text(due)
@@ -163,6 +186,71 @@ struct WorkStateReviewView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    if reminderService != nil,
+                       ActionItemReminderService.eligibility(of: item, profile: profile) == .eligible {
+                        if item.id == highlightedActionItemID {
+                            Text("이 업무의 알림은 아래 버튼에서 설정하세요.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("highlighted-reminder-guidance")
+                        }
+
+                        Button {
+                            reminderActionItem = item
+                        } label: {
+                            Label(
+                                remindersByActionItem[item.id]?.status == .scheduled ? "알림 변경" : "알림 설정",
+                                systemImage: "bell"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("action-item-reminder-\(item.id.uuidString)")
+                    }
+
+                    if let reminder = remindersByActionItem[item.id], reminder.status == .scheduled {
+                        Text("알림 예정 · \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("action-item-reminder-status-\(item.id.uuidString)")
+                    }
+
+                    // Lifecycle and editing controls stay in their own compact row. They no longer
+                    // compete with the title or the primary reminder action for horizontal space.
+                    HStack(spacing: 8) {
+                        if item.status == .confirmed {
+                            Button("진행 시작") {
+                                Task { await setStatus(.inProgress, for: item) }
+                            }
+                            .accessibilityIdentifier("start-action-item-\(item.id.uuidString)")
+                        }
+                        Button("완료") {
+                            Task { await setStatus(.completed, for: item) }
+                        }
+                        .accessibilityIdentifier("complete-action-item-\(item.id.uuidString)")
+
+                        Button("수정") {
+                            editingActionItem = item
+                        }
+                        .accessibilityIdentifier("edit-action-item-\(item.id.uuidString)")
+
+                        Spacer(minLength: 0)
+
+                        Menu {
+                            Button("업무 취소", role: .destructive) {
+                                Task { await setStatus(.cancelled, for: item) }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .accessibilityLabel("업무 더보기")
+                        .accessibilityIdentifier("action-item-more-\(item.id.uuidString)")
+                    }
+                    .controlSize(.small)
                 }
                 // A tint rather than a selection: it says "this is the one you came for" without
                 // implying the row is now in a state the user has to get it out of.
@@ -174,6 +262,9 @@ struct WorkStateReviewView: View {
                 )
                 // The anchor `scrollToHighlightedItem` aims at.
                 .id(item.id)
+                // Keep a queryable card container without replacing the identifiers of its
+                // reminder and lifecycle controls in the accessibility tree.
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("active-action-item-\(item.id.uuidString)")
             }
         }
@@ -273,18 +364,36 @@ struct WorkStateReviewView: View {
         }
     }
 
+    private func setStatus(_ status: ActionItemStatus, for item: ActionItem) async {
+        await perform {
+            try await reviewService.setActionItemStatus(status, id: item.id, in: project.id)
+        }
+    }
+
     /// One place to run a review action: clear the last error, apply it, then let the parent reload
     /// so the list reflects what is actually stored.
     private func perform(_ action: () async throws -> Void) async {
         errorMessage = nil
         do {
             try await action()
+            await reminderService?.reconcile()
+            await loadReminderState()
             await onChanged()
         } catch WorkStateReviewError.unknownAssignee {
             errorMessage = "이 회의에 참석하지 않은 사람은 담당자로 지정할 수 없습니다."
         } catch {
             errorMessage = "변경 사항을 저장하지 못했습니다."
         }
+    }
+
+    private func loadReminderState() async {
+        profile = try? await profileRepository.profile()
+        let reminders = (try? await reminderRepository.allReminders()) ?? []
+        remindersByActionItem = Dictionary(
+            uniqueKeysWithValues: reminders
+                .filter { $0.status == .scheduled }
+                .map { ($0.actionItemID, $0) }
+        )
     }
 
     /// Ids are preserved and only names substituted, so an assignee stored against an anonymous

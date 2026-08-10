@@ -44,7 +44,7 @@ fi
 log "Checking the app bundle for user data and credentials"
 LEAKS="$(find "${APP_PATH}" -type f \( \
     -name "*.m4a" -o -name "*.wav" -o -name "*.mp3" -o -name "*.webm" -o \
-    -name "projects.json" -o -name "profile.json" -o -name ".env*" \) 2>/dev/null || true)"
+    -name "projects.json" -o -name "profile.json" -o -name "agent-jobs.json" -o -name ".env*" \) 2>/dev/null || true)"
 [ -z "${LEAKS}" ] || fail "the app bundle contains files that must not ship:"$'\n'"${LEAKS}"
 
 if grep -rlqE "sk-(proj|svcacct|admin)?-?[A-Za-z0-9_-]{20,}" "${APP_PATH}" 2>/dev/null; then

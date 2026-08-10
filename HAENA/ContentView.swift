@@ -11,6 +11,8 @@ struct ContentView: View {
     /// showing a meeting gets its own player.
     let makeAudioPlayer: () -> any MeetingAudioPlayer
     let profileRepository: any LocalUserProfileRepository
+    let reminderRepository: any ActionItemReminderRepository
+    let notificationScheduler: any LocalNotificationScheduler
     let credentialResolver: OpenAICredentialResolver
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
@@ -37,10 +39,20 @@ struct ContentView: View {
     @State private var showingProfile = false
     @State private var showingAISettings = false
 
+    private var reminderService: ActionItemReminderService {
+        ActionItemReminderService(
+            reminderRepository: reminderRepository,
+            projectRepository: repository,
+            profileRepository: profileRepository,
+            notifications: notificationScheduler
+        )
+    }
+
     var body: some View {
         HomeView(
             repository: repository,
             profileRepository: profileRepository,
+            reminderRepository: reminderRepository,
             reloadToken: homeReloadToken,
             onOpenProfile: { showingProfile = true },
             onOpenAISettings: { showingAISettings = true },
@@ -124,11 +136,17 @@ struct ContentView: View {
                 extractor: extractor,
                 audioAssetStore: audioAssetStore,
                 makeAudioPlayer: makeAudioPlayer,
+                profileRepository: profileRepository,
+                reminderRepository: reminderRepository,
+                reminderService: reminderService,
                 initialProjectID: browserDestination?.projectID,
                 initialMeetingID: browserDestination?.meetingID,
                 initialActionItemID: browserDestination?.actionItemID,
                 initialPane: browserDestination?.pane ?? .status
             )
+        }
+        .task {
+            await reminderService.reconcile()
         }
     }
 
@@ -153,6 +171,7 @@ struct ContentView: View {
             return
         }
         homeReloadToken = UUID()
+        Task { await reminderService.reconcile() }
         openPendingDestination()
     }
 
@@ -187,6 +206,8 @@ struct ContentView: View {
         ),
         makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
         profileRepository: InMemoryLocalUserProfileRepository(),
+        reminderRepository: InMemoryActionItemReminderRepository(),
+        notificationScheduler: InMemoryLocalNotificationScheduler(),
         credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
