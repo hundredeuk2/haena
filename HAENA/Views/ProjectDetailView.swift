@@ -30,9 +30,16 @@ struct ProjectDetailView: View {
     /// Set by a caller that already knows which area the user asked for — the home screen opening
     /// a project's work state, for instance. Nil leaves the pane at its normal default.
     var requestedPane: ProjectDetailPane?
+    /// The task a caller wants the user to see — the home's 지금 할 일 card naming what it
+    /// recommended. Taken up once, on the same first appearance as `requestedPane`.
+    var requestedActionItemID: UUID?
 
     @State private var isConfirmingDeletion = false
     @State private var pane: ProjectDetailPane = .status
+    /// The requested task, once taken up. Held here rather than passed straight through so it can
+    /// be *let go of*: it is cleared the moment the user leaves 업무 상태, so coming back to the tab
+    /// under their own steam does not drag them to the home's choice all over again.
+    @State private var highlightedActionItemID: UUID?
 
     private let dateFormatter = MeetingDateFormatter()
 
@@ -126,7 +133,8 @@ struct ProjectDetailView: View {
                 WorkStateReviewView(
                     project: project,
                     reviewService: reviewService,
-                    onChanged: onWorkStateChanged
+                    onChanged: onWorkStateChanged,
+                    highlightedActionItemID: highlightedActionItemID
                 )
             }
 
@@ -142,13 +150,23 @@ struct ProjectDetailView: View {
             if let requestedPane {
                 pane = requestedPane
             }
+            highlightedActionItemID = requestedActionItemID
         }
         // Selecting a different project in the sidebar reuses this view rather than rebuilding it,
         // so the pane has to be sent back to 현재 상태 explicitly — otherwise the second project a
         // user opens inherits whichever tab they left the first one on. This deliberately wins over
         // `requestedPane`: that request was about the project the user arrived on, not this one.
+        // The highlighted task goes with it, for exactly the same reason.
         .onChange(of: project.id) { _, _ in
             pane = .status
+            highlightedActionItemID = nil
+        }
+        // Leaving 업무 상태 is the user saying they are done with what the home sent them to look
+        // at. Dropping it here is what keeps this a one-time hand-off rather than a mode.
+        .onChange(of: pane) { _, newPane in
+            if newPane != .workState {
+                highlightedActionItemID = nil
+            }
         }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(

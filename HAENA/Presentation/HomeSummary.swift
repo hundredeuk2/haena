@@ -31,6 +31,25 @@ struct HomeActionItem: Identifiable, Equatable, Sendable {
     var id: UUID { actionItem.id }
 }
 
+extension HomeActionItem {
+    /// Builds one row from a task and the project holding it.
+    ///
+    /// The assignee is resolved through the meeting's `displayRoster`, so a task assigned to an
+    /// anonymous speaker starts showing the real name once that voice has been confirmed — the same
+    /// lookup the review and project screens use. A single initialiser rather than each caller
+    /// reaching for the roster itself: the home summary and the next-action policy both build these,
+    /// and a second copy of the lookup is how one of them starts naming somebody the other does not.
+    init(_ actionItem: ActionItem, in project: Project) {
+        let participants = project.meetings.first { $0.id == actionItem.meetingID }?.displayRoster ?? []
+        self.init(
+            actionItem: actionItem,
+            projectID: project.id,
+            projectName: project.name,
+            assigneeName: WorkStateDisplay.assigneeName(actionItem.assigneeID, participants: participants)
+        )
+    }
+}
+
 /// How many proposals are waiting in one project.
 ///
 /// The 확인 필요 area is counts rather than items on purpose, exactly as on the project status
@@ -57,6 +76,11 @@ struct HomePendingProposalCount: Identifiable, Equatable, Sendable {
 /// every assignee's work and names them. It deliberately does not say "my tasks"; claiming a
 /// filter it does not apply would be worse than showing everything.
 struct HomeSummary: Equatable, Sendable {
+    /// The single thing to do now, shown above everything else — or nil when there is nothing to
+    /// recommend. Chosen by `NextActionPolicy` rather than here: this type merges and orders, and
+    /// deciding what beats what is a different question with its own reasoning and its own tests.
+    let nextAction: NextAction?
+
     /// Every proposal awaiting a verdict, across all projects.
     let pendingProposalCount: Int
     /// Where those proposals are. `totalCount` here counts *projects*, not proposals — the
@@ -92,6 +116,7 @@ struct HomeSummary: Equatable, Sendable {
         projects: [Project],
         profile: LocalUserProfile? = nil,
         referenceDate: Date = Date(),
+        calendar: Calendar = .current,
         limit: Int = HomeSummary.representativeLimit
     ) {
         self.referenceDate = referenceDate
@@ -100,6 +125,11 @@ struct HomeSummary: Equatable, Sendable {
 
         // Merged in a fixed project order, so the input to every sort below is itself stable.
         let ordered = projects.sorted(by: ProjectBrowserQueryService.isOrderedBefore)
+
+        // Given the same inputs as everything below, and never affected by `limit`: the
+        // recommendation is one item chosen from everything, not the first of a truncated list.
+        nextAction = NextActionPolicy(referenceDate: referenceDate, calendar: calendar)
+            .next(projects: ordered, profile: profile)
 
         var pendingByProject: [HomePendingProposalCount] = []
         var work: [HomeActionItem] = []
@@ -118,14 +148,7 @@ struct HomeSummary: Equatable, Sendable {
                 )
             }
 
-            work += WorkStateInbox.activeActionItems(in: project).map { item in
-                HomeActionItem(
-                    actionItem: item,
-                    projectID: project.id,
-                    projectName: project.name,
-                    assigneeName: Self.assigneeName(for: item, in: project)
-                )
-            }
+            work += WorkStateInbox.activeActionItems(in: project).map { HomeActionItem($0, in: project) }
 
             questions += WorkStateInbox.reviewedOpenQuestions(in: project).map { question in
                 HomeEntry(value: question, projectID: project.id, projectName: project.name)
@@ -173,9 +196,16 @@ struct HomeSummary: Equatable, Sendable {
     static func complete(
         projects: [Project],
         profile: LocalUserProfile? = nil,
-        referenceDate: Date = Date()
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
     ) -> HomeSummary {
-        HomeSummary(projects: projects, profile: profile, referenceDate: referenceDate, limit: .max)
+        HomeSummary(
+            projects: projects,
+            profile: profile,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            limit: .max
+        )
     }
 
     /// Whether the screen can offer a "my work" view at all. False leaves the home showing
@@ -217,15 +247,5 @@ struct HomeSummary: Equatable, Sendable {
             return lhs.projectName < rhs.projectName
         }
         return lhs.projectID.uuidString < rhs.projectID.uuidString
-    }
-
-    // MARK: - Assignee
-
-    /// Resolved through the meeting's `displayRoster`, so a task assigned to an anonymous speaker
-    /// starts showing the real name once that voice has been confirmed — the same lookup the review
-    /// and project screens use.
-    private static func assigneeName(for item: ActionItem, in project: Project) -> String? {
-        let participants = project.meetings.first { $0.id == item.meetingID }?.displayRoster ?? []
-        return WorkStateDisplay.assigneeName(item.assigneeID, participants: participants)
     }
 }

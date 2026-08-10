@@ -23,6 +23,10 @@ struct ProjectBrowserView: View {
     /// created rather than on the project that contains it. Ignored without a project, and ignored
     /// if that project no longer has the meeting.
     var initialMeetingID: UUID?
+    /// Names one task inside `initialProjectID`, so the home's 지금 할 일 card lands on the item it
+    /// recommended rather than on a list the user has to search. Ignored without a project, and
+    /// applied once — see `ProjectDetailView.requestedActionItemID`.
+    var initialActionItemID: UUID?
     var initialPane: ProjectDetailPane = .status
 
     @Environment(\.dismiss) private var dismiss
@@ -75,7 +79,8 @@ struct ProjectBrowserView: View {
                     onWorkStateChanged: {
                         await load()
                     },
-                    requestedPane: selectedProjectID == initialProjectID ? initialPane : nil
+                    requestedPane: selectedProjectID == initialProjectID ? initialPane : nil,
+                    requestedActionItemID: selectedProjectID == initialProjectID ? initialActionItemID : nil
                 )
             } else {
                 Text("프로젝트를 선택해주세요.")

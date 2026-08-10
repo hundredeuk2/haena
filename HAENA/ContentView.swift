@@ -52,9 +52,9 @@ struct ContentView: View {
                 showingProjectBrowser = true
             },
             // The home never presents review UI of its own; it opens the screen that already owns
-            // the action, on the area the user asked for.
-            onOpenProject: { projectID, pane in
-                browserDestination = BrowserDestination(projectID: projectID, pane: pane)
+            // the action, at the place the user asked for.
+            onOpen: { destination in
+                browserDestination = destination
                 showingProjectBrowser = true
             }
         )
@@ -126,6 +126,7 @@ struct ContentView: View {
                 makeAudioPlayer: makeAudioPlayer,
                 initialProjectID: browserDestination?.projectID,
                 initialMeetingID: browserDestination?.meetingID,
+                initialActionItemID: browserDestination?.actionItemID,
                 initialPane: browserDestination?.pane ?? .status
             )
         }
