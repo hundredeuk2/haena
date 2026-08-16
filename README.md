@@ -39,6 +39,9 @@ HAE.NA는 그 한 사람을 위한 앱입니다. 녹음하거나 음성 파일�
   예약합니다. 앱을 다시 열어도 유지되며 업무가 끝나면 자동으로 취소됩니다
 - **Agent 기록** — 알림 예약·취소, 화면 표시·열기, 실행 시각 경과, 관련 업무 완료를 이 Mac의
   최소 로컬 기록으로 확인하고 선택적으로 유용성 피드백을 남길 수 있습니다
+- **Beta 측정** — 회의 처리 수, 서로 다른 사용 날짜 수, 제안 승인율·수정률, 처리 시간 중앙값,
+  알림 피드백 분포를 이 Mac에서만 집계해 보여줍니다. 비율은 항상 분자·분모와 함께 표시하고,
+  표본이 없으면 추정 대신 빈 상태로 둡니다. `측정 초기화`로 측정 기록만 지울 수 있습니다
 - **원본 오디오 재생** — 저장된 녹음을 다시 듣기(재생/일시정지, 처음부터, 현재 시간·전체 길이)
 - **Markdown 내보내기·복사** — 프로젝트 현재 상태, 회의 전사 원문
 
@@ -145,6 +148,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 | 로컬 사용자 프로필 | `~/Library/Application Support/com.haena.HAENA/profile.json` |
 | 로컬 알림 예약·취소 이력 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
 | Agent 알림 사건·선택적 피드백 | `~/Library/Application Support/com.haena.HAENA/agent-ledger.json` |
+| Beta 측정 이벤트(집계용 최소 기록) | `~/Library/Application Support/com.haena.HAENA/beta-metrics.json` |
 | 앱이 보관하는 오디오 사본 | `~/Library/Application Support/com.haena.HAENA/Audio/` |
 | OpenAI API 키 | macOS Keychain (`com.haena.HAENA` / `openai-api-key`) |
 | 녹음 중 임시 파일 | 시스템 임시 폴더 (앱 시작 시 정리) |
@@ -181,7 +185,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 ## 버그 신고와 기여
 
 - 버그·제안은 GitHub Issues로 올려주세요.
-- **이슈에 회의 오디오, 전사 원문, API 키, `projects.json`, `agent-jobs.json`, `agent-ledger.json`을 첨부하지 마세요.**
+- **이슈에 회의 오디오, 전사 원문, API 키, `projects.json`, `agent-jobs.json`, `agent-ledger.json`, `beta-metrics.json`을 첨부하지 마세요.**
   무엇을 보내도 되고 안 되는지는 [SECURITY.md](SECURITY.md)에 정리했습니다.
 - 코드 기여는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고해주세요.
 

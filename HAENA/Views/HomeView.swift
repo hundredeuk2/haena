@@ -16,6 +16,7 @@ struct HomeView: View {
     let onOpenProfile: () -> Void
     let onOpenAISettings: () -> Void
     let onOpenAgentLedger: () -> Void
+    let onOpenBetaMetrics: () -> Void
     let onRecord: () -> Void
     let onImportAudio: () -> Void
     let onPasteTranscript: () -> Void
@@ -165,6 +166,8 @@ struct HomeView: View {
                 .accessibilityIdentifier("open-ai-settings-button")
             Button("Agent 기록") { onOpenAgentLedger() }
                 .accessibilityIdentifier("open-agent-ledger-button")
+            Button("베타 측정") { onOpenBetaMetrics() }
+                .accessibilityIdentifier("open-beta-metrics-button")
         }
     }
 

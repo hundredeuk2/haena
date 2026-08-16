@@ -13,6 +13,7 @@ struct ContentView: View {
     let profileRepository: any LocalUserProfileRepository
     let reminderRepository: any ActionItemReminderRepository
     let ledgerRepository: any AgentLedgerRepository
+    let metricsRepository: any BetaMetricsRepository
     let notificationScheduler: any LocalNotificationScheduler
     let credentialResolver: OpenAICredentialResolver
 
@@ -40,9 +41,17 @@ struct ContentView: View {
     @State private var showingProfile = false
     @State private var showingAISettings = false
     @State private var showingAgentLedger = false
+    @State private var showingBetaMetrics = false
 
     private var ledgerService: AgentLedgerService {
         AgentLedgerService(repository: ledgerRepository)
+    }
+
+    /// One recorder shared by every flow that can produce a measurement, so the same run cannot be
+    /// counted under two different measurement periods. The ledger is handed over so the report can
+    /// tally feedback the user already gave — this path only ever reads it.
+    private var metricsService: BetaMetricsService {
+        BetaMetricsService(repository: metricsRepository, ledgerRepository: ledgerRepository)
     }
 
     private var reminderService: ActionItemReminderService {
@@ -64,6 +73,7 @@ struct ContentView: View {
             onOpenProfile: { showingProfile = true },
             onOpenAISettings: { showingAISettings = true },
             onOpenAgentLedger: { showingAgentLedger = true },
+            onOpenBetaMetrics: { showingBetaMetrics = true },
             onRecord: { showingRecordAudio = true },
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
@@ -106,6 +116,12 @@ struct ContentView: View {
                 onClose: { showingAgentLedger = false }
             )
         }
+        .sheet(isPresented: $showingBetaMetrics) {
+            BetaMetricsView(
+                service: metricsService,
+                onClose: { showingBetaMetrics = false }
+            )
+        }
         .sheet(isPresented: $showingProfile) {
             ProfileSettingsView(
                 service: LocalUserProfileService(
@@ -118,7 +134,8 @@ struct ContentView: View {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
                 extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                onOpenResults: requestResults,
+                metrics: metricsService
             )
         }
         .sheet(isPresented: $showingRecordAudio) {
@@ -131,7 +148,8 @@ struct ContentView: View {
                     assetStore: audioAssetStore
                 ),
                 extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                onOpenResults: requestResults,
+                metrics: metricsService
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -142,7 +160,8 @@ struct ContentView: View {
                     assetStore: audioAssetStore
                 ),
                 extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                onOpenResults: requestResults,
+                metrics: metricsService
             )
         }
         .sheet(isPresented: $showingProjectBrowser) {
@@ -154,6 +173,9 @@ struct ContentView: View {
                 profileRepository: profileRepository,
                 reminderRepository: reminderRepository,
                 reminderService: reminderService,
+                // Without this the review screen builds an uninstrumented service and no verdict is
+                // ever counted: this view is the only place `WorkStateReviewService` is constructed.
+                metrics: metricsService,
                 initialProjectID: browserDestination?.projectID,
                 initialMeetingID: browserDestination?.meetingID,
                 initialActionItemID: browserDestination?.actionItemID,
@@ -223,6 +245,7 @@ struct ContentView: View {
         profileRepository: InMemoryLocalUserProfileRepository(),
         reminderRepository: InMemoryActionItemReminderRepository(),
         ledgerRepository: InMemoryAgentLedgerRepository(),
+        metricsRepository: InMemoryBetaMetricsRepository(),
         notificationScheduler: InMemoryLocalNotificationScheduler(),
         credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
         showingPasteTranscript: .constant(false),

@@ -17,6 +17,12 @@ struct RecordAudioView: View {
     /// Injected so the elapsed time is testable and so it is measured from a monotonic-enough
     /// source rather than counted up by the timer's own tick count.
     var now: () -> Date = Date.init
+    /// Forwarded to the import screen, which is where a recording's capture actually happens.
+    ///
+    /// Nothing is measured while the microphone is open: recording is the meeting itself, not the
+    /// app processing it, and a two-hour recording is not a two-hour wait. The clock the beta
+    /// cares about starts when the user hands the finished file over on the next screen.
+    var metrics: BetaMetricsService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -71,7 +77,8 @@ struct RecordAudioView: View {
                         // The capture service has its own copy now.
                         discardScratchFile()
                     },
-                    onOpenResults: onOpenResults
+                    onOpenResults: onOpenResults,
+                    metrics: metrics
                 )
             } else {
                 recordingScreen

@@ -96,3 +96,83 @@ struct CaptureOutcome: Equatable, Sendable {
         )
     }
 }
+
+/// One capture the user started: which path it came in on, and the instant they started waiting.
+///
+/// It lives next to `CaptureOutcome` because it keys off the same boundary. `CaptureOutcome` is
+/// already the single definition of "a capture that actually reached storage", so a run that ends
+/// with one succeeded and a run that ends without one did not — the three capture screens cannot
+/// disagree about that, and now cannot disagree about how the wait was measured either.
+///
+/// Every recording method is non-throwing and every call it makes is to a non-throwing recorder,
+/// so a run can be measured, or fail to be measured, without either outcome being visible to the
+/// capture it describes. With no `BetaMetricsService` supplied it does nothing at all.
+struct CaptureRun: Sendable {
+    let id: UUID
+    let source: BetaMetricCaptureSource
+    private let startedAt: ContinuousClock.Instant
+    private let metrics: BetaMetricsService?
+
+    /// `startedAt` is read at construction, so the caller marks the start of the flow by building
+    /// this at the point the user's wait begins — not at the point the result comes back.
+    init(
+        source: BetaMetricCaptureSource,
+        metrics: BetaMetricsService?,
+        id: UUID = UUID(),
+        startedAt: ContinuousClock.Instant = .now
+    ) {
+        self.id = id
+        self.source = source
+        self.metrics = metrics
+        self.startedAt = startedAt
+    }
+
+    /// Monotonic, and keeps counting while the machine sleeps — a transcription that ran for
+    /// minutes cannot be reported as negative, or as zero, because the wall clock moved underneath
+    /// it. Only this number is ever recorded: no audio, transcript, title, or error text.
+    var elapsedMilliseconds: Int {
+        let elapsed = ContinuousClock.now - startedAt
+        let components = elapsed.components
+        let milliseconds = components.seconds * 1_000
+            + Int64(Double(components.attoseconds) / 1_000_000_000_000_000)
+        return Int(clamping: max(0, milliseconds))
+    }
+
+    /// The terminal state of a capture that reached storage. Counts the meeting once, then the
+    /// wait that produced it.
+    func recordSuccess(_ outcome: CaptureOutcome) async {
+        guard let metrics else {
+            return
+        }
+        await metrics.recordMeetingProcessed(
+            projectID: outcome.projectID,
+            meetingID: outcome.meetingID,
+            source: source,
+            // Nil when the saved project could not be read back to count: unknown, not zero.
+            resultCount: outcome.counts?.total
+        )
+        await metrics.recordProcessingDuration(
+            runID: id,
+            source: source,
+            outcome: .succeeded,
+            milliseconds: elapsedMilliseconds,
+            meetingID: outcome.meetingID
+        )
+    }
+
+    /// The terminal state of a capture that did not reach storage. No meeting is named because
+    /// there is none: everything after the save is reported beside the meeting, not instead of it,
+    /// so a run that got that far ends as a success even when extraction failed.
+    func recordFailure() async {
+        guard let metrics else {
+            return
+        }
+        await metrics.recordProcessingDuration(
+            runID: id,
+            source: source,
+            outcome: .failed,
+            milliseconds: elapsedMilliseconds,
+            meetingID: nil
+        )
+    }
+}

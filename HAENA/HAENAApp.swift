@@ -27,6 +27,7 @@ struct HAENAApp: App {
     private let profileRepository: any LocalUserProfileRepository
     private let reminderRepository: any ActionItemReminderRepository
     private let ledgerRepository: any AgentLedgerRepository
+    private let metricsRepository: any BetaMetricsRepository
     private let notificationScheduler: any LocalNotificationScheduler
     /// One resolver, shared by transcription and extraction, so the app cannot use two keys.
     private let credentialResolver: OpenAICredentialResolver
@@ -77,6 +78,10 @@ struct HAENAApp: App {
                 events: Self.uiTestLedgerSeed(environment: ProcessInfo.processInfo.environment)
             )
             notificationScheduler = InMemoryLocalNotificationScheduler()
+            metricsRepository = InMemoryBetaMetricsRepository(
+                measurementStartedAt: Self.uiTestMetricsStart,
+                events: Self.uiTestMetricsSeed(environment: ProcessInfo.processInfo.environment)
+            )
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
             let resolver = OpenAICredentialResolver.shared
@@ -104,6 +109,9 @@ struct HAENAApp: App {
                 reminderRepository: assembledReminderRepository,
                 ledger: AgentLedgerService(repository: assembledLedgerRepository)
             )
+            metricsRepository = JSONBetaMetricsRepository(
+                fileURL: JSONBetaMetricsRepository.defaultFileURL()
+            )
             notificationScheduler = UserNotificationScheduler(
                 foregroundDelegate: ForegroundNotificationDelegate { callback in
                     Task { await notificationLedgerBridge.record(callback) }
@@ -130,6 +138,7 @@ struct HAENAApp: App {
                 profileRepository: profileRepository,
                 reminderRepository: reminderRepository,
                 ledgerRepository: ledgerRepository,
+                metricsRepository: metricsRepository,
                 notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
                 showingPasteTranscript: $showingPasteTranscript,
@@ -186,5 +195,103 @@ struct HAENAApp: App {
                 scheduledFor: occurredAt.addingTimeInterval(3_600)
             )
         ]
+    }
+
+    /// The measurement period a UI-test launch reports. Fixed rather than `Date()`, so the seeded
+    /// events below are always inside the window and the screen never depends on when the run
+    /// happened.
+    private static let uiTestMetricsStart = Date(timeIntervalSince1970: 1_786_272_000)
+
+    /// A seeded beta-measurement period, so the screen can be exercised with real numbers rather
+    /// than only in its empty state.
+    ///
+    /// Deliberately produces a *computable* approval rate — three approvals and one exclusion —
+    /// because the interesting assertion is that a rate renders with its numerator and denominator,
+    /// and a zero denominator would render the empty state instead and prove nothing. The two
+    /// meetings sit on two different local days so repeat usage is observable too.
+    private static func uiTestMetricsSeed(environment: [String: String]) -> [BetaMetricEvent] {
+        guard environment["HAENA_UI_TESTING_BETA_METRICS"] == "1" else { return [] }
+
+        let firstDay = uiTestMetricsStart.addingTimeInterval(3_600)
+        let secondDay = uiTestMetricsStart.addingTimeInterval(90_000)
+
+        func id(_ index: Int) -> UUID {
+            UUID(uuidString: "B7000000-0000-4000-8000-\(String(format: "%012d", index))")!
+        }
+
+        var events: [BetaMetricEvent] = [
+            BetaMetricEvent(
+                id: id(1),
+                deduplicationKey: "meetingProcessed:\(id(101).uuidString)",
+                type: .meetingProcessed,
+                occurredAt: firstDay,
+                projectID: id(100),
+                meetingID: id(101),
+                captureSource: .pastedText,
+                resultCount: 4
+            ),
+            BetaMetricEvent(
+                id: id(2),
+                deduplicationKey: "meetingProcessed:\(id(102).uuidString)",
+                type: .meetingProcessed,
+                occurredAt: secondDay,
+                projectID: id(100),
+                meetingID: id(102),
+                captureSource: .importedAudio,
+                resultCount: 3
+            ),
+            BetaMetricEvent(
+                id: id(3),
+                deduplicationKey: "processingDuration:\(id(103).uuidString)",
+                type: .processingDuration,
+                occurredAt: firstDay,
+                meetingID: id(101),
+                captureSource: .pastedText,
+                outcome: .succeeded,
+                durationMilliseconds: 4_200
+            ),
+            BetaMetricEvent(
+                id: id(4),
+                deduplicationKey: "processingDuration:\(id(104).uuidString)",
+                type: .processingDuration,
+                occurredAt: secondDay,
+                meetingID: id(102),
+                captureSource: .importedAudio,
+                outcome: .succeeded,
+                durationMilliseconds: 12_800
+            ),
+            BetaMetricEvent(
+                id: id(5),
+                deduplicationKey: "proposalModified:\(id(201).uuidString)",
+                type: .proposalModified,
+                occurredAt: firstDay,
+                projectID: id(100),
+                proposalID: id(201),
+                proposalKind: .actionItem,
+                fieldCategory: .assignee
+            )
+        ]
+
+        let verdicts: [(Int, BetaMetricProposalKind, BetaMetricVerdict)] = [
+            (201, .actionItem, .approved),
+            (202, .decision, .approved),
+            (203, .openQuestion, .approved),
+            (204, .agendaItem, .excluded)
+        ]
+        for (offset, entry) in verdicts.enumerated() {
+            events.append(
+                BetaMetricEvent(
+                    id: id(300 + offset),
+                    deduplicationKey: "proposalReviewed:\(id(entry.0).uuidString)",
+                    type: .proposalReviewed,
+                    occurredAt: firstDay,
+                    projectID: id(100),
+                    proposalID: id(entry.0),
+                    proposalKind: entry.1,
+                    verdict: entry.2
+                )
+            )
+        }
+        return events
     }
 }

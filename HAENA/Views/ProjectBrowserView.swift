@@ -18,6 +18,10 @@ struct ProjectBrowserView: View {
     var profileRepository: any LocalUserProfileRepository = InMemoryLocalUserProfileRepository()
     var reminderRepository: any ActionItemReminderRepository = InMemoryActionItemReminderRepository()
     var reminderService: ActionItemReminderService?
+    /// Handed to the review service this view builds. Nil records nothing, which is what previews
+    /// and tests want; the app supplies one, because this is the only place a review service is
+    /// constructed and an uninstrumented one would silently count no verdicts at all.
+    var metrics: BetaMetricsService?
     /// Where to land when the browser opens, for a caller that already knows — the home screen
     /// tapping a row, or a capture that just created a meeting. Nil opens on nothing selected,
     /// as before.
@@ -50,7 +54,7 @@ struct ProjectBrowserView: View {
     }
 
     private var reviewService: WorkStateReviewService {
-        WorkStateReviewService(repository: repository)
+        WorkStateReviewService(repository: repository, metrics: metrics)
     }
 
     private var speakerConfirmationService: SpeakerConfirmationService {
@@ -158,7 +162,8 @@ struct ProjectBrowserView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor)
+                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                metrics: metrics
             )
         }
     }

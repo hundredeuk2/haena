@@ -12,18 +12,11 @@ import XCTest
 ///
 /// ## Opting in
 ///
-/// Either of these enables the run, and each also supplies the credential:
+/// `HAENA_RUN_LIVE_OPENAI_TESTS=1` in the test process is the only opt-in signal. A credential may
+/// then come from `OPENAI_API_KEY` or `~/.haena-openai-live-key`. The key file is never inspected
+/// until the explicit flag has been accepted, and its existence alone never enables a live run.
 ///
-/// 1. `HAENA_RUN_LIVE_OPENAI_TESTS=1` with `OPENAI_API_KEY` in **this process's** environment.
-///    Note that `xcodebuild` does not forward the invoking shell's environment to an app-hosted
-///    unit test process, so exporting these in a terminal is not enough on its own; this path
-///    works from Xcode's scheme environment or a runner that sets the test process's environment.
-/// 2. A local key file at `~/.haena-openai-live-key` containing only the key. Its existence is
-///    itself the opt-in signal. It lives outside the repository and is never read by product code —
-///    `OpenAIWorkStateExtractor` still resolves its credential from the environment alone.
-///
-/// **Delete the key file (`rm ~/.haena-openai-live-key`) as soon as verification is done.** While
-/// it exists this test is live, so *every* full test run makes a real, billed API call.
+/// Normal full test runs therefore skip even when a developer has left the local key file in place.
 ///
 /// The transcript below is synthetic and deliberately unremarkable — no real meeting data may be
 /// sent to a provider from a test.
@@ -107,18 +100,22 @@ final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
 
     func testLiveExtractionProducesGroundedProposalsThatSurviveAReload() async throws {
         let environment = ProcessInfo.processInfo.environment
-        let optedInByEnvironment = environment["HAENA_RUN_LIVE_OPENAI_TESTS"] == "1"
-        let hasLocalKeyFile = FileManager.default.fileExists(atPath: Self.localKeyFileURL.path)
-
-        guard optedInByEnvironment || hasLocalKeyFile else {
+        guard OpenAILiveTestGate.isExplicitlyEnabled(environment: environment) else {
             throw XCTSkip("""
             Live OpenAI check is opt-in (it makes a real, billed API call). Enable it with \
-            HAENA_RUN_LIVE_OPENAI_TESTS=1 in the test process's environment, or by creating \
-            ~/.haena-openai-live-key.
+            HAENA_RUN_LIVE_OPENAI_TESTS=1 in the test process's environment.
             """)
         }
+        // Credential lookup is intentionally below the explicit opt-in guard.
         guard let apiKey = Self.resolvedAPIKey(environment: environment) else {
             throw XCTSkip("No OpenAI credential found in the environment or ~/.haena-openai-live-key; skipping.")
+        }
+        guard OpenAILiveTestGate.evaluate(
+            environment: environment,
+            kind: .workStateExtraction,
+            hasCredential: true
+        ) == .allowed else {
+            throw XCTSkip("Live OpenAI prerequisites are incomplete; skipping.")
         }
 
         let configuration = OpenAIConfiguration.fromEnvironment(environment)

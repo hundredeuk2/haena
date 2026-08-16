@@ -10,6 +10,9 @@ struct PasteTranscriptView: View {
     /// Asked for by the completion screen. The caller records where to go and this sheet closes
     /// itself; nothing here presents the browser.
     var onOpenResults: ((CaptureDestination) -> Void)?
+    /// Optional and nil by default, so previews and existing call sites are unaffected. Nothing on
+    /// this screen changes when it is absent.
+    var metrics: BetaMetricsService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -141,6 +144,10 @@ struct PasteTranscriptView: View {
 
     private func saveMeeting() {
         validationMessage = nil
+        // The flow starts here — the moment the user pressed 저장 — not at the first await, so
+        // validation and the repository read are inside the measure the same way they are inside
+        // the user's wait.
+        let run = CaptureRun(source: .pastedText, metrics: metrics)
         Task {
             let meeting: Meeting
             do {
@@ -151,20 +158,25 @@ struct PasteTranscriptView: View {
                 )
             } catch let error as TextMeetingCaptureError {
                 validationMessage = message(for: error)
+                await run.recordFailure()
                 return
             } catch {
                 validationMessage = "회의록을 저장하지 못했습니다."
+                await run.recordFailure()
                 return
             }
 
             // The transcript is already safely persisted at this point. Extraction runs after,
             // as a separate step whose failure is reported but never rolls the save back.
             let notice = await runExtraction(for: meeting)
-            outcome = await CaptureOutcome.make(
+            let completed = await CaptureOutcome.make(
                 for: meeting,
                 notice: notice,
                 repository: service.repository
             )
+            // The screen is handed the result first; measuring waits its turn behind it.
+            outcome = completed
+            await run.recordSuccess(completed)
         }
     }
 

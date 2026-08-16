@@ -1,5 +1,9 @@
 name: HAENA
 options:
+  # The checked-out `project.pbxproj` carries no XcodeGen setting presets, so a plain
+  # `xcodegen generate` would re-add ~140 lines of defaults that are not part of this project's
+  # intent. Stating it here makes the committed project file reproducible from this spec.
+  settingPresets: none
   bundleIdPrefix: com.haena
   deploymentTarget:
     macOS: "14.0"
@@ -7,8 +11,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.2.1"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "0.2.2"
+    CURRENT_PROJECT_VERSION: "4"
     ALWAYS_SEARCH_USER_PATHS: NO
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
@@ -34,7 +38,11 @@ targets:
     type: application
     platform: macOS
     sources:
+      # Benchmark is tooling, not product code. It is compiled only by HAENABenchmarkCLI and
+      # HAENABenchmarkTests below, so no Debug or Release HAENA.app can contain its implementation.
       - path: HAENA
+        excludes:
+          - Benchmark
     info:
       path: HAENA/Info.plist
       properties:
@@ -66,6 +74,21 @@ targets:
     platform: macOS
     sources:
       - path: HAENATests
+        excludes:
+          - BenchmarkAccessPolicyTests.swift
+          - BenchmarkAdapterTests.swift
+          - BenchmarkArtifactSchemaTests.swift
+          - BenchmarkCaseStoreTests.swift
+          - BenchmarkCommandLineTests.swift
+          - BenchmarkFixtures.swift
+          - BenchmarkIdentityTests.swift
+          - BenchmarkPrivacyTests.swift
+          - BenchmarkRepositoryIsolationTests.swift
+          - BenchmarkRunnerTests.swift
+          - AudioBenchmarkIsolationTests.swift
+          - AudioBenchmarkRunnerTests.swift
+          - AudioBenchmarkScorerTests.swift
+          - AudioBenchmarkSyntheticEndToEndTests.swift
     dependencies:
       - target: HAENA
     settings:
@@ -74,6 +97,67 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENATests
         GENERATE_INFOPLIST_FILE: YES
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # Development-only benchmark harness runner. It compiles the domain layers it needs rather than
+  # linking the application target. Benchmark source is therefore unreachable from HAENA.app and
+  # Persistence remains absent from the CLI's link graph.
+  HAENABenchmarkCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - path: HAENA/Models
+      # `WorkStateExtractionService` is the one piece of Extraction left out, because it is the
+      # piece that writes to a `ProjectRepository`. Excluding it means no repository type is
+      # compiled into the harness binary at all, so "the harness cannot touch a user's projects"
+      # is enforced by the link step rather than by reviewer discipline.
+      - path: HAENA/Extraction
+        excludes:
+          - WorkStateExtractionService.swift
+      - path: HAENA/Credentials
+      # The CLI compiles the app's provider-neutral transcription seam and OpenAI adapter so an
+      # explicitly approved future live run can normalize the same diarized response contract.
+      # Audio v0 itself wires only the offline fake provider; adding these sources does not add a
+      # dependency from HAENA.app back to Benchmark.
+      - path: HAENA/Transcription
+      - path: HAENA/Benchmark
+      - path: HAENABenchmarkCLI
+    settings:
+      base:
+        PRODUCT_NAME: haena-benchmark
+        PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENABenchmarkCLI
+
+  # Hosted only to reuse HAENA's internal domain seams through @testable import. The benchmark
+  # implementation itself belongs to this test bundle, never to the application target.
+  HAENABenchmarkTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: HAENA/Benchmark
+      - path: HAENATests/BenchmarkAccessPolicyTests.swift
+      - path: HAENATests/BenchmarkAdapterTests.swift
+      - path: HAENATests/BenchmarkArtifactSchemaTests.swift
+      - path: HAENATests/BenchmarkCaseStoreTests.swift
+      - path: HAENATests/BenchmarkCommandLineTests.swift
+      - path: HAENATests/BenchmarkFixtures.swift
+      - path: HAENATests/BenchmarkIdentityTests.swift
+      - path: HAENATests/BenchmarkPrivacyTests.swift
+      - path: HAENATests/BenchmarkRepositoryIsolationTests.swift
+      - path: HAENATests/BenchmarkRunnerTests.swift
+      - path: HAENATests/AudioBenchmarkIsolationTests.swift
+      - path: HAENATests/AudioBenchmarkRunnerTests.swift
+      - path: HAENATests/AudioBenchmarkScorerTests.swift
+      - path: HAENATests/AudioBenchmarkSyntheticEndToEndTests.swift
+      - path: HAENATests/ExtractionTestDoubles.swift
+      - path: HAENATests/TestFixtures.swift
+    dependencies:
+      - target: HAENA
+    settings:
+      base:
+        PRODUCT_NAME: HAENABenchmarkTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.haena.HAENABenchmarkTests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) BENCHMARK_TEST_TARGET"
 
   HAENAUITests:
     type: bundle.ui-testing
@@ -95,11 +179,19 @@ schemes:
       targets:
         HAENA: all
         HAENATests: [test]
+        HAENABenchmarkTests: [test]
         HAENAUITests: [test]
     test:
       config: Debug
       targets:
         - HAENATests
+        - HAENABenchmarkTests
         - HAENAUITests
+    run:
+      config: Debug
+  HAENABenchmarkCLI:
+    build:
+      targets:
+        HAENABenchmarkCLI: all
     run:
       config: Debug

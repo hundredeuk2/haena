@@ -20,6 +20,9 @@ struct ImportAudioView: View {
     /// Asked for by the completion screen. The caller records where to go and this sheet closes
     /// itself; nothing here presents the browser.
     var onOpenResults: ((CaptureDestination) -> Void)?
+    /// Optional and nil by default, so previews and existing call sites are unaffected. Nothing on
+    /// this screen changes when it is absent.
+    var metrics: BetaMetricsService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -266,6 +269,9 @@ struct ImportAudioView: View {
         }
         validationMessage = nil
         phase = .transcribing
+        // The flow starts the moment 전사 시작 puts the screen into its first busy phase, so the
+        // upload and the transcription the user is waiting through are both inside the measure.
+        let run = CaptureRun(source: metricSource, metrics: metrics)
 
         Task {
             let meeting: Meeting
@@ -278,9 +284,11 @@ struct ImportAudioView: View {
                 )
             } catch let error as AudioMeetingCaptureError {
                 phase = .failed(message(for: error))
+                await run.recordFailure()
                 return
             } catch {
                 phase = .failed("전사에 실패했습니다.")
+                await run.recordFailure()
                 return
             }
 
@@ -292,7 +300,7 @@ struct ImportAudioView: View {
             // even if extraction goes on to fail.
             onTranscribed?()
             phase = .saving
-            await runExtraction(for: meeting)
+            await runExtraction(for: meeting, run: run)
         }
     }
 
@@ -301,7 +309,7 @@ struct ImportAudioView: View {
     /// A failure here is carried onto the completion screen as a notice rather than replacing it:
     /// the audio, the transcript and the meeting are all safely stored by this point, and hiding
     /// them behind an error would be a lie about what happened.
-    private func runExtraction(for meeting: Meeting) async {
+    private func runExtraction(for meeting: Meeting, run: CaptureRun) async {
         var notice: String?
         do {
             try await extractionService.extractAndApply(
@@ -312,9 +320,24 @@ struct ImportAudioView: View {
             notice = CaptureFailureCopy.extraction(error)
         }
 
-        phase = .completed(
-            await CaptureOutcome.make(for: meeting, notice: notice, repository: service.repository)
+        let completed = await CaptureOutcome.make(
+            for: meeting,
+            notice: notice,
+            repository: service.repository
         )
+        // The screen is handed the result first; measuring waits its turn behind it.
+        phase = .completed(completed)
+        await run.recordSuccess(completed)
+    }
+
+    // MARK: - Measurement
+
+    /// Which of the three capture paths this screen is currently serving. A microphone recording
+    /// arrives here as an ordinary local file, so the source it is counted under is the only thing
+    /// that still distinguishes it — and the mapping is the metric enum's own, not a second one
+    /// written here.
+    private var metricSource: BetaMetricCaptureSource {
+        BetaMetricCaptureSource(sourceType)
     }
 
     // MARK: - Copy

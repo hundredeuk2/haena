@@ -12,19 +12,10 @@ import XCTest
 ///
 /// ## Opting in
 ///
-/// Mirrors `OpenAIWorkStateExtractionLiveTests`, because `xcodebuild` does **not** forward the
-/// invoking shell's environment to an app-hosted unit test process — exporting variables in a
-/// terminal is not enough on its own. Two local files outside the repository drive this instead:
-///
-/// 1. `~/.haena-openai-live-key` — the API key, and its existence is itself the opt-in signal.
-/// 2. `~/.haena-live-audio-path` — the absolute path of a real recording to send.
-///
-/// Both are also readable from the process environment (`OPENAI_API_KEY`,
-/// `HAENA_LIVE_AUDIO_PATH`, with `HAENA_RUN_LIVE_OPENAI_TESTS=1`) when the test process's
-/// environment can be set directly, e.g. from Xcode's scheme.
-///
-/// **Delete both files as soon as verification is done.** While the key file exists this test is
-/// live, so *every* full test run makes a real, billed API call.
+/// `HAENA_RUN_LIVE_OPENAI_TESTS=1` in the test process is the only opt-in signal. After that flag
+/// is accepted, the test may resolve a key from `OPENAI_API_KEY` or `~/.haena-openai-live-key`, and
+/// an audio path from `HAENA_LIVE_AUDIO_PATH` or `~/.haena-live-audio-path`. Neither local file is
+/// inspected before opt-in, and their existence alone never enables a live run.
 ///
 /// Only a non-sensitive recording may be used here — no real meeting audio may be sent to a
 /// provider from a test.
@@ -63,21 +54,26 @@ final class OpenAITranscriptionLiveTests: XCTestCase {
 
     func testLiveTranscriptionProducesSegmentsThatCanBeStored() async throws {
         let environment = ProcessInfo.processInfo.environment
-        let optedInByEnvironment = environment["HAENA_RUN_LIVE_OPENAI_TESTS"] == "1"
-        let hasLocalKeyFile = FileManager.default.fileExists(atPath: Self.localKeyFileURL.path)
-
-        guard optedInByEnvironment || hasLocalKeyFile else {
+        guard OpenAILiveTestGate.isExplicitlyEnabled(environment: environment) else {
             throw XCTSkip("""
-            Live transcription check is opt-in (it makes a real, billed API call). Enable it by \
-            creating ~/.haena-openai-live-key and ~/.haena-live-audio-path, or by setting \
+            Live transcription check is opt-in (it makes a real, billed API call). Enable it with \
             HAENA_RUN_LIVE_OPENAI_TESTS=1 in the test process's own environment.
             """)
         }
+        // Credential and audio-path lookup are intentionally below the explicit opt-in guard.
         guard let apiKey = Self.resolvedAPIKey(environment: environment) else {
             throw XCTSkip("No OpenAI credential found in the environment or ~/.haena-openai-live-key; skipping.")
         }
         guard let audioPath = Self.resolvedAudioPath(environment: environment) else {
             throw XCTSkip("No audio path found in HAENA_LIVE_AUDIO_PATH or ~/.haena-live-audio-path; skipping.")
+        }
+        guard OpenAILiveTestGate.evaluate(
+            environment: environment,
+            kind: .transcription,
+            hasCredential: true,
+            hasAudioPath: true
+        ) == .allowed else {
+            throw XCTSkip("Live transcription prerequisites are incomplete; skipping.")
         }
 
         let file = try AudioFileValidator().validate(URL(fileURLWithPath: audioPath))
