@@ -774,14 +774,10 @@ enum WorkStateProposalMapper {
                 outcome = (nil, .evidenceSpeakerNotParticipant)
                 break
             }
-            // Shape validation above guarantees the required opaque speaker label is non-empty.
-            let proposedLabel = proposed.speakerLabel!.trimmed
-
-            // This is the same label the extractor actually received for the cited segment.
-            // Requiring it to round-trip prevents a model from using a valid quote from speaker A
-            // while claiming that speaker B volunteered for the work.
-            let extractorLabel = participant.speakerLabel ?? participant.displayName
-            guard normalizedExactMatch(extractorLabel, proposedLabel) else {
+            // This exact stored label is the only speaker identity the extractor received.
+            // Character-for-character round-trip equality prevents a model from citing speaker A
+            // while claiming that speaker B volunteered, and it avoids display-name inference.
+            guard evidenceSegment.sourceSpeakerLabel == proposed.speakerLabel else {
                 outcome = (nil, .speakerLabelMismatch)
                 break
             }

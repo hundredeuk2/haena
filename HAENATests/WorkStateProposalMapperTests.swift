@@ -309,13 +309,32 @@ final class WorkStateProposalMapperTests: XCTestCase {
 
         let item = try XCTUnwrap(
             map(
-                actionResult(attribution: attribution(.speakerCommitment, speakerLabel: "b")),
+                actionResult(attribution: attribution(.speakerCommitment, speakerLabel: "B")),
                 meeting: meeting
             ).actionItems.first
         )
 
         XCTAssertEqual(item.assigneeID, participant.id)
         XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+    }
+
+    func testSpeakerCommitmentRequiresCharacterForCharacterSourceLabelMatch() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = meeting(
+            participants: [participant],
+            evidenceSpeakerID: participant.id,
+            sourceSpeakerLabel: "Speaker B"
+        )
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.speakerCommitment, speakerLabel: "speaker b")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .speakerLabelMismatch)
     }
 
     func testSelfReferenceWithoutEvidenceSpeakerKeepsItemUnassigned() throws {
@@ -497,7 +516,8 @@ final class WorkStateProposalMapperTests: XCTestCase {
 
     private func meeting(
         participants: [Participant],
-        evidenceSpeakerID: UUID?
+        evidenceSpeakerID: UUID?,
+        sourceSpeakerLabel: String? = "B"
     ) -> Meeting {
         Meeting(
             id: TestFixtures.meetingID,
@@ -511,6 +531,7 @@ final class WorkStateProposalMapperTests: XCTestCase {
                     id: TestFixtures.segmentID,
                     meetingID: TestFixtures.meetingID,
                     speakerID: evidenceSpeakerID,
+                    sourceSpeakerLabel: sourceSpeakerLabel,
                     text: ExtractionFixtures.transcript,
                     startTime: nil,
                     endTime: nil

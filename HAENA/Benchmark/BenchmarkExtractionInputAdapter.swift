@@ -139,6 +139,7 @@ enum BenchmarkExtractionInputAdapter {
                     id: segmentID,
                     meetingID: meetingID,
                     speakerID: resolvedLabel.flatMap { participantIDByLabel[$0] },
+                    sourceSpeakerLabel: utterance.speaker,
                     text: utterance.resolvedText,
                     startTime: utterance.startSeconds,
                     endTime: utterance.endSeconds

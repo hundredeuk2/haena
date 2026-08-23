@@ -99,6 +99,7 @@ enum ExtractionFixtures {
                     id: segmentID,
                     meetingID: id,
                     speakerID: participants.first?.id,
+                    sourceSpeakerLabel: participants.first?.speakerLabel,
                     text: text,
                     startTime: nil,
                     endTime: nil

@@ -26,8 +26,9 @@ struct WorkStateExtractionInput: Equatable, Sendable {
 }
 
 extension WorkStateExtractionInput {
-    /// Builds the extractor input from a stored `Meeting`, resolving each segment's speaker to a
-    /// display label where the meeting's participant list allows it.
+    /// Builds provider input from the exact source labels stored beside transcript segments.
+    /// Participant UUIDs, participant display names, and repository resolution never cross the
+    /// extractor boundary.
     init(meeting: Meeting, priorWorkStates: [PriorWorkStateProviderReference] = []) {
         self.init(
             meetingID: meeting.id,
@@ -37,7 +38,7 @@ extension WorkStateExtractionInput {
             excerpts: meeting.transcriptSegments.map { segment in
                 TranscriptExcerpt(
                     segmentID: segment.id,
-                    speakerLabel: Self.speakerLabel(for: segment, in: meeting),
+                    speakerLabel: segment.sourceSpeakerLabel,
                     text: segment.text
                 )
             },
@@ -45,13 +46,6 @@ extension WorkStateExtractionInput {
         )
     }
 
-    private static func speakerLabel(for segment: TranscriptSegment, in meeting: Meeting) -> String? {
-        guard let speakerID = segment.speakerID,
-              let participant = meeting.participants.first(where: { $0.id == speakerID }) else {
-            return nil
-        }
-        return participant.speakerLabel ?? participant.displayName
-    }
 }
 
 // MARK: - Approved prior-state context

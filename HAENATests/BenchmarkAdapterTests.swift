@@ -56,9 +56,14 @@ final class BenchmarkAdapterTests: XCTestCase {
         let unattributed = prepared.meeting.transcriptSegments[2]
 
         XCTAssertNil(unattributed.speakerID, "an unmapped label must not be attributed to anyone")
+        XCTAssertEqual(unattributed.sourceSpeakerLabel, "Z")
         XCTAssertNil(prepared.speakerLabelBySegmentID[unattributed.id])
         XCTAssertEqual(prepared.unknownSpeakerUtteranceIDs, ["SYN-001.1.3"])
-        XCTAssertNil(prepared.extractionInput.excerpts[2].speakerLabel)
+        XCTAssertEqual(
+            prepared.extractionInput.excerpts[2].speakerLabel,
+            "Z",
+            "the exact source label remains provider-visible even when no Participant is linked"
+        )
         XCTAssertEqual(
             prepared.meeting.participants.count,
             2,
