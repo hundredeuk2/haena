@@ -74,6 +74,7 @@ struct BenchmarkStubExtractor: WorkStateExtractor, Sendable {
             decisions: [
                 // 1. Accepted.
                 ProposedDecision(
+                    providerLocalKey: "decision_1",
                     statement: "벤치마크 스텁 결정",
                     rationale: "첫 번째 발화에서 근거를 확보함",
                     confidence: 0.6,
@@ -81,6 +82,7 @@ struct BenchmarkStubExtractor: WorkStateExtractor, Sendable {
                 ),
                 // 5. Empty content -> RejectedProposal.Reason.emptyContent -> .missingRequiredField.
                 ProposedDecision(
+                    providerLocalKey: "decision_2",
                     statement: "",
                     rationale: nil,
                     confidence: 0.6,
@@ -91,18 +93,26 @@ struct BenchmarkStubExtractor: WorkStateExtractor, Sendable {
                 // 2. Accepted. The owner is the speaker label exactly as the transcript labels it;
                 //    the stub does not interpret self-reference, and neither does the harness.
                 ProposedActionItem(
+                    providerLocalKey: "action_1",
                     title: "벤치마크 스텁 실행 항목",
                     details: nil,
-                    assigneeName: excerpt.speakerLabel,
+                    assigneeAttribution: Self.groundedAssigneeAttribution(
+                        speakerLabel: excerpt.speakerLabel
+                    ),
                     dueDate: nil,
                     confidence: 0.6,
                     evidence: grounded
                 ),
                 // 6. Confidence outside [0, 1] -> .confidenceOutOfRange.
                 ProposedActionItem(
+                    providerLocalKey: "action_2",
                     title: "신뢰도가 범위를 벗어난 실행 항목",
                     details: nil,
-                    assigneeName: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .unspecified,
+                        reference: nil,
+                        speakerLabel: nil
+                    ),
                     dueDate: nil,
                     confidence: 1.5,
                     evidence: grounded
@@ -111,6 +121,7 @@ struct BenchmarkStubExtractor: WorkStateExtractor, Sendable {
             openQuestions: [
                 // 3. Cites a segment that does not exist -> .unknownSegment -> .evidenceNotFound.
                 ProposedOpenQuestion(
+                    providerLocalKey: "question_1",
                     question: "근거 세그먼트가 존재하지 않는 질문",
                     confidence: 0.6,
                     evidence: unknownSegment
@@ -119,13 +130,34 @@ struct BenchmarkStubExtractor: WorkStateExtractor, Sendable {
             nextAgendaItems: [
                 // 4. Quote is not in the cited segment -> .quoteNotInTranscript.
                 ProposedAgendaItem(
+                    providerLocalKey: "agenda_1",
                     title: "전사에 없는 인용을 단 안건",
                     reason: "인용 검증 경로를 확인하기 위한 항목",
                     confidence: 0.6,
                     evidence: ungroundedQuote
                 )
             ],
+            progressSignals: [],
+            openQuestionResolutionLinks: [],
+            decisionDerivedActionItemLinks: [],
             metadata: metadata
+        )
+    }
+
+    private static func groundedAssigneeAttribution(
+        speakerLabel: String?
+    ) -> ProposedAssigneeAttribution {
+        guard let speakerLabel else {
+            return ProposedAssigneeAttribution(
+                basis: .unspecified,
+                reference: nil,
+                speakerLabel: nil
+            )
+        }
+        return ProposedAssigneeAttribution(
+            basis: .speakerCommitment,
+            reference: nil,
+            speakerLabel: speakerLabel
         )
     }
 

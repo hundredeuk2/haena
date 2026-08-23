@@ -66,6 +66,7 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
     {
       "decisions": [
         {
+          "provider_key": "decision_1",
           "statement": "2월 출시로 진행한다",
           "rationale": null,
           "confidence": 0.9,
@@ -74,9 +75,12 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
       ],
       "action_items": [
         {
+          "provider_key": "action_1",
           "title": "지표 정의 초안 작성",
           "details": null,
-          "assignee_name": null,
+          "assignee_basis": "unspecified",
+          "assignee_reference": null,
+          "assignee_speaker": null,
           "due_date": "2026-09-01",
           "confidence": 0.7,
           "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "지표 정의는 아직"}
@@ -84,6 +88,7 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
       ],
       "open_questions": [
         {
+          "provider_key": "question_1",
           "question": "지표 정의는 누가 확정하는가?",
           "confidence": 0.6,
           "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "지표 정의는 아직"}
@@ -91,10 +96,42 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
       ],
       "next_agenda_items": [
         {
+          "provider_key": "agenda_1",
           "title": "지표 정의 확정",
           "reason": "이번 회의에서 결론이 나지 않음",
           "confidence": 0.5,
           "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "지표 정의는 아직"}
+        }
+      ],
+      "progress_signals": [
+        {
+          "kind": "completed",
+          "target_type": "incoming_action_item",
+          "target_reference": "action_1",
+          "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "지표 정의는 아직"}
+        }
+      ],
+      "open_question_resolution_links": [
+        {
+          "prior_open_question_ref": "prior_question_1",
+          "target_kind": "decision",
+          "target_key": "decision_1",
+          "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "2월 출시로 가기로 했습니다"}
+        }
+      ],
+      "decision_derived_action_item_links": [
+        {
+          "incoming_decision_key": "decision_1",
+          "prior_decision_ref": null,
+          "action_item_key": "action_1",
+          "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "지표 정의는 아직"}
+        }
+      ],
+      "decision_change_links": [
+        {
+          "prior_decision_reference": "prior_decision_1",
+          "decision_key": "decision_1",
+          "evidence": {"segment_id": "00000000-0000-0000-0000-000000000004", "quote": "2월 출시로 가기로 했습니다"}
         }
       ]
     }
@@ -111,11 +148,18 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         XCTAssertEqual(result.actionItems.count, 1)
         XCTAssertEqual(result.openQuestions.count, 1)
         XCTAssertEqual(result.nextAgendaItems.count, 1)
+        XCTAssertEqual(result.progressSignals.count, 1)
+        XCTAssertEqual(result.openQuestionResolutionLinks.count, 1)
+        XCTAssertEqual(result.decisionDerivedActionItemLinks.count, 1)
 
+        XCTAssertEqual(result.decisions[0].providerLocalKey, "decision_1")
         XCTAssertEqual(result.decisions[0].statement, "2월 출시로 진행한다")
         XCTAssertNil(result.decisions[0].rationale)
         XCTAssertEqual(result.decisions[0].confidence, 0.9)
         XCTAssertEqual(result.decisions[0].evidence.segmentID, TestFixtures.segmentID.uuidString)
+        XCTAssertEqual(result.actionItems[0].assigneeAttribution.basis, .unspecified)
+        XCTAssertNil(result.actionItems[0].assigneeAttribution.reference)
+        XCTAssertNil(result.actionItems[0].assigneeAttribution.speakerLabel)
 
         XCTAssertEqual(result.metadata.provider, .openAI)
         XCTAssertEqual(result.metadata.modelID, "test-model")
@@ -136,7 +180,16 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
 
     func testEmptyArraysAreAValidResponse() async throws {
         let payload = """
-        {"decisions": [], "action_items": [], "open_questions": [], "next_agenda_items": []}
+        {
+          "decisions": [],
+          "action_items": [],
+          "open_questions": [],
+          "next_agenda_items": [],
+          "progress_signals": [],
+          "open_question_resolution_links": [],
+          "decision_derived_action_item_links": [],
+          "decision_change_links": []
+        }
         """
         let transport = RecordingHTTPTransport([.status(200, body: try successBody(payload: payload))])
 
@@ -172,13 +225,57 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         let schema = try XCTUnwrap(format["schema"] as? [String: Any])
         XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
         let required = try XCTUnwrap(schema["required"] as? [String])
-        XCTAssertEqual(Set(required), ["decisions", "action_items", "open_questions", "next_agenda_items"])
+        XCTAssertEqual(
+            Set(required),
+            [
+                "decisions", "action_items", "open_questions", "next_agenda_items",
+                "progress_signals", "open_question_resolution_links",
+                "decision_derived_action_item_links", "decision_change_links",
+            ]
+        )
 
         // The transcript is sent so the model can cite it, labelled with the segment id the
         // response has to echo back.
         let messages = try XCTUnwrap(json["input"] as? [[String: Any]])
         let userContent = try XCTUnwrap(messages.last?["content"] as? String)
         XCTAssertTrue(userContent.contains(TestFixtures.segmentID.uuidString))
+    }
+
+    func testPriorContextSendsOnlyOpaqueReferenceMinimalTextKindAndState() async throws {
+        let meeting = ExtractionFixtures.meeting()
+        let safeInput = WorkStateExtractionInput(
+            meeting: meeting,
+            priorWorkStates: [
+                PriorWorkStateProviderReference(
+                    opaqueReference: "prior_action_1",
+                    kind: .actionItem,
+                    displayText: "지표 초안 작성",
+                    state: .inProgress
+                ),
+            ]
+        )
+        let transport = RecordingHTTPTransport([.status(200, body: try successBody())])
+
+        _ = try await makeExtractor(transport: transport).extract(from: safeInput)
+
+        let sentRequests = await transport.sentRequests
+        let request = try XCTUnwrap(sentRequests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let messages = try XCTUnwrap(json["input"] as? [[String: Any]])
+        let userContent = try XCTUnwrap(messages.last?["content"] as? String)
+        XCTAssertTrue(userContent.contains("prior_action_1"))
+        XCTAssertTrue(userContent.contains("action_item"))
+        XCTAssertTrue(userContent.contains("in_progress"))
+        XCTAssertTrue(userContent.contains("지표 초안 작성"))
+        XCTAssertFalse(userContent.contains(meeting.id.uuidString))
+        XCTAssertFalse(userContent.contains(meeting.projectID.uuidString))
+        for participant in meeting.participants {
+            XCTAssertFalse(userContent.contains(participant.id.uuidString))
+        }
+        XCTAssertFalse(userContent.contains("domain_id"))
+        XCTAssertFalse(userContent.contains("participant_id"))
+        XCTAssertFalse(userContent.contains("prior_evidence"))
     }
 
     func testDefaultModelIsDefinedOnceAndOverriddenByEnvironment() {
@@ -309,6 +406,39 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         let error = await extractionError(from: RecordingHTTPTransport([.status(200, body: body)]))
 
         XCTAssertEqual(error, .malformedResponse)
+    }
+
+    func testMalformedSignalEnumPreservesDecodedBaseItemsForFiniteMapperRejection() async throws {
+        let malformedSignal = Self.validPayload.replacingOccurrences(
+            of: "\"kind\": \"completed\"",
+            with: "\"kind\": \"probably_done\""
+        )
+        let transport = RecordingHTTPTransport([.status(200, body: try successBody(payload: malformedSignal))])
+
+        let result = try await makeExtractor(transport: transport).extract(from: input)
+
+        XCTAssertEqual(result.decisions.count, 1)
+        XCTAssertEqual(result.actionItems.count, 1)
+        XCTAssertEqual(result.progressSignals.count, 1)
+        XCTAssertNil(result.progressSignals[0].kind)
+    }
+
+    func testMissingSignalEvidencePreservesDecodedBaseItemsForFiniteMapperRejection() async throws {
+        var payload = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(Self.validPayload.utf8)) as? [String: Any]
+        )
+        var progressSignals = try XCTUnwrap(payload["progress_signals"] as? [[String: Any]])
+        progressSignals[0]["evidence"] = NSNull()
+        payload["progress_signals"] = progressSignals
+        let missingSignalEvidenceData = try JSONSerialization.data(withJSONObject: payload)
+        let missingSignalEvidence = try XCTUnwrap(String(data: missingSignalEvidenceData, encoding: .utf8))
+        let transport = RecordingHTTPTransport([.status(200, body: try successBody(payload: missingSignalEvidence))])
+
+        let result = try await makeExtractor(transport: transport).extract(from: input)
+
+        XCTAssertEqual(result.actionItems.count, 1)
+        XCTAssertEqual(result.progressSignals.count, 1)
+        XCTAssertNil(result.progressSignals[0].evidence)
     }
 
     // MARK: - Leak safety

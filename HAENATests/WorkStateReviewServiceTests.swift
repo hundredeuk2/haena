@@ -156,6 +156,38 @@ final class WorkStateReviewServiceTests: XCTestCase {
         XCTAssertNotEqual(project.nextAgenda[0].status, .resolved)
     }
 
+    /// The Manual Brief now records agenda verdicts here rather than against a transition row, so
+    /// a failed save has to leave the item exactly as the AI 제안 inbox last saw it. Reporting
+    /// success on an unsaved verdict would put the two screens back out of step, which is the
+    /// disagreement this path exists to remove.
+    func testAgendaVerdictThatFailsToSaveLeavesTheItemUnreviewed() async throws {
+        let failing = FailingSaveProjectRepository(project: ReviewFixtures.project())
+        let failingService = WorkStateReviewService(repository: failing, now: { TestFixtures.laterDate })
+
+        do {
+            try await failingService.dismissAgendaItem(
+                id: ReviewFixtures.agendaItemID,
+                in: TestFixtures.projectID
+            )
+            XCTFail("expected the save failure to surface")
+        } catch {
+            // Expected: the caller must not treat this as a recorded verdict.
+        }
+
+        let loaded = try await failing.project(id: TestFixtures.projectID)
+        let stored = try XCTUnwrap(loaded)
+        let item = try XCTUnwrap(stored.nextAgenda.first { $0.id == ReviewFixtures.agendaItemID })
+        XCTAssertEqual(item.status, .pending)
+        XCTAssertNil(item.reviewedAt)
+        XCTAssertEqual(
+            WorkStateInbox.pendingProposals(in: stored).compactMap {
+                if case .agendaItem(let value) = $0 { return value.id } else { return nil }
+            },
+            [ReviewFixtures.agendaItemID],
+            "an unsaved verdict leaves the item on the inbox exactly as before"
+        )
+    }
+
     // MARK: - Errors
 
     func testUnknownItemIsReportedAndLeavesTheProjectUntouched() async throws {
@@ -229,4 +261,18 @@ final class WorkStateReviewServiceTests: XCTestCase {
         XCTAssertEqual(reloaded.actionItems[0].assigneeID, ReviewFixtures.assignee.id)
         XCTAssertEqual(reloaded.actionItems[0].dueDate, Date(timeIntervalSince1970: 1_800_000_000))
     }
+}
+
+/// Serves the stored project but refuses every write, so a test can prove a verdict is only real
+/// once it is saved.
+private actor FailingSaveProjectRepository: ProjectRepository {
+    private let stored: Project
+    private enum Failure: Error { case save }
+
+    init(project: Project) { stored = project }
+
+    func save(_ project: Project) throws { throw Failure.save }
+    func project(id: UUID) throws -> Project? { stored.id == id ? stored : nil }
+    func allProjects() throws -> [Project] { [stored] }
+    func delete(id: UUID) throws { throw Failure.save }
 }

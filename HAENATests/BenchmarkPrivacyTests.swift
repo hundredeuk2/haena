@@ -46,8 +46,11 @@ final class BenchmarkPrivacyTests: XCTestCase {
 
     private struct NoArtifactProduced: Error {}
 
-    private func artifact(for prepared: BenchmarkPreparedCase) async throws -> PredictionArtifact {
-        let runner = BenchmarkRunner(extractor: BenchmarkStubExtractor(), now: { Self.fixedNow })
+    private func artifact(
+        for prepared: BenchmarkPreparedCase,
+        extractor: any WorkStateExtractor = BenchmarkStubExtractor()
+    ) async throws -> PredictionArtifact {
+        let runner = BenchmarkRunner(extractor: extractor, now: { Self.fixedNow })
         let outcome = await runner.run(prepared, options: BenchmarkFixtures.runOptions)
         guard case .produced(let artifact) = outcome else {
             XCTFail("the offline stub must produce an artifact for a well-formed case")
@@ -138,6 +141,104 @@ final class BenchmarkPrivacyTests: XCTestCase {
     }
 
     // MARK: - Structure
+
+    func testContinuitySidecarsDoNotChangePredictionV02OrCopySignalEvidence() async throws {
+        let prepared = try BenchmarkFixtures.prepared()
+        let baseExcerpt = prepared.extractionInput.excerpts[0]
+        let signalExcerpt = prepared.extractionInput.excerpts[1]
+        let signalOnlyQuote = "지표 정의를 맡겠습니다"
+        XCTAssertTrue(signalExcerpt.text.contains(signalOnlyQuote), "control: signal evidence must be grounded")
+
+        let result = WorkStateExtractionResult(
+            actionItems: [
+                ProposedActionItem(
+                    providerLocalKey: "action_1",
+                    title: "artifact base action",
+                    details: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .unspecified,
+                        reference: nil,
+                        speakerLabel: nil
+                    ),
+                    dueDate: nil,
+                    confidence: 0.8,
+                    evidence: ProposedEvidence(
+                        segmentID: baseExcerpt.segmentID.uuidString,
+                        quote: "다음 주까지"
+                    )
+                )
+            ],
+            progressSignals: [
+                ProposedProgressSignal(
+                    kind: .completed,
+                    targetType: .incomingActionItem,
+                    targetReference: "action_1",
+                    evidence: ProposedEvidence(
+                        segmentID: signalExcerpt.segmentID.uuidString,
+                        quote: signalOnlyQuote
+                    )
+                )
+            ],
+            openQuestionResolutionLinks: [
+                ProposedOpenQuestionResolutionLink(
+                    priorOpenQuestionReference: "prior_question_missing",
+                    targetKind: .decision,
+                    targetProviderLocalKey: "decision_missing",
+                    evidence: nil
+                )
+            ],
+            metadata: ExtractionFixtures.metadata
+        )
+
+        let artifact = try await artifact(
+            for: prepared,
+            extractor: StubWorkStateExtractor(.success(result))
+        )
+        let json = try encoded(artifact)
+
+        XCTAssertEqual(artifact.artifactSchemaVersion, "prediction-v0.2")
+        XCTAssertEqual(artifact.raw.count, 1)
+        XCTAssertEqual(artifact.mapped.count, 1)
+        XCTAssertTrue(artifact.rejected.isEmpty, "malformed sidecars must not reject a grounded base item")
+        XCTAssertFalse(json.contains(signalOnlyQuote))
+        XCTAssertFalse(json.contains("progress_signals"))
+        XCTAssertFalse(json.contains("open_question_resolution_links"))
+        XCTAssertFalse(json.contains("decision_derived_action_item_links"))
+        XCTAssertFalse(json.contains("prior_question_missing"))
+    }
+
+    func testAggregateReportCannotContainRawAttributionReferenceSpeakerOrParticipantName() throws {
+        let rawReference = "제가-민수-원문"
+        let rawSpeaker = "opaque-speaker-private"
+        let participantName = "민수-개인명"
+        let control = try XCTUnwrap(
+            String(data: try JSONEncoder().encode([rawReference, rawSpeaker, participantName]), encoding: .utf8)
+        )
+        XCTAssertTrue(control.contains(rawReference))
+        XCTAssertTrue(control.contains(rawSpeaker))
+        XCTAssertTrue(control.contains(participantName))
+
+        let report = BenchmarkRunReport(
+            benchmark: "meeting-execution-v0",
+            runMode: "offline_stub",
+            caseCount: 1,
+            producedCount: 1,
+            failedCount: 0,
+            rawProposalCount: 1,
+            mappedProposalCount: 1,
+            rejectedProposalCount: 0,
+            unscoredCount: 1,
+            caseIDs: ["SYN-D1"]
+        )
+        let json = try XCTUnwrap(String(data: try JSONEncoder().encode(report), encoding: .utf8))
+
+        XCTAssertFalse(json.contains(rawReference))
+        XCTAssertFalse(json.contains(rawSpeaker))
+        XCTAssertFalse(json.contains(participantName))
+        XCTAssertFalse(json.contains("assignee_reference"))
+        XCTAssertFalse(json.contains("assignee_speaker_label"))
+        XCTAssertFalse(json.contains("participant_name"))
+    }
 
     func testNoKeyInAnEncodedArtifactBelongsToGoldADraftOrTheCorpusBookkeeping() async throws {
         let artifact = try await artifact(for: try BenchmarkFixtures.prepared())

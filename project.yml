@@ -11,8 +11,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.2.2"
-    CURRENT_PROJECT_VERSION: "4"
+    MARKETING_VERSION: "0.2.3"
+    CURRENT_PROJECT_VERSION: "5"
     ALWAYS_SEARCH_USER_PATHS: NO
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
@@ -32,6 +32,10 @@ settings:
       ONLY_ACTIVE_ARCH: NO
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
       SWIFT_COMPILATION_MODE: wholemodule
+      # Swift embeds source/object paths in Release metadata unless they are remapped. Keep local
+      # usernames and checkout locations out of the distributable Mach-O while preserving useful
+      # relative paths in its separate dSYM.
+      OTHER_SWIFT_FLAGS: "$(inherited) -debug-prefix-map $(SRCROOT)=."
 
 targets:
   HAENA:
@@ -113,6 +117,18 @@ targets:
       - path: HAENA/Extraction
         excludes:
           - WorkStateExtractionService.swift
+      # Provider-neutral extraction now carries the Transition Engine's typed signal contract and
+      # approved-state snapshot types. Include only those value definitions; the CLI still cannot
+      # compile the engine, either repository, or either write service.
+      - path: HAENA/Continuity
+        excludes:
+          # Manual Brief reads application repositories and its review service mutates Project
+          # state. Neither belongs in the offline Benchmark CLI's provider-neutral value graph.
+          - ManualContinuityBrief.swift
+          - WorkStateTransitionReviewService.swift
+          - WorkStateContinuityService.swift
+          - WorkStateTransitionEngine.swift
+          - WorkStateTransitionRepository.swift
       - path: HAENA/Credentials
       # The CLI compiles the app's provider-neutral transcription seam and OpenAI adapter so an
       # explicitly approved future live run can normalize the same diarized response contract.

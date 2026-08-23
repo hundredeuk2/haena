@@ -9,7 +9,7 @@ import Foundation
 /// Which of the four work-state kinds a proposal claimed to be.
 ///
 /// A separate type from `RejectedProposal.Kind` because this one is *serialized*: its raw values
-/// are part of the `prediction-v0.1` file format and cannot follow refactors of the app's internal
+/// are part of the `prediction-v0.2` file format and cannot follow refactors of the app's internal
 /// enum without breaking every artifact already written.
 enum BenchmarkProposalKind: String, Codable, Equatable, Sendable {
     case decision
@@ -91,7 +91,8 @@ struct BenchmarkRejectionRecord: Codable, Equatable, Sendable {
     }
 }
 
-/// The model's answer, unedited, with the corpus utterance id added beside the app-side segment id.
+/// The prediction-v0.2 base proposal fields, unedited, with the corpus utterance id added beside
+/// the app-side segment id. Provider-local keys and continuity sidecars are not serialized here.
 struct BenchmarkRawProposal: Codable, Equatable, Sendable {
     let ordinal: Int
     let kind: BenchmarkProposalKind
@@ -99,9 +100,12 @@ struct BenchmarkRawProposal: Codable, Equatable, Sendable {
     let text: String
     /// rationale / details / reason, depending on `kind`.
     let supportingText: String?
-    /// Whatever the model called the owner, character for character. The harness does not
-    /// interpret self-reference — that contract gap is a separate task.
-    let assigneeExpression: String?
+    /// The provider's finite attribution claim and bounded raw provenance, preserved without
+    /// normalization. Nil for proposal kinds that have no assignee.
+    let assigneeAttributionBasis: AssigneeAttributionBasis?
+    let assigneeReference: String?
+    /// Opaque extractor input label (for example `B`), never a participant UUID or display name.
+    let assigneeSpeakerLabel: String?
     let dueDate: Date?
     /// Recorded as the model returned it, including out-of-range values. Clamping here would erase
     /// the evidence for a `confidence_out_of_range` rejection sitting in the same artifact.
@@ -115,7 +119,9 @@ struct BenchmarkRawProposal: Codable, Equatable, Sendable {
         kind: BenchmarkProposalKind,
         text: String,
         supportingText: String? = nil,
-        assigneeExpression: String? = nil,
+        assigneeAttributionBasis: AssigneeAttributionBasis? = nil,
+        assigneeReference: String? = nil,
+        assigneeSpeakerLabel: String? = nil,
         dueDate: Date? = nil,
         confidence: Double,
         citedSegmentID: String,
@@ -126,7 +132,9 @@ struct BenchmarkRawProposal: Codable, Equatable, Sendable {
         self.kind = kind
         self.text = text
         self.supportingText = supportingText
-        self.assigneeExpression = assigneeExpression
+        self.assigneeAttributionBasis = assigneeAttributionBasis
+        self.assigneeReference = assigneeReference
+        self.assigneeSpeakerLabel = assigneeSpeakerLabel
         self.dueDate = dueDate
         self.confidence = confidence
         self.citedSegmentID = citedSegmentID
@@ -139,7 +147,9 @@ struct BenchmarkRawProposal: Codable, Equatable, Sendable {
         case kind
         case text
         case supportingText = "supporting_text"
-        case assigneeExpression = "assignee_expression"
+        case assigneeAttributionBasis = "assignee_attribution_basis"
+        case assigneeReference = "assignee_reference"
+        case assigneeSpeakerLabel = "assignee_speaker_label"
         case dueDate = "due_date"
         case confidence
         case citedSegmentID = "cited_segment_id"
@@ -152,13 +162,15 @@ struct BenchmarkRawProposal: Codable, Equatable, Sendable {
 struct BenchmarkMappedProposal: Codable, Equatable, Sendable {
     let ordinal: Int
     let kind: BenchmarkProposalKind
-    /// The app-generated id, derived through `BenchmarkIdentity.proposalID` so two runs of the same
-    /// input produce the same value.
+    /// The app-generated id, derived by the product mapper from project + meeting + kind +
+    /// provider-local key so two runs of the same input produce the same value.
     let id: UUID
     let text: String
     let assigneeParticipantID: UUID?
     /// The speaker label the mapper resolved, or nil when it refused to guess.
     let assigneeSpeakerLabel: String?
+    /// Finite mapper outcome for an action-item attribution. Nil for other proposal kinds.
+    let assigneeAttributionResolution: AssigneeAttributionResolution?
     let dueDate: Date?
     let confidence: Double
     let evidenceSegmentID: UUID
@@ -175,6 +187,7 @@ struct BenchmarkMappedProposal: Codable, Equatable, Sendable {
         text: String,
         assigneeParticipantID: UUID? = nil,
         assigneeSpeakerLabel: String? = nil,
+        assigneeAttributionResolution: AssigneeAttributionResolution? = nil,
         dueDate: Date? = nil,
         confidence: Double,
         evidenceSegmentID: UUID,
@@ -188,6 +201,7 @@ struct BenchmarkMappedProposal: Codable, Equatable, Sendable {
         self.text = text
         self.assigneeParticipantID = assigneeParticipantID
         self.assigneeSpeakerLabel = assigneeSpeakerLabel
+        self.assigneeAttributionResolution = assigneeAttributionResolution
         self.dueDate = dueDate
         self.confidence = confidence
         self.evidenceSegmentID = evidenceSegmentID
@@ -203,6 +217,7 @@ struct BenchmarkMappedProposal: Codable, Equatable, Sendable {
         case text
         case assigneeParticipantID = "assignee_participant_id"
         case assigneeSpeakerLabel = "assignee_speaker_label"
+        case assigneeAttributionResolution = "assignee_attribution_resolution"
         case dueDate = "due_date"
         case confidence
         case evidenceSegmentID = "evidence_segment_id"
@@ -246,7 +261,7 @@ struct BenchmarkScoring: Codable, Equatable, Sendable {
 /// the dataset file, the prompt, the model, or the extraction schema and the corresponding field
 /// changes with it.
 struct PredictionArtifact: Codable, Equatable, Sendable {
-    static let schemaVersion = "prediction-v0.1"
+    static let schemaVersion = "prediction-v0.2"
     /// Distinguishes this file from `model_suggestion` drafts and from human gold at a glance.
     static let artifactKind = "haena_prediction"
 

@@ -29,6 +29,9 @@ HAE.NA는 그 한 사람을 위한 앱입니다. 녹음하거나 음성 파일�
 - **업무 상태 추출** — 결정 / 업무 / 미해결 질문 / 다음 아젠다. 근거 인용과 확신도가 함께 표시되며,
   **승인 전에는 확정된 상태로 취급되지 않습니다**
 - **검토와 수정** — 승인·제외, 담당자·마감일 변경
+- **다음 회의 준비** — 프로젝트에서 수동으로 여는 Continuity Brief. 승인된 Decision·진행 업무·
+  미해결 질문·Next Agenda와 새 회의의 완료·지연·차단·해결 후보를 근거와 함께 구분해 보여주며,
+  화면을 여는 것만으로 상태를 바꾸거나 모델을 호출하지 않습니다
 - **회의 결과 화면** — 회의를 열면 **회의 결과**가 먼저 나오고 **원문**은 옆 탭에 있습니다. 녹음·불러오기·
   붙여넣기가 끝나면 방금 만든 회의의 결과 화면으로 바로 이동합니다
 - **개인 홈** — 모든 프로젝트를 합산해 확인 필요·진행 업무·미해결 질문·다음 아젠다를 한 화면에
@@ -135,7 +138,8 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
   과금됩니다.
 - 본인 계정의 키만 사용하세요.
 - 권한을 제한한 Project API 키를 만들고 OpenAI에서 사용 한도를 설정해두시길 권합니다.
-- **전사와 추출을 실행하면 회의 오디오와 전사 내용이 OpenAI로 전송됩니다.** 자세한 내용은
+- **전사와 추출을 실행하면 회의 오디오·전사 내용과 추출에 필요한 최소 승인 상태 문구가
+  OpenAI로 전송됩니다.** 승인 상태의 실제 UUID와 기존 근거 인용문은 보내지 않습니다. 자세한 내용은
   [PRIVACY.md](PRIVACY.md)를 읽어주세요.
 
 사용 모델: 전사 `gpt-4o-transcribe-diarize`, 추출 `gpt-5.6`
@@ -145,6 +149,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 | 내용 | 위치 |
 | --- | --- |
 | 프로젝트·회의·전사·업무 상태 | `~/Library/Application Support/com.haena.HAENA/projects.json` |
+| 회의 간 상태 전이 제안·검토 상태 | `~/Library/Application Support/com.haena.HAENA/continuity-transitions.json` |
 | 로컬 사용자 프로필 | `~/Library/Application Support/com.haena.HAENA/profile.json` |
 | 로컬 알림 예약·취소 이력 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
 | Agent 알림 사건·선택적 피드백 | `~/Library/Application Support/com.haena.HAENA/agent-ledger.json` |
@@ -169,6 +174,7 @@ HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI �
 - 전사 품질(WER·화자 분리 정확도)의 정량 측정은 아직 하지 않았습니다
 - Agent 기록은 ActionItem 로컬 알림의 사실 사건만 다룹니다. 범용 Agent 실행 이력·원격 분석은 없습니다
 - 다중 사용자·팀·동기화 없음. 의도된 범위입니다
+- 다음 회의 준비는 수동 진입만 지원합니다. Calendar trigger와 일괄 승인은 포함하지 않습니다
 - 앱이 여러 개 동시에 실행되면 같은 저장 파일을 두고 경합할 수 있습니다
 - 삭제는 일반 파일 삭제이며 secure erase가 아닙니다
 

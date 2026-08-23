@@ -150,6 +150,10 @@ struct BenchmarkRunner: Sendable {
         }
 
         let slots = Self.slots(in: result)
+        let duplicateProviderKeys = Set(
+            Dictionary(grouping: slots, by: \.providerLocalKey)
+                .compactMap { $0.value.count > 1 ? $0.key : nil }
+        )
 
         var raw: [BenchmarkRawProposal] = []
         raw.reserveCapacity(slots.count)
@@ -161,7 +165,18 @@ struct BenchmarkRunner: Sendable {
         for (ordinal, slot) in slots.enumerated() {
             raw.append(Self.rawProposal(slot, ordinal: ordinal, preparedCase: preparedCase))
 
-            switch Self.mapOne(slot, ordinal: ordinal, preparedCase: preparedCase, options: options, metadata: result.metadata) {
+            if duplicateProviderKeys.contains(slot.providerLocalKey) {
+                rejected.append(
+                    Self.rejectionRecord(
+                        for: slot,
+                        ordinal: ordinal,
+                        reason: Self.benchmarkReason(for: .duplicateProposalKey),
+                        preparedCase: preparedCase
+                    )
+                )
+                continue
+            }
+            switch Self.mapOne(slot, ordinal: ordinal, preparedCase: preparedCase, metadata: result.metadata) {
             case .mapped(let proposal):
                 mapped.append(proposal)
             case .rejected(let record):
@@ -172,7 +187,6 @@ struct BenchmarkRunner: Sendable {
         if let mismatch = Self.crossCheck(
             result,
             preparedCase: preparedCase,
-            options: options,
             mappedCount: mapped.count,
             rejectedCount: slots.count - mapped.count
         ) {
@@ -210,8 +224,9 @@ struct BenchmarkRunner: Sendable {
     ///
     /// The order — decisions, action items, open questions, agenda items, each in the order the
     /// model returned them — *is* the `ordinal` numbering, and `ordinal` is what ties a raw
-    /// proposal, its mapped form or its rejection, and its derived UUID together. Changing this
-    /// order renumbers every artifact ever produced, so it does not change.
+    /// proposal, its mapped form or its rejection together. Changing this order renumbers every
+    /// artifact ever produced, so it does not change. Domain UUIDs are independently derived by
+    /// the product mapper from provider-local keys.
     private static func slots(in result: WorkStateExtractionResult) -> [ProposalSlot] {
         result.decisions.map(ProposalSlot.decision)
             + result.actionItems.map(ProposalSlot.actionItem)
@@ -245,6 +260,15 @@ struct BenchmarkRunner: Sendable {
             }
         }
 
+        var providerLocalKey: String {
+            switch self {
+            case .decision(let proposal): return proposal.providerLocalKey
+            case .actionItem(let proposal): return proposal.providerLocalKey
+            case .openQuestion(let proposal): return proposal.providerLocalKey
+            case .agendaItem(let proposal): return proposal.providerLocalKey
+            }
+        }
+
         /// The statement / title / question, whichever this kind calls its main content.
         var text: String {
             switch self {
@@ -265,11 +289,11 @@ struct BenchmarkRunner: Sendable {
             }
         }
 
-        var assigneeExpression: String? {
+        var assigneeAttribution: ProposedAssigneeAttribution? {
             guard case .actionItem(let proposal) = self else {
                 return nil
             }
-            return proposal.assigneeName
+            return proposal.assigneeAttribution
         }
 
         var dueDate: Date? {
@@ -311,9 +335,10 @@ struct BenchmarkRunner: Sendable {
 
     // MARK: Raw capture
 
-    /// The model's answer, unedited, with the corpus utterance id added beside the segment id it
-    /// cited. Nothing here is trimmed, repaired, or dropped — `raw` is the record of what was
-    /// actually said, and the only place a rejected proposal's content survives.
+    /// The prediction-v0.2 base fields, unedited, with the corpus utterance id added beside the
+    /// segment id cited by the model. Nothing among these fields is trimmed or repaired. Provider
+    /// keys and continuity sidecars are intentionally outside this older artifact contract; raw
+    /// content from a rejected base proposal still survives here.
     private static func rawProposal(
         _ slot: ProposalSlot,
         ordinal: Int,
@@ -324,7 +349,9 @@ struct BenchmarkRunner: Sendable {
             kind: slot.kind,
             text: slot.text,
             supportingText: slot.supportingText,
-            assigneeExpression: slot.assigneeExpression,
+            assigneeAttributionBasis: slot.assigneeAttribution?.basis,
+            assigneeReference: slot.assigneeAttribution?.reference,
+            assigneeSpeakerLabel: slot.assigneeAttribution?.speakerLabel,
             dueDate: slot.dueDate,
             confidence: slot.confidence,
             citedSegmentID: slot.evidence.segmentID,
@@ -344,31 +371,23 @@ struct BenchmarkRunner: Sendable {
         _ slot: ProposalSlot,
         ordinal: Int,
         preparedCase: BenchmarkPreparedCase,
-        options: BenchmarkRunOptions,
         metadata: ModelRunMetadata
     ) -> SlotOutcome {
-        // Derived from the case and the ordinal rather than generated, so re-running the same input
-        // yields byte-identical artifacts and two runs can be diffed at all.
-        let id = BenchmarkIdentity.proposalID(
-            benchmark: options.benchmark,
-            caseID: preparedCase.caseID,
-            ordinal: ordinal
-        )
         let validated = WorkStateProposalMapper.map(
             slot.isolatedResult(metadata: metadata),
             meeting: preparedCase.meeting,
-            now: mappingDate,
-            makeID: { id }
+            now: mappingDate
         )
+        let state = validated.workState
 
-        if let rejection = validated.rejected.first {
+        if let rejection = state.rejected.first {
             return .rejected(rejectionRecord(for: slot, ordinal: ordinal, reason: benchmarkReason(for: rejection.reason), preparedCase: preparedCase))
         }
 
         let proposal: BenchmarkMappedProposal?
         switch slot {
         case .decision:
-            proposal = validated.decisions.first.flatMap { decision in
+            proposal = state.decisions.first.flatMap { decision in
                 mappedProposal(
                     ordinal: ordinal,
                     kind: .decision,
@@ -383,13 +402,14 @@ struct BenchmarkRunner: Sendable {
                 )
             }
         case .actionItem:
-            proposal = validated.actionItems.first.flatMap { item in
+            proposal = state.actionItems.first.flatMap { item in
                 mappedProposal(
                     ordinal: ordinal,
                     kind: .actionItem,
                     id: item.id,
                     text: item.title,
                     assigneeParticipantID: item.assigneeID,
+                    assigneeAttributionResolution: item.proposedAssigneeAttribution?.resolution,
                     dueDate: item.dueDate,
                     confidence: item.confidence,
                     evidence: item.evidence,
@@ -398,7 +418,7 @@ struct BenchmarkRunner: Sendable {
                 )
             }
         case .openQuestion:
-            proposal = validated.openQuestions.first.flatMap { question in
+            proposal = state.openQuestions.first.flatMap { question in
                 mappedProposal(
                     ordinal: ordinal,
                     kind: .openQuestion,
@@ -413,7 +433,7 @@ struct BenchmarkRunner: Sendable {
                 )
             }
         case .agendaItem:
-            proposal = validated.agendaItems.first.flatMap { item in
+            proposal = state.agendaItems.first.flatMap { item in
                 mappedProposal(
                     ordinal: ordinal,
                     kind: .agendaItem,
@@ -445,6 +465,7 @@ struct BenchmarkRunner: Sendable {
         id: UUID,
         text: String,
         assigneeParticipantID: UUID?,
+        assigneeAttributionResolution: AssigneeAttributionResolution? = nil,
         dueDate: Date?,
         confidence: Confidence?,
         evidence: EvidenceReference?,
@@ -463,6 +484,7 @@ struct BenchmarkRunner: Sendable {
             text: text,
             assigneeParticipantID: assigneeParticipantID,
             assigneeSpeakerLabel: speakerLabel(forParticipant: assigneeParticipantID, in: preparedCase),
+            assigneeAttributionResolution: assigneeAttributionResolution,
             dueDate: dueDate,
             confidence: confidence.value,
             evidenceSegmentID: evidence.transcriptSegmentID,
@@ -540,38 +562,29 @@ struct BenchmarkRunner: Sendable {
 
     /// Re-maps the whole result in one call and checks that it agrees with the per-proposal pass.
     ///
-    /// The per-proposal pass can only see proposals `slots(in:)` knows how to flatten. If
-    /// `WorkStateExtractionResult` gains a fifth category, or the mapper starts producing more than
-    /// one outcome per proposal, this is what notices: the whole-result mapping counts what the
-    /// mapper actually did, and a disagreement becomes a recorded rejection rather than a silently
-    /// shorter artifact. The domain objects it produces are discarded.
+    /// The per-proposal pass can only see base proposals `slots(in:)` knows how to flatten. The
+    /// three continuity arrays are intentionally excluded: prediction-v0.2 predates continuity
+    /// signals and must not silently start copying sidecar evidence into artifacts. The whole pass
+    /// still cross-checks every base proposal while signal acceptance/rejection stays local to the
+    /// product mapper and is discarded by this compatibility harness.
     private static func crossCheck(
         _ result: WorkStateExtractionResult,
         preparedCase: BenchmarkPreparedCase,
-        options: BenchmarkRunOptions,
         mappedCount: Int,
         rejectedCount: Int
     ) -> BenchmarkRejectionRecord? {
-        var ordinal = 0
         let whole = WorkStateProposalMapper.map(
             result,
             meeting: preparedCase.meeting,
-            now: mappingDate,
-            makeID: {
-                defer { ordinal += 1 }
-                return BenchmarkIdentity.proposalID(
-                    benchmark: options.benchmark,
-                    caseID: preparedCase.caseID,
-                    ordinal: ordinal
-                )
-            }
+            now: mappingDate
         )
+        let state = whole.workState
 
-        let accepted = whole.decisions.count
-            + whole.actionItems.count
-            + whole.openQuestions.count
-            + whole.agendaItems.count
-        guard accepted != mappedCount || whole.rejected.count != rejectedCount else {
+        let accepted = state.decisions.count
+            + state.actionItems.count
+            + state.openQuestions.count
+            + state.agendaItems.count
+        guard accepted != mappedCount || state.rejected.count != rejectedCount else {
             return nil
         }
 

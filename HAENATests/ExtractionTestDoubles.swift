@@ -140,12 +140,17 @@ enum ExtractionFixtures {
     static func fullResult(
         confidence: Double = 0.8,
         evidence: ProposedEvidence = ExtractionFixtures.evidence(),
-        assigneeName: String? = nil,
+        assigneeAttribution: ProposedAssigneeAttribution = ProposedAssigneeAttribution(
+            basis: .unspecified,
+            reference: nil,
+            speakerLabel: nil
+        ),
         dueDate: Date? = nil
     ) -> WorkStateExtractionResult {
         WorkStateExtractionResult(
             decisions: [
                 ProposedDecision(
+                    providerLocalKey: "decision_1",
                     statement: "2월 출시로 진행한다",
                     rationale: nil,
                     confidence: confidence,
@@ -154,9 +159,10 @@ enum ExtractionFixtures {
             ],
             actionItems: [
                 ProposedActionItem(
+                    providerLocalKey: "action_1",
                     title: "지표 정의 초안 작성",
                     details: nil,
-                    assigneeName: assigneeName,
+                    assigneeAttribution: assigneeAttribution,
                     dueDate: dueDate,
                     confidence: confidence,
                     evidence: evidence
@@ -164,6 +170,7 @@ enum ExtractionFixtures {
             ],
             openQuestions: [
                 ProposedOpenQuestion(
+                    providerLocalKey: "question_1",
                     question: "지표 정의는 누가 확정하는가?",
                     confidence: confidence,
                     evidence: evidence
@@ -171,6 +178,7 @@ enum ExtractionFixtures {
             ],
             nextAgendaItems: [
                 ProposedAgendaItem(
+                    providerLocalKey: "agenda_1",
                     title: "지표 정의 확정",
                     reason: "이번 회의에서 결론이 나지 않음",
                     confidence: confidence,

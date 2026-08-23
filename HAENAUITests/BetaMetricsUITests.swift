@@ -26,10 +26,14 @@ final class BetaMetricsUITests: XCTestCase {
         )
         entryButton.click()
 
-        XCTAssertTrue(app.otherElements["beta-metrics-screen"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["beta-metrics-list"].waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["beta-metrics-screen"].waitForExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["beta-metrics-list"].waitForExistence(timeout: 3)
+        )
         XCTAssertFalse(
-            app.otherElements["beta-metrics-empty-state"].exists,
+            app.descendants(matching: .any)["beta-metrics-empty-state"].exists,
             "seed가 있으면 신규 설치 빈 상태가 아니어야 합니다."
         )
 
@@ -37,40 +41,52 @@ final class BetaMetricsUITests: XCTestCase {
         // it was computed from.
         let approvalRate = app.staticTexts["beta-metrics-value-approval-rate"]
         XCTAssertTrue(approvalRate.waitForExistence(timeout: 2))
-        XCTAssertTrue(approvalRate.label.contains("%"), "seed된 승인율이 표시되어야 합니다.")
+        XCTAssertTrue(
+            displayedText(of: approvalRate).contains("%"),
+            "seed된 승인율이 표시되어야 합니다."
+        )
         let approvalDetail = app.staticTexts["beta-metrics-detail-approval-rate"]
         XCTAssertTrue(approvalDetail.exists)
         XCTAssertTrue(
-            approvalDetail.label.contains("/"),
+            displayedText(of: approvalDetail).contains("/"),
             "승인율은 분자/분모와 함께 표시되어야 합니다."
         )
 
         let criteriaToggle = app.buttons["beta-metrics-criteria-toggle"]
         XCTAssertTrue(criteriaToggle.exists)
         criteriaToggle.click()
-        XCTAssertTrue(app.otherElements["beta-metrics-criteria"].waitForExistence(timeout: 2))
-        let measurementWindow = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "0.2.2")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["beta-metrics-criteria"].waitForExistence(timeout: 2)
         )
-        XCTAssertGreaterThan(
-            measurementWindow.count,
-            0,
+        let measurementWindow = app.staticTexts["beta-metrics-criteria-7"]
+        XCTAssertTrue(measurementWindow.waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            displayedText(of: measurementWindow).contains("0.2.2"),
             "측정 기준에는 0.2.2부터만 집계한다는 설명이 있어야 합니다."
         )
+        criteriaToggle.click()
 
         let resetButton = app.buttons["reset-beta-metrics-button"]
+        XCTAssertTrue(resetButton.waitForExistence(timeout: 2))
         XCTAssertTrue(resetButton.isHittable)
         resetButton.click()
 
-        let confirmation = app.otherElements["beta-metrics-reset-confirmation"]
+        let confirmation = app.descendants(matching: .any)["beta-metrics-reset-confirmation"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 2))
         confirmation.buttons["confirm-reset-beta-metrics-button"].click()
 
-        XCTAssertTrue(app.otherElements["beta-metrics-empty-state"].waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["beta-metrics-empty-state"]
+                .waitForExistence(timeout: 3)
+        )
         XCTAssertEqual(
-            app.staticTexts["beta-metrics-value-approval-rate"].label,
+            displayedText(of: app.staticTexts["beta-metrics-value-approval-rate"]),
             "표본 없음",
             "초기화 뒤의 승인율은 0%가 아니라 빈 상태여야 합니다."
         )
+    }
+
+    private func displayedText(of element: XCUIElement) -> String {
+        element.label.isEmpty ? (element.value as? String ?? "") : element.label
     }
 }

@@ -53,10 +53,17 @@ final class ProjectDeletionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["browse-projects-button"].waitForExistence(timeout: 5))
         app.buttons["browse-projects-button"].click()
 
-        let projectNameText = staticText(app, withValue: projectName)
+        let projectList = app.descendants(matching: .any)["project-list"]
+        XCTAssertTrue(projectList.waitForExistence(timeout: 5))
+        let projectNameText = projectList.staticTexts.matching(
+            NSPredicate(format: "value == %@", projectName)
+        ).firstMatch
         XCTAssertTrue(projectNameText.waitForExistence(timeout: 5))
         projectNameText.click()
 
+        XCTAssertTrue(
+            app.descendants(matching: .any)["project-detail-screen"].waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.buttons["delete-project-button"].waitForExistence(timeout: 5))
     }
 
@@ -117,6 +124,8 @@ final class ProjectDeletionUITests: XCTestCase {
             transcript: "Body text."
         )
 
+        selectMeetingsPane(in: app)
+
         let meetingTitleText = staticText(app, withValue: "Cancel Delete Meeting")
         XCTAssertTrue(meetingTitleText.waitForExistence(timeout: 5))
         meetingTitleText.click()
@@ -144,6 +153,8 @@ final class ProjectDeletionUITests: XCTestCase {
             transcript: "Body text."
         )
 
+        selectMeetingsPane(in: app)
+
         let meetingTitleText = staticText(app, withValue: "Confirm Delete Meeting")
         XCTAssertTrue(meetingTitleText.waitForExistence(timeout: 5))
         meetingTitleText.click()
@@ -154,9 +165,27 @@ final class ProjectDeletionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["confirm-delete-meeting-button"].waitForExistence(timeout: 5))
         app.buttons["confirm-delete-meeting-button"].click()
 
-        // Meeting list falls back to its empty state, but the project itself remains selected.
-        XCTAssertTrue(app.staticTexts["meeting-list-empty-state"].waitForExistence(timeout: 5))
+        // The repository reload may rebuild the project pane at its default status tab. Return to
+        // 회의 explicitly, then verify the deleted meeting did not leave a phantom row.
+        selectMeetingsPane(in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["meeting-list-empty-state"]
+                .waitForExistence(timeout: 5)
+        )
         let projectNameText = staticText(app, withValue: "Confirm Delete Meeting Project")
         XCTAssertTrue(projectNameText.waitForExistence(timeout: 5))
+    }
+
+    private func selectMeetingsPane(in app: XCUIApplication) {
+        let picker = app.descendants(matching: .any)["project-detail-pane-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        let radio = picker.radioButtons["회의"]
+        if radio.waitForExistence(timeout: 2) {
+            radio.click()
+        } else {
+            let button = picker.buttons["회의"]
+            XCTAssertTrue(button.waitForExistence(timeout: 2))
+            button.click()
+        }
     }
 }

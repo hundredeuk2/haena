@@ -139,30 +139,109 @@ final class BenchmarkRunnerTests: XCTestCase {
         XCTAssertNotNil(artifact.mapped[0].evidenceUtteranceID, "an accepted proposal must name the corpus utterance it came from")
         XCTAssertNotNil(artifact.mapped[1].evidenceUtteranceID)
 
-        // The stub names the speaker label verbatim; the mapper either resolves it to exactly one
-        // participant or refuses to guess, and the artifact must record which happened.
-        if let expression = artifact.raw[StubOrdinal.groundedActionItem].assigneeExpression {
-            XCTAssertNotNil(artifact.mapped[1].assigneeParticipantID)
-            XCTAssertEqual(artifact.mapped[1].assigneeSpeakerLabel, expression)
-        } else {
-            XCTAssertNil(artifact.mapped[1].assigneeParticipantID)
-            XCTAssertNil(artifact.mapped[1].assigneeSpeakerLabel)
+        // The stub makes an evidence-speaker commitment. Raw provenance stays verbatim while the
+        // mapped section records the finite resolution and app-owned participant separately.
+        let raw = artifact.raw[StubOrdinal.groundedActionItem]
+        XCTAssertEqual(raw.assigneeAttributionBasis, .speakerCommitment)
+        XCTAssertNil(raw.assigneeReference)
+        XCTAssertNotNil(raw.assigneeSpeakerLabel)
+        XCTAssertNotNil(artifact.mapped[1].assigneeParticipantID)
+        XCTAssertEqual(artifact.mapped[1].assigneeSpeakerLabel, raw.assigneeSpeakerLabel)
+        XCTAssertEqual(artifact.mapped[1].assigneeAttributionResolution, .resolved)
+    }
+
+    func testProposalIdentityMatchesTheProductMapperProviderLocalKeyContract() async throws {
+        let prepared = try BenchmarkFixtures.prepared()
+        let extractor = BenchmarkStubExtractor()
+        let raw = try await extractor.extract(from: prepared.extractionInput)
+        let expected = WorkStateProposalMapper.map(
+            raw,
+            meeting: prepared.meeting,
+            now: BenchmarkRunner.mappingDate
+        ).providerLocalKeyToDomainID
+        let artifact = try await runStub(prepared)
+
+        XCTAssertEqual(artifact.mapped[0].id, expected["decision_1"])
+        XCTAssertEqual(artifact.mapped[1].id, expected["action_1"])
+        XCTAssertNotEqual(artifact.mapped[0].id, artifact.mapped[1].id)
+    }
+
+    func testOfflineExtractorsUseUniqueBoundedKeysAndEmitNoContinuitySignals() async throws {
+        let input = try BenchmarkFixtures.prepared().extractionInput
+        let results = [
+            try await BenchmarkStubExtractor().extract(from: input),
+            try await DeterministicWorkStateExtractor(now: { Self.executedAt }).extract(from: input)
+        ]
+
+        for result in results {
+            let keys = result.decisions.map(\.providerLocalKey)
+                + result.actionItems.map(\.providerLocalKey)
+                + result.openQuestions.map(\.providerLocalKey)
+                + result.nextAgendaItems.map(\.providerLocalKey)
+
+            XCTAssertEqual(Set(keys).count, keys.count)
+            XCTAssertTrue(keys.allSatisfy { !$0.isEmpty && $0.count <= 64 })
+            XCTAssertTrue(keys.allSatisfy { key in
+                key.unicodeScalars.allSatisfy {
+                    CharacterSet.lowercaseLetters.contains($0)
+                        || CharacterSet.decimalDigits.contains($0)
+                        || $0 == "_"
+                }
+            })
+            XCTAssertTrue(keys.allSatisfy { UUID(uuidString: $0) == nil })
+            XCTAssertTrue(result.progressSignals.isEmpty)
+            XCTAssertTrue(result.openQuestionResolutionLinks.isEmpty)
+            XCTAssertTrue(result.decisionDerivedActionItemLinks.isEmpty)
         }
     }
 
-    func testProposalIdentityIsDerivedFromTheCaseAndOrdinal() async throws {
-        let artifact = try await runStub(BenchmarkFixtures.prepared())
-
-        for proposal in artifact.mapped {
-            XCTAssertEqual(
-                proposal.id,
-                BenchmarkIdentity.proposalID(
-                    benchmark: artifact.benchmark,
-                    caseID: artifact.caseID,
-                    ordinal: proposal.ordinal
+    func testDuplicateProviderKeysRemainBaseRejectionsWithoutChangingTheArtifactSchema() async throws {
+        let prepared = try BenchmarkFixtures.prepared()
+        let excerpt = prepared.extractionInput.excerpts[0]
+        let evidence = ProposedEvidence(
+            segmentID: excerpt.segmentID.uuidString,
+            quote: "다음 주까지"
+        )
+        let result = WorkStateExtractionResult(
+            decisions: [
+                ProposedDecision(
+                    providerLocalKey: "duplicate_1",
+                    statement: "중복 key 결정",
+                    rationale: nil,
+                    confidence: 0.8,
+                    evidence: evidence
                 )
-            )
-        }
+            ],
+            actionItems: [
+                ProposedActionItem(
+                    providerLocalKey: "duplicate_1",
+                    title: "중복 key 실행 항목",
+                    details: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .unspecified,
+                        reference: nil,
+                        speakerLabel: nil
+                    ),
+                    dueDate: nil,
+                    confidence: 0.8,
+                    evidence: evidence
+                )
+            ],
+            metadata: ExtractionFixtures.metadata
+        )
+        let runner = BenchmarkRunner(
+            extractor: StubWorkStateExtractor(.success(result)),
+            now: { Self.executedAt }
+        )
+
+        let artifact = try produced(await runner.run(prepared, options: BenchmarkFixtures.runOptions))
+
+        XCTAssertEqual(artifact.artifactSchemaVersion, "prediction-v0.2")
+        XCTAssertEqual(artifact.raw.count, 2)
+        XCTAssertTrue(artifact.mapped.isEmpty)
+        XCTAssertEqual(mapperRejections(artifact).count, 2)
+        XCTAssertTrue(mapperRejections(artifact).allSatisfy { $0.reason == .mapperValidationFailed })
+        XCTAssertFalse(artifact.rejected.contains { $0.reason == .unsupportedProposalType })
     }
 
     // MARK: - Nothing disappears between raw and mapped

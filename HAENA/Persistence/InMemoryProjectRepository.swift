@@ -5,7 +5,9 @@ import Foundation
 actor InMemoryProjectRepository: ProjectRepository {
     private var storage: [UUID: Project] = [:]
 
-    init() {}
+    init(projects: [Project] = []) {
+        storage = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+    }
 
     func save(_ project: Project) throws {
         storage[project.id] = project

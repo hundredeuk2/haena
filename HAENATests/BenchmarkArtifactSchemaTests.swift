@@ -8,9 +8,9 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
     func testEncodedArtifactAnnouncesItsSchemaAndKind() throws {
         let object = try encodedObject(artifact())
 
-        XCTAssertEqual(object["artifact_schema_version"] as? String, "prediction-v0.1")
+        XCTAssertEqual(object["artifact_schema_version"] as? String, "prediction-v0.2")
         XCTAssertEqual(object["artifact_kind"] as? String, "haena_prediction")
-        XCTAssertEqual(PredictionArtifact.schemaVersion, "prediction-v0.1")
+        XCTAssertEqual(PredictionArtifact.schemaVersion, "prediction-v0.2")
         XCTAssertEqual(PredictionArtifact.artifactKind, "haena_prediction")
     }
 
@@ -75,8 +75,9 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
         XCTAssertEqual(
             Set(raw.keys),
             [
-                "ordinal", "kind", "text", "supporting_text", "assignee_expression", "due_date",
-                "confidence", "cited_segment_id", "cited_utterance_id", "quote"
+                "ordinal", "kind", "text", "supporting_text", "assignee_attribution_basis",
+                "assignee_reference", "assignee_speaker_label", "due_date", "confidence",
+                "cited_segment_id", "cited_utterance_id", "quote"
             ]
         )
 
@@ -85,8 +86,8 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
             Set(mapped.keys),
             [
                 "ordinal", "kind", "id", "text", "assignee_participant_id", "assignee_speaker_label",
-                "due_date", "confidence", "evidence_segment_id", "evidence_utterance_id",
-                "evidence_quote", "status"
+                "assignee_attribution_resolution", "due_date", "confidence", "evidence_segment_id",
+                "evidence_utterance_id", "evidence_quote", "status"
             ]
         )
 
@@ -105,6 +106,32 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
             BenchmarkProposalKind.allCasesForTest.map(\.rawValue),
             ["decision", "action_item", "open_question", "agenda_item"]
         )
+    }
+
+    func testAttributionRawValuesAreFiniteAndStable() {
+        XCTAssertEqual(
+            AssigneeAttributionBasis.allCases.map(\.rawValue),
+            ["explicit_name", "self_reference", "speaker_commitment", "team_or_role", "unspecified"]
+        )
+        XCTAssertEqual(
+            AssigneeAttributionResolution.allCases.map(\.rawValue),
+            [
+                "resolved", "no_participant_match", "ambiguous_participant_match",
+                "missing_evidence_speaker", "evidence_speaker_not_participant",
+                "speaker_label_mismatch", "non_individual", "unspecified", "invalid_attribution"
+            ]
+        )
+    }
+
+    func testPerCaseArtifactPreservesRawAttributionProvenance() throws {
+        let object = try encodedObject(artifact())
+        let raw = try XCTUnwrap((object["raw"] as? [[String: Any]])?.first)
+        let mapped = try XCTUnwrap((object["mapped"] as? [[String: Any]])?.first)
+
+        XCTAssertEqual(raw["assignee_attribution_basis"] as? String, "self_reference")
+        XCTAssertEqual(raw["assignee_reference"] as? String, "제가")
+        XCTAssertEqual(raw["assignee_speaker_label"] as? String, "B")
+        XCTAssertEqual(mapped["assignee_attribution_resolution"] as? String, "resolved")
     }
 
     // MARK: - Byte-level stability
@@ -229,10 +256,12 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
             raw: [
                 BenchmarkRawProposal(
                     ordinal: 0,
-                    kind: .decision,
+                    kind: .actionItem,
                     text: rawText,
                     supportingText: "회의에서 합의됨",
-                    assigneeExpression: "제가",
+                    assigneeAttributionBasis: .selfReference,
+                    assigneeReference: "제가",
+                    assigneeSpeakerLabel: "B",
                     dueDate: Date(timeIntervalSince1970: 1_800_000_000),
                     confidence: 0.8,
                     citedSegmentID: segmentID.uuidString,
@@ -243,7 +272,7 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
             mapped: [
                 BenchmarkMappedProposal(
                     ordinal: 0,
-                    kind: .decision,
+                    kind: .actionItem,
                     id: proposalID,
                     text: rawText,
                     // Non-nil on purpose: the synthesized encoder omits a nil optional entirely,
@@ -254,6 +283,7 @@ final class BenchmarkArtifactSchemaTests: XCTestCase {
                         speaker: "B"
                     ),
                     assigneeSpeakerLabel: "B",
+                    assigneeAttributionResolution: .resolved,
                     dueDate: Date(timeIntervalSince1970: 1_800_000_000),
                     confidence: 0.8,
                     evidenceSegmentID: segmentID,

@@ -21,7 +21,7 @@ source-index.jsonl            (transcript 없는 discovery metadata)
         → Meeting / Participant / TranscriptSegment / WorkStateExtractionInput
   → WorkStateExtractor.extract(from:)            ← 앱과 동일한 provider-neutral seam
   → WorkStateProposalMapper.map(...)             ← 앱과 동일한 근거 검증
-  → PredictionArtifact (prediction-v0.1)
+  → PredictionArtifact (prediction-v0.2)
 ```
 
 `WorkStateExtractionService`는 **쓰지 않습니다.** 그것은 결과를 `ProjectRepository`에 저장하는
@@ -86,12 +86,18 @@ haena-benchmark audio \
 
 `<output-dir>/<CASE-ID>.prediction.json` (case당 1건)과 `<output-dir>/run-report.json`(개수만).
 
-`prediction-v0.1`은 `model_suggestion` draft와도, 사람 gold와도 **다른 스키마**입니다.
+`prediction-v0.2`는 `model_suggestion` draft와도, 사람 gold와도 **다른 스키마**입니다.
 `artifact_kind: "haena_prediction"`으로 파일만 보고도 구분됩니다.
 
 - provenance: `source_case_hash`, `dataset_schema_version`, `extraction_schema_version`,
   `prompt_revision`, `git_revision`, `provider`, `model_id`, `run_mode`, `executed_at`
 - 결과: `raw`(모델이 말한 그대로) / `mapped`(mapper가 수락) / `rejected`(구조화된 탈락 사유)
+- action-item raw에는 구조화된 assignee basis/reference/speaker label을 보존하고, mapped에는
+  유한 attribution resolution을 기록합니다. 모델이 Participant UUID를 쓰게 하지 않습니다.
+- provider-local key와 Continuity signal sidecar는 `prediction-v0.2` artifact에 직렬화하지
+  않습니다. 기존 artifact shape/version을 유지하고 signal evidence와 prior reference가 복제되지 않게 합니다.
+- case artifact에만 있는 이름·팀 표현과 speaker 원문은 `run-report.json` aggregate에 기록하지
+  않습니다. aggregate는 개수와 유한 상태만 가집니다.
 - 모든 evidence에 원 corpus `utterance_id`가 함께 기록됩니다
 - `scoring`: 항상 `{"status": "unscored", "reason": "human_review_pending"}`
 

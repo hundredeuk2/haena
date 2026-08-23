@@ -19,6 +19,9 @@ enum AppComponentSelection {
 @main
 struct HAENAApp: App {
     private let repository: any ProjectRepository
+    private let transitionRepository: any WorkStateTransitionRepository
+    private let manualBriefService: ManualContinuityBriefService
+    private let transitionReviewService: WorkStateTransitionReviewService
     private let extractor: any WorkStateExtractor
     private let transcriptionProvider: any TranscriptionProvider
     private let audioAssetStore: AudioAssetStore
@@ -50,8 +53,17 @@ struct HAENAApp: App {
         // Note this is the *only* place either implementation is chosen: the deterministic
         // extractor is never substituted for OpenAI when a request fails, because showing a user
         // invented decisions and tasks in place of an error would be worse than showing nothing.
-        if AppComponentSelection.isUITesting() {
-            repository = InMemoryProjectRepository()
+        if _isDebugAssertConfiguration() && AppComponentSelection.isUITesting() {
+            let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
+                ? ManualContinuityBriefUITestSeed.make()
+                : nil
+            repository = InMemoryProjectRepository(
+                projects: manualBriefSeed.map { [$0.project] } ?? []
+            )
+            transitionRepository = InMemoryWorkStateTransitionRepository(
+                proposals: manualBriefSeed?.proposals ?? [],
+                ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? []
+            )
             extractor = DeterministicWorkStateExtractor()
             transcriptionProvider = DeterministicTranscriptionProvider()
             // Never the real Keychain: an automated run must not read or overwrite the user's key.
@@ -72,7 +84,7 @@ struct HAENAApp: App {
             // Never opens an audio device either, so an automated run cannot start playing sound
             // out of whatever machine it happens to be on.
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
-            profileRepository = InMemoryLocalUserProfileRepository()
+            profileRepository = InMemoryLocalUserProfileRepository(profile: manualBriefSeed?.profile)
             reminderRepository = InMemoryActionItemReminderRepository()
             ledgerRepository = InMemoryAgentLedgerRepository(
                 events: Self.uiTestLedgerSeed(environment: ProcessInfo.processInfo.environment)
@@ -84,6 +96,9 @@ struct HAENAApp: App {
             )
         } else {
             repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
+            transitionRepository = JSONWorkStateTransitionRepository(
+                fileURL: JSONWorkStateTransitionRepository.defaultFileURL()
+            )
             let resolver = OpenAICredentialResolver.shared
             credentialResolver = resolver
             extractor = OpenAIWorkStateExtractor(apiKeyProvider: resolver.apiKeyProvider())
@@ -119,6 +134,16 @@ struct HAENAApp: App {
             )
         }
 
+        manualBriefService = ManualContinuityBriefService(
+            projects: repository,
+            transitions: transitionRepository,
+            profiles: profileRepository
+        )
+        transitionReviewService = WorkStateTransitionReviewService(
+            projectRepository: repository,
+            transitionRepository: transitionRepository
+        )
+
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
         // Recordings are scratch by definition: nothing outside a live recording screen refers to
         // one, so clearing them at launch can never remove something a meeting depends on.
@@ -129,6 +154,9 @@ struct HAENAApp: App {
         WindowGroup {
             ContentView(
                 repository: repository,
+                transitionRepository: transitionRepository,
+                manualBriefService: manualBriefService,
+                transitionReviewService: transitionReviewService,
                 extractor: extractor,
                 transcriptionProvider: transcriptionProvider,
                 audioAssetStore: audioAssetStore,

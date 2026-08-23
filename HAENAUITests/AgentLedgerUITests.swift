@@ -25,9 +25,12 @@ final class AgentLedgerUITests: XCTestCase {
         )
         entryButton.click()
 
-        XCTAssertTrue(app.otherElements["agent-ledger-screen"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["agent-ledger-event-list"].exists)
-        let seededFact = app.staticTexts["agent-ledger-event-fact-label"].firstMatch.label
+        XCTAssertTrue(
+            app.descendants(matching: .any)["agent-ledger-screen"].waitForExistence(timeout: 3)
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["agent-ledger-event-list"].exists)
+        let seededFactElement = app.staticTexts["agent-ledger-event-fact-label"].firstMatch
+        let seededFact = displayedText(of: seededFactElement)
         XCTAssertTrue(
             seededFact.hasPrefix("예약 시각 지남"),
             "The fireTimeReached seed must state only that its approved time passed."
@@ -44,11 +47,13 @@ final class AgentLedgerUITests: XCTestCase {
         let deleteButton = app.buttons["delete-all-agent-ledger-button"]
         XCTAssertTrue(deleteButton.isHittable)
         deleteButton.click()
-        let confirmation = app.otherElements["delete-agent-ledger-confirmation"]
+        let confirmation = app.descendants(matching: .any)["delete-agent-ledger-confirmation"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 2))
         confirmation.buttons["confirm-delete-all-agent-ledger-button"].click()
 
-        XCTAssertTrue(app.otherElements["agent-ledger-empty-state"].waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["agent-ledger-empty-state"].waitForExistence(timeout: 3)
+        )
     }
 
     private func waitForValue(_ value: String, of element: XCUIElement) {
@@ -57,5 +62,9 @@ final class AgentLedgerUITests: XCTestCase {
             object: element
         )
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+    }
+
+    private func displayedText(of element: XCUIElement) -> String {
+        element.label.isEmpty ? (element.value as? String ?? "") : element.label
     }
 }

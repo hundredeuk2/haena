@@ -109,7 +109,14 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
     /// Segment ids are labelled inline so the model can cite them, and so a returned id can be
     /// checked against this meeting's segments rather than trusted.
     private static func userContent(for input: WorkStateExtractionInput) -> String {
-        var lines = ["Meeting title: \(input.meetingTitle)", "", "Transcript segments:"]
+        var lines = ["Meeting title: \(input.meetingTitle)"]
+        if !input.priorWorkStates.isEmpty {
+            lines.append("")
+            lines.append("Approved prior work state (request-scoped opaque references only):")
+            lines.append(encodedPriorContext(input.priorWorkStates))
+        }
+        lines.append("")
+        lines.append("Transcript segments:")
         for excerpt in input.excerpts {
             lines.append("")
             lines.append("[segment_id: \(excerpt.segmentID.uuidString)]")
@@ -119,6 +126,25 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             lines.append(excerpt.text)
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Encodes only the provider-safe half of the prior-state map. Project, meeting, participant,
+    /// and work-state UUIDs are structurally absent from `PriorWorkStateProviderReference`, so this
+    /// boundary cannot accidentally serialize them while adding future request fields.
+    private static func encodedPriorContext(_ references: [PriorWorkStateProviderReference]) -> String {
+        let objects = references.map {
+            [
+                "opaque_reference": $0.opaqueReference,
+                "kind": $0.kind.rawValue,
+                "display_text": $0.displayText,
+                "state": $0.state.rawValue,
+            ]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: objects, options: [.sortedKeys]),
+              let value = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return value
     }
 
     // MARK: - Sending
@@ -196,6 +222,7 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
         WorkStateExtractionResult(
             decisions: payload.decisions.map {
                 ProposedDecision(
+                    providerLocalKey: $0.providerKey,
                     statement: $0.statement,
                     rationale: $0.rationale,
                     confidence: $0.confidence,
@@ -204,9 +231,14 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             actionItems: payload.actionItems.map {
                 ProposedActionItem(
+                    providerLocalKey: $0.providerKey,
                     title: $0.title,
                     details: $0.details,
-                    assigneeName: $0.assigneeName,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: $0.assigneeBasis,
+                        reference: $0.assigneeReference,
+                        speakerLabel: $0.assigneeSpeaker
+                    ),
                     dueDate: parseDueDate($0.dueDate),
                     confidence: $0.confidence,
                     evidence: mapped($0.evidence)
@@ -214,6 +246,7 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             openQuestions: payload.openQuestions.map {
                 ProposedOpenQuestion(
+                    providerLocalKey: $0.providerKey,
                     question: $0.question,
                     confidence: $0.confidence,
                     evidence: mapped($0.evidence)
@@ -221,9 +254,41 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             nextAgendaItems: payload.nextAgendaItems.map {
                 ProposedAgendaItem(
+                    providerLocalKey: $0.providerKey,
                     title: $0.title,
                     reason: $0.reason,
                     confidence: $0.confidence,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            progressSignals: payload.progressSignals.map {
+                ProposedProgressSignal(
+                    kind: $0.kind,
+                    targetType: $0.targetType,
+                    targetReference: $0.targetReference,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            openQuestionResolutionLinks: payload.openQuestionResolutionLinks.map {
+                ProposedOpenQuestionResolutionLink(
+                    priorOpenQuestionReference: $0.priorOpenQuestionReference,
+                    targetKind: $0.targetKind,
+                    targetProviderLocalKey: $0.targetKey,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            decisionDerivedActionItemLinks: payload.decisionDerivedActionItemLinks.map {
+                ProposedDecisionDerivedActionItemLink(
+                    sourceDecisionKey: $0.incomingDecisionKey,
+                    priorDecisionReference: $0.priorDecisionReference,
+                    actionItemKey: $0.actionItemKey,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            decisionChangeLinks: payload.decisionChangeLinks.map {
+                ProposedDecisionChangeLink(
+                    priorDecisionReference: $0.priorDecisionReference,
+                    decisionKey: $0.decisionKey,
                     evidence: mapped($0.evidence)
                 )
             },
@@ -233,6 +298,10 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
 
     private static func mapped(_ evidence: OpenAIExtractionPayload.EvidenceDTO) -> ProposedEvidence {
         ProposedEvidence(segmentID: evidence.segmentID, quote: evidence.quote)
+    }
+
+    private static func mapped(_ evidence: OpenAIExtractionPayload.EvidenceDTO?) -> ProposedEvidence? {
+        evidence.map { mapped($0) }
     }
 
     /// Accepts only a complete `yyyy-MM-dd` date in UTC. Anything else — a relative phrase, a

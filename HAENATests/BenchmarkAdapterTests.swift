@@ -84,6 +84,77 @@ final class BenchmarkAdapterTests: XCTestCase {
         XCTAssertTrue(prepared.unknownSpeakerUtteranceIDs.isEmpty)
     }
 
+    func testOfflineBenchmarkSpeakerCommitmentMapsThroughTheProductMapper() throws {
+        let prepared = try BenchmarkFixtures.prepared()
+        let segment = prepared.meeting.transcriptSegments[1]
+        let expected = try XCTUnwrap(
+            prepared.meeting.participants.first(where: { $0.speakerLabel == "B" })
+        )
+        let result = WorkStateExtractionResult(
+            actionItems: [
+                ProposedActionItem(
+                    providerLocalKey: "action_1",
+                    title: "초안 작성",
+                    details: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .speakerCommitment,
+                        reference: nil,
+                        speakerLabel: "B"
+                    ),
+                    dueDate: nil,
+                    confidence: 0.8,
+                    evidence: ProposedEvidence(segmentID: segment.id.uuidString, quote: segment.text)
+                )
+            ],
+            metadata: ExtractionFixtures.metadata
+        )
+
+        let mapped = WorkStateProposalMapper.map(
+            result,
+            meeting: prepared.meeting,
+            now: BenchmarkExtractionInputAdapter.syntheticMeetingDate
+        ).workState
+
+        let item = try XCTUnwrap(mapped.actionItems.first)
+        XCTAssertEqual(item.assigneeID, expected.id)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+        XCTAssertTrue(mapped.rejected.isEmpty)
+    }
+
+    func testOfflineBenchmarkUnknownSpeakerCannotBecomeAnAssignee() throws {
+        let prepared = try BenchmarkFixtures.prepared(includeUnknownSpeaker: true)
+        let segment = prepared.meeting.transcriptSegments[2]
+        let result = WorkStateExtractionResult(
+            actionItems: [
+                ProposedActionItem(
+                    providerLocalKey: "action_1",
+                    title: "초안 작성",
+                    details: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .selfReference,
+                        reference: "제가",
+                        speakerLabel: "C"
+                    ),
+                    dueDate: nil,
+                    confidence: 0.8,
+                    evidence: ProposedEvidence(segmentID: segment.id.uuidString, quote: segment.text)
+                )
+            ],
+            metadata: ExtractionFixtures.metadata
+        )
+
+        let mapped = WorkStateProposalMapper.map(
+            result,
+            meeting: prepared.meeting,
+            now: BenchmarkExtractionInputAdapter.syntheticMeetingDate
+        ).workState
+
+        let item = try XCTUnwrap(mapped.actionItems.first)
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .missingEvidenceSpeaker)
+        XCTAssertTrue(mapped.rejected.isEmpty)
+    }
+
     // MARK: - Reverse mapping
 
     func testEvidenceSegmentIDMapsBackToTheCorpusUtteranceID() throws {

@@ -21,6 +21,8 @@ struct ProjectDetailView: View {
     let deletionErrorMessage: String?
     let onDeleteProject: () async -> Void
     let reviewService: WorkStateReviewService
+    let manualBriefService: ManualContinuityBriefService?
+    let transitionReviewService: WorkStateTransitionReviewService?
     let profileRepository: any LocalUserProfileRepository
     let reminderRepository: any ActionItemReminderRepository
     let reminderService: ActionItemReminderService?
@@ -38,6 +40,7 @@ struct ProjectDetailView: View {
     var requestedActionItemID: UUID?
 
     @State private var isConfirmingDeletion = false
+    @State private var isShowingManualBrief = false
     @State private var pane: ProjectDetailPane = .status
     /// The requested task, once taken up. Held here rather than passed straight through so it can
     /// be *let go of*: it is cleared the moment the user leaves 업무 상태, so coming back to the tab
@@ -86,6 +89,18 @@ struct ProjectDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if manualBriefService != nil, transitionReviewService != nil {
+                Button {
+                    isShowingManualBrief = true
+                } label: {
+                    Label("다음 회의 준비", systemImage: "calendar.badge.clock")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("open-manual-continuity-brief-button")
+            }
 
             if let deletionErrorMessage {
                 Text(deletionErrorMessage)
@@ -188,6 +203,19 @@ struct ProjectDetailView: View {
                     isConfirmingDeletion = false
                 }
             )
+        }
+        .sheet(isPresented: $isShowingManualBrief) {
+            if let manualBriefService, let transitionReviewService {
+                ManualContinuityBriefView(
+                    projectID: project.id,
+                    briefService: manualBriefService,
+                    reviewService: transitionReviewService,
+                    // The very instance the AI 제안 inbox on this screen already uses.
+                    workStateReviewService: reviewService,
+                    onChanged: onWorkStateChanged,
+                    onClose: { isShowingManualBrief = false }
+                )
+            }
         }
     }
 

@@ -19,12 +19,16 @@ struct WorkStateExtractionInput: Equatable, Sendable {
     let meetingTitle: String
     let occurredAt: Date
     let excerpts: [TranscriptExcerpt]
+    /// Approved prior state represented only by request-scoped opaque references. Provider
+    /// adapters receive this view; the UUID lookup stays in `PriorWorkStateReferenceMap` and is
+    /// passed only to the local mapper.
+    let priorWorkStates: [PriorWorkStateProviderReference]
 }
 
 extension WorkStateExtractionInput {
     /// Builds the extractor input from a stored `Meeting`, resolving each segment's speaker to a
     /// display label where the meeting's participant list allows it.
-    init(meeting: Meeting) {
+    init(meeting: Meeting, priorWorkStates: [PriorWorkStateProviderReference] = []) {
         self.init(
             meetingID: meeting.id,
             projectID: meeting.projectID,
@@ -36,7 +40,8 @@ extension WorkStateExtractionInput {
                     speakerLabel: Self.speakerLabel(for: segment, in: meeting),
                     text: segment.text
                 )
-            }
+            },
+            priorWorkStates: priorWorkStates
         )
     }
 
@@ -46,6 +51,125 @@ extension WorkStateExtractionInput {
             return nil
         }
         return participant.speakerLabel ?? participant.displayName
+    }
+}
+
+// MARK: - Approved prior-state context
+
+/// The only prior-state statuses exposed to a provider. Every case is an approved state admitted
+/// by `ApprovedWorkStatePolicy`; pending/rejected records never enter this context.
+enum PriorWorkStateProviderState: String, Equatable, Sendable, CaseIterable {
+    case confirmed
+    case inProgress = "in_progress"
+    case open
+}
+
+/// Minimal provider-visible context for matching an explicit continuity relationship.
+///
+/// No domain UUID, participant identity, old evidence quote, or storage detail belongs here.
+struct PriorWorkStateProviderReference: Equatable, Sendable {
+    let opaqueReference: String
+    let kind: WorkStateKind
+    let displayText: String
+    let state: PriorWorkStateProviderState
+}
+
+/// One local-only allow-list entry. This type is never part of `WorkStateExtractionInput`.
+struct PriorWorkStateDomainReference: Equatable, Sendable {
+    let kind: WorkStateKind
+    let domainID: UUID
+}
+
+/// Local half of the opaque-reference contract. The mapper resolves provider output through this
+/// allow-list instead of accepting a model-supplied UUID.
+struct PriorWorkStateReferenceMap: Equatable, Sendable {
+    let domainReferencesByOpaqueReference: [String: PriorWorkStateDomainReference]
+
+    static let empty = PriorWorkStateReferenceMap(domainReferencesByOpaqueReference: [:])
+
+    func domainReference(for opaqueReference: String) -> PriorWorkStateDomainReference? {
+        domainReferencesByOpaqueReference[opaqueReference]
+    }
+}
+
+/// Both halves of one request-scoped prior-state context. Only `providerReferences` is copied into
+/// extractor input; `referenceMap` stays inside the application boundary for local resolution.
+struct PriorWorkStateContext: Equatable, Sendable {
+    let providerReferences: [PriorWorkStateProviderReference]
+    let referenceMap: PriorWorkStateReferenceMap
+
+    static let empty = PriorWorkStateContext(
+        providerReferences: [],
+        referenceMap: .empty
+    )
+
+    /// Produces deterministic `prior_<kind>_<n>` references by sorting each kind by app UUID. The
+    /// references are meaningful only for this request and reveal nothing about the UUIDs.
+    init(snapshot: ApprovedWorkStateSnapshot) {
+        var providerReferences: [PriorWorkStateProviderReference] = []
+        var local: [String: PriorWorkStateDomainReference] = [:]
+
+        func append(
+            kind: WorkStateKind,
+            prefix: String,
+            values: [(id: UUID, text: String, state: PriorWorkStateProviderState)]
+        ) {
+            let sorted = values.sorted {
+                $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased()
+            }
+            for (offset, value) in sorted.enumerated() {
+                let opaqueReference = "prior_\(prefix)_\(offset + 1)"
+                providerReferences.append(
+                    PriorWorkStateProviderReference(
+                        opaqueReference: opaqueReference,
+                        kind: kind,
+                        displayText: value.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                        state: value.state
+                    )
+                )
+                local[opaqueReference] = PriorWorkStateDomainReference(kind: kind, domainID: value.id)
+            }
+        }
+
+        append(
+            kind: .decision,
+            prefix: "decision",
+            values: snapshot.decisions
+                .filter {
+                    $0.projectID == snapshot.projectID && ApprovedWorkStatePolicy.isApproved($0)
+                }
+                .map { ($0.id, $0.statement, .confirmed) }
+        )
+        append(
+            kind: .actionItem,
+            prefix: "action",
+            values: snapshot.actionItems
+                .filter {
+                    $0.projectID == snapshot.projectID && ApprovedWorkStatePolicy.isApproved($0)
+                }
+                .map {
+                    ($0.id, $0.title, $0.status == .inProgress ? .inProgress : .confirmed)
+                }
+        )
+        append(
+            kind: .openQuestion,
+            prefix: "question",
+            values: snapshot.openQuestions
+                .filter {
+                    $0.projectID == snapshot.projectID && ApprovedWorkStatePolicy.isApproved($0)
+                }
+                .map { ($0.id, $0.question, .open) }
+        )
+        self.providerReferences = providerReferences
+        self.referenceMap = PriorWorkStateReferenceMap(domainReferencesByOpaqueReference: local)
+    }
+
+    private init(
+        providerReferences: [PriorWorkStateProviderReference],
+        referenceMap: PriorWorkStateReferenceMap
+    ) {
+        self.providerReferences = providerReferences
+        self.referenceMap = referenceMap
     }
 }
 
@@ -63,18 +187,30 @@ struct ProposedEvidence: Equatable, Sendable {
 }
 
 struct ProposedDecision: Equatable, Sendable {
+    let providerLocalKey: String
     let statement: String
     let rationale: String?
     let confidence: Double
     let evidence: ProposedEvidence
 }
 
+/// Provider-neutral assignee evidence carried by a proposed action item.
+///
+/// `reference` preserves only the assignee expression from the transcript (for example "민수님",
+/// "제가", or "우리 팀"). `speakerLabel` is the transcript's opaque speaker label (for example
+/// "B"), never a `Participant` UUID. Resolution to app-owned participants happens later in the
+/// mapper after evidence validation.
+struct ProposedAssigneeAttribution: Equatable, Sendable {
+    let basis: AssigneeAttributionBasis
+    let reference: String?
+    let speakerLabel: String?
+}
+
 struct ProposedActionItem: Equatable, Sendable {
+    let providerLocalKey: String
     let title: String
     let details: String?
-    /// A name as it appeared in the transcript. Resolved to a `Participant` only on an
-    /// unambiguous match — never guessed. See `WorkStateProposalMapper`.
-    let assigneeName: String?
+    let assigneeAttribution: ProposedAssigneeAttribution
     /// Nil whenever the transcript did not state a date the adapter could parse unambiguously.
     let dueDate: Date?
     let confidence: Double
@@ -82,16 +218,68 @@ struct ProposedActionItem: Equatable, Sendable {
 }
 
 struct ProposedOpenQuestion: Equatable, Sendable {
+    let providerLocalKey: String
     let question: String
     let confidence: Double
     let evidence: ProposedEvidence
 }
 
 struct ProposedAgendaItem: Equatable, Sendable {
+    let providerLocalKey: String
     let title: String
     let reason: String
     let confidence: Double
     let evidence: ProposedEvidence
+}
+
+// MARK: - Continuity signals
+
+/// Raw sidecar claim. Optional enum/evidence fields preserve failure isolation for a hostile or
+/// malformed provider response: the mapper can reject this signal finitely without discarding the
+/// valid base work states decoded beside it.
+/// Which namespace a progress signal's target reference belongs to.
+///
+/// A meeting that only reports on existing work — "that's done", "we pushed it", "it's stuck" —
+/// extracts no new action item to hang the signal on, so the signal has to be able to name the
+/// approved prior item directly. The two namespaces stay separate because a provider-local key and
+/// a request-scoped prior reference mean different things and are resolved by different tables.
+enum WorkStateProgressSignalTargetType: String, Codable, Equatable, Sendable, CaseIterable {
+    case incomingActionItem = "incoming_action_item"
+    case priorActionItem = "prior_action_item"
+}
+
+struct ProposedProgressSignal: Equatable, Sendable {
+    let kind: WorkStateProgressSignalKind?
+    /// Which namespace `targetReference` is read in. Optional so a malformed value rejects this one
+    /// signal instead of silently defaulting to either namespace.
+    let targetType: WorkStateProgressSignalTargetType?
+    /// An incoming action item's provider-local key, or a supplied prior action item reference. The
+    /// two are never interchangeable; `targetType` alone decides which one this is.
+    let targetReference: String
+    let evidence: ProposedEvidence?
+}
+
+/// "This decision revises that approved earlier one." Direct and typed, never inferred from titles.
+struct ProposedDecisionChangeLink: Equatable, Sendable {
+    let priorDecisionReference: String
+    let decisionKey: String
+    let evidence: ProposedEvidence?
+}
+
+struct ProposedOpenQuestionResolutionLink: Equatable, Sendable {
+    let priorOpenQuestionReference: String
+    let targetKind: WorkStateResolutionTargetKind?
+    let targetProviderLocalKey: String
+    let evidence: ProposedEvidence?
+}
+
+struct ProposedDecisionDerivedActionItemLink: Equatable, Sendable {
+    /// Exactly one source form must be non-nil. Keeping both raw fields lets the local mapper reject
+    /// an ambiguous provider claim rather than allowing a decoder to choose one silently.
+    let sourceDecisionKey: String?
+    let priorDecisionReference: String?
+    let actionItemKey: String
+    let evidence: ProposedEvidence?
 }
 
 /// One extractor run's raw output: still unvalidated, still not domain models. Turning this into
@@ -102,6 +290,10 @@ struct WorkStateExtractionResult: Equatable, Sendable {
     var actionItems: [ProposedActionItem]
     var openQuestions: [ProposedOpenQuestion]
     var nextAgendaItems: [ProposedAgendaItem]
+    var progressSignals: [ProposedProgressSignal]
+    var openQuestionResolutionLinks: [ProposedOpenQuestionResolutionLink]
+    var decisionDerivedActionItemLinks: [ProposedDecisionDerivedActionItemLink]
+    var decisionChangeLinks: [ProposedDecisionChangeLink]
     let metadata: ModelRunMetadata
 
     init(
@@ -109,12 +301,20 @@ struct WorkStateExtractionResult: Equatable, Sendable {
         actionItems: [ProposedActionItem] = [],
         openQuestions: [ProposedOpenQuestion] = [],
         nextAgendaItems: [ProposedAgendaItem] = [],
+        progressSignals: [ProposedProgressSignal] = [],
+        openQuestionResolutionLinks: [ProposedOpenQuestionResolutionLink] = [],
+        decisionDerivedActionItemLinks: [ProposedDecisionDerivedActionItemLink] = [],
+        decisionChangeLinks: [ProposedDecisionChangeLink] = [],
         metadata: ModelRunMetadata
     ) {
         self.decisions = decisions
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.nextAgendaItems = nextAgendaItems
+        self.progressSignals = progressSignals
+        self.openQuestionResolutionLinks = openQuestionResolutionLinks
+        self.decisionDerivedActionItemLinks = decisionDerivedActionItemLinks
+        self.decisionChangeLinks = decisionChangeLinks
         self.metadata = metadata
     }
 }

@@ -6,6 +6,15 @@ enum WorkStateExtractionServiceError: Error, Equatable, Sendable {
     case repositoryFailure
 }
 
+/// Whether the continuity sidecar reached its own repository. This is intentionally finite: a
+/// provider or repository error description must not become a second place that stores transcript
+/// text, a title, a person's name, or a path.
+enum WorkStateTransitionPersistenceStatus: String, Equatable, Sendable {
+    case notConfigured
+    case persisted
+    case failed
+}
+
 /// What one `extractAndApply` run changed, for callers that want to report it without re-reading
 /// the project.
 struct WorkStateExtractionReport: Equatable, Sendable {
@@ -16,10 +25,21 @@ struct WorkStateExtractionReport: Equatable, Sendable {
     /// How many previously stored, still-unreviewed proposals from this meeting were replaced.
     var replacedProposals: Int = 0
     var rejected: [RejectedProposal] = []
+    var acceptedProgressSignals: Int = 0
+    var acceptedOpenQuestionResolutionLinks: Int = 0
+    var acceptedDecisionDerivedActionItemLinks: Int = 0
+    var rejectedSignals: [RejectedContinuitySignal] = []
+    var transitionPersistenceStatus: WorkStateTransitionPersistenceStatus = .notConfigured
     let metadata: ModelRunMetadata
 
     var storedCount: Int {
         storedDecisions + storedActionItems + storedOpenQuestions + storedAgendaItems
+    }
+
+    var acceptedSignalCount: Int {
+        acceptedProgressSignals
+            + acceptedOpenQuestionResolutionLinks
+            + acceptedDecisionDerivedActionItemLinks
     }
 }
 
@@ -32,27 +52,49 @@ struct WorkStateExtractionReport: Equatable, Sendable {
 struct WorkStateExtractionService: Sendable {
     let repository: any ProjectRepository
     let extractor: any WorkStateExtractor
+    /// Optional for isolated tests and callers that intentionally do not persist continuity. The
+    /// app assembly always supplies it.
+    let continuity: WorkStateContinuityService?
     let now: @Sendable () -> Date
-    let makeID: @Sendable () -> UUID
 
     init(
         repository: any ProjectRepository,
         extractor: any WorkStateExtractor,
-        now: @escaping @Sendable () -> Date = Date.init,
-        makeID: @escaping @Sendable () -> UUID = UUID.init
+        continuity: WorkStateContinuityService? = nil,
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.repository = repository
         self.extractor = extractor
+        self.continuity = continuity
         self.now = now
-        self.makeID = makeID
     }
 
     @discardableResult
     func extractAndApply(meetingID: UUID, projectID: UUID) async throws -> WorkStateExtractionReport {
-        let meeting = try await requireMeeting(meetingID: meetingID, projectID: projectID)
+        let initialProject = try await requireProject(projectID)
+        guard let meeting = initialProject.meetings.first(where: { $0.id == meetingID }) else {
+            throw WorkStateExtractionServiceError.meetingNotFound
+        }
+        let priorContext = PriorWorkStateContext(
+            snapshot: ApprovedWorkStateSnapshot(project: initialProject)
+        )
 
         // Any error here propagates untouched, before a single write.
-        let result = try await extractor.extract(from: WorkStateExtractionInput(meeting: meeting))
+        let result = try await extractor.extract(
+            from: WorkStateExtractionInput(
+                meeting: meeting,
+                priorWorkStates: priorContext.providerReferences
+            )
+        )
+
+        // Phase one validates and assigns stable app identity to base work state. Phase two maps
+        // sidecars only through accepted provider keys and the local prior-reference allow-list.
+        let mapped = WorkStateProposalMapper.map(
+            result,
+            meeting: meeting,
+            now: now(),
+            priorReferenceMap: priorContext.referenceMap
+        )
 
         // Re-read: the extraction call may have taken seconds, and the project on disk is the
         // authority. If the meeting was deleted meanwhile, the proposals are dropped rather than
@@ -62,19 +104,44 @@ struct WorkStateExtractionService: Sendable {
             throw WorkStateExtractionServiceError.meetingNotFound
         }
 
-        let validated = WorkStateProposalMapper.map(result, meeting: meeting, now: now(), makeID: makeID)
-        let replaced = removeSupersededProposals(for: meetingID, from: &project)
+        let validated = mapped.workState
+        let signals = mapped.continuitySignals.revalidated(
+            against: ApprovedWorkStateSnapshot(project: project),
+            incoming: validated
+        )
+        let replaced = replaceSupersededProposals(
+            for: meetingID,
+            with: validated,
+            in: &project
+        )
 
-        project.decisions.append(contentsOf: validated.decisions)
-        project.actionItems.append(contentsOf: validated.actionItems)
-        project.openQuestions.append(contentsOf: validated.openQuestions)
-        project.nextAgenda.append(contentsOf: validated.agendaItems)
         project.updatedAt = now()
 
         do {
             try await repository.save(project)
         } catch {
             throw WorkStateExtractionServiceError.repositoryFailure
+        }
+
+        var persistenceStatus: WorkStateTransitionPersistenceStatus = .notConfigured
+        if let continuity {
+            do {
+                _ = try await continuity.recordTransitions(
+                    forProject: projectID,
+                    sourceMeetingID: meetingID,
+                    incoming: validated,
+                    progressSignals: signals.progressSignals,
+                    resolutionLinks: signals.openQuestionResolutionLinks,
+                    derivedActionItemLinks: signals.decisionDerivedActionItemLinks,
+                    decisionChangeLinks: signals.decisionChangeLinks
+                )
+                persistenceStatus = .persisted
+            } catch {
+                // The project commit above is authoritative and is never rolled back. The finite
+                // report state makes the missing transition write visible without retaining the
+                // repository's potentially sensitive free-form error.
+                persistenceStatus = .failed
+            }
         }
 
         return WorkStateExtractionReport(
@@ -84,6 +151,11 @@ struct WorkStateExtractionService: Sendable {
             storedAgendaItems: validated.agendaItems.count,
             replacedProposals: replaced,
             rejected: validated.rejected,
+            acceptedProgressSignals: signals.progressSignals.count,
+            acceptedOpenQuestionResolutionLinks: signals.openQuestionResolutionLinks.count,
+            acceptedDecisionDerivedActionItemLinks: signals.decisionDerivedActionItemLinks.count,
+            rejectedSignals: signals.rejected,
+            transitionPersistenceStatus: persistenceStatus,
             metadata: result.metadata
         )
     }
@@ -97,7 +169,11 @@ struct WorkStateExtractionService: Sendable {
     /// this meeting *and* `PendingAIProposalPolicy.isPending` says it is still an unreviewed
     /// proposal — the same test the review inbox uses to decide what to show. Anything a user
     /// confirmed, approved, resolved, dismissed, or hand-entered fails that test and is kept.
-    private func removeSupersededProposals(for meetingID: UUID, from project: inout Project) -> Int {
+    private func replaceSupersededProposals(
+        for meetingID: UUID,
+        with incoming: ValidatedWorkState,
+        in project: inout Project
+    ) -> Int {
         var removed = 0
 
         let supersededDecision: (Decision) -> Bool = {
@@ -113,17 +189,104 @@ struct WorkStateExtractionService: Sendable {
             $0.sourceMeetingID == meetingID && PendingAIProposalPolicy.isPending($0)
         }
 
-        removed += project.decisions.countMatching(supersededDecision)
+        let priorDecisions = Dictionary(
+            uniqueKeysWithValues: project.decisions.filter(supersededDecision).map { ($0.id, $0) }
+        )
+        let priorActionItems = Dictionary(
+            uniqueKeysWithValues: project.actionItems.filter(supersededActionItem).map { ($0.id, $0) }
+        )
+        let priorQuestions = Dictionary(
+            uniqueKeysWithValues: project.openQuestions.filter(supersededQuestion).map { ($0.id, $0) }
+        )
+        let priorAgendaItems = Dictionary(
+            uniqueKeysWithValues: project.nextAgenda.filter(supersededAgendaItem).map { ($0.id, $0) }
+        )
+
+        removed += priorDecisions.count
         project.decisions.removeAll(where: supersededDecision)
-
-        removed += project.actionItems.countMatching(supersededActionItem)
+        removed += priorActionItems.count
         project.actionItems.removeAll(where: supersededActionItem)
-
-        removed += project.openQuestions.countMatching(supersededQuestion)
+        removed += priorQuestions.count
         project.openQuestions.removeAll(where: supersededQuestion)
-
-        removed += project.nextAgenda.countMatching(supersededAgendaItem)
+        removed += priorAgendaItems.count
         project.nextAgenda.removeAll(where: supersededAgendaItem)
+
+        let preservedDecisionIDs = Set(project.decisions.map(\.id))
+        project.decisions.append(contentsOf: incoming.decisions.compactMap { proposed in
+            guard !preservedDecisionIDs.contains(proposed.id) else { return nil }
+            guard let previous = priorDecisions[proposed.id] else { return proposed }
+            return Decision(
+                id: proposed.id,
+                projectID: proposed.projectID,
+                meetingID: proposed.meetingID,
+                statement: proposed.statement,
+                rationale: proposed.rationale,
+                status: proposed.status,
+                evidence: proposed.evidence,
+                confidence: proposed.confidence,
+                createdAt: previous.createdAt,
+                updatedAt: proposed.updatedAt
+            )
+        })
+
+        let preservedActionIDs = Set(project.actionItems.map(\.id))
+        project.actionItems.append(contentsOf: incoming.actionItems.compactMap { proposed in
+            guard !preservedActionIDs.contains(proposed.id) else { return nil }
+            guard let previous = priorActionItems[proposed.id] else { return proposed }
+            return ActionItem(
+                id: proposed.id,
+                projectID: proposed.projectID,
+                meetingID: proposed.meetingID,
+                title: proposed.title,
+                details: proposed.details,
+                assigneeID: proposed.assigneeID,
+                dueDate: proposed.dueDate,
+                status: proposed.status,
+                evidence: proposed.evidence,
+                confidence: proposed.confidence,
+                proposedAssigneeAttribution: proposed.proposedAssigneeAttribution,
+                createdAt: previous.createdAt,
+                updatedAt: proposed.updatedAt
+            )
+        })
+
+        let preservedQuestionIDs = Set(project.openQuestions.map(\.id))
+        project.openQuestions.append(contentsOf: incoming.openQuestions.compactMap { proposed in
+            guard !preservedQuestionIDs.contains(proposed.id) else { return nil }
+            guard let previous = priorQuestions[proposed.id] else { return proposed }
+            return OpenQuestion(
+                id: proposed.id,
+                projectID: proposed.projectID,
+                meetingID: proposed.meetingID,
+                question: proposed.question,
+                status: proposed.status,
+                evidence: proposed.evidence,
+                confidence: proposed.confidence,
+                createdAt: previous.createdAt,
+                resolvedAt: proposed.resolvedAt,
+                reviewedAt: proposed.reviewedAt
+            )
+        })
+
+        let preservedAgendaIDs = Set(project.nextAgenda.map(\.id))
+        project.nextAgenda.append(contentsOf: incoming.agendaItems.compactMap { proposed in
+            guard !preservedAgendaIDs.contains(proposed.id) else { return nil }
+            guard let previous = priorAgendaItems[proposed.id] else { return proposed }
+            return AgendaItem(
+                id: proposed.id,
+                projectID: proposed.projectID,
+                title: proposed.title,
+                reason: proposed.reason,
+                sourceMeetingID: proposed.sourceMeetingID,
+                relatedActionItemID: proposed.relatedActionItemID,
+                relatedOpenQuestionID: proposed.relatedOpenQuestionID,
+                status: proposed.status,
+                createdAt: previous.createdAt,
+                evidence: proposed.evidence,
+                confidence: proposed.confidence,
+                reviewedAt: proposed.reviewedAt
+            )
+        })
 
         return removed
     }
@@ -143,22 +306,4 @@ struct WorkStateExtractionService: Sendable {
         return project
     }
 
-    private func requireMeeting(meetingID: UUID, projectID: UUID) async throws -> Meeting {
-        let project = try await requireProject(projectID)
-        guard let meeting = project.meetings.first(where: { $0.id == meetingID }) else {
-            throw WorkStateExtractionServiceError.meetingNotFound
-        }
-        return meeting
-    }
-}
-
-private extension Array {
-    /// Deliberately not named `count(where:)` to avoid shadowing the stdlib method of that name.
-    func countMatching(_ isIncluded: (Element) -> Bool) -> Int {
-        reduce(into: 0) { total, element in
-            if isIncluded(element) {
-                total += 1
-            }
-        }
-    }
 }

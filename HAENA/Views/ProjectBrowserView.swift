@@ -8,6 +8,11 @@ import SwiftUI
 /// that must stay consistent after something is removed.
 struct ProjectBrowserView: View {
     let repository: any ProjectRepository
+    /// Optional only for isolated previews and legacy tests. The app always injects the same
+    /// transition store used by every other extraction entry point.
+    var transitionRepository: (any WorkStateTransitionRepository)?
+    var manualBriefService: ManualContinuityBriefService?
+    var transitionReviewService: WorkStateTransitionReviewService?
     let extractor: any WorkStateExtractor
     /// Supplied so deleting a project or meeting also removes its stored audio, and so the meeting
     /// pane can find the file to play. Defaulted to nil for previews and for call sites that
@@ -49,6 +54,16 @@ struct ProjectBrowserView: View {
         ProjectBrowserQueryService(repository: repository)
     }
 
+    private var extractionService: WorkStateExtractionService {
+        WorkStateExtractionService(
+            repository: repository,
+            extractor: extractor,
+            continuity: transitionRepository.map {
+                WorkStateContinuityService(projects: repository, transitions: $0)
+            }
+        )
+    }
+
     private var deletionService: ProjectDeletionService {
         ProjectDeletionService(repository: repository, assetStore: audioAssetStore)
     }
@@ -81,6 +96,8 @@ struct ProjectBrowserView: View {
                         await confirmDeleteProject(selectedProject.id)
                     },
                     reviewService: reviewService,
+                    manualBriefService: manualBriefService,
+                    transitionReviewService: transitionReviewService,
                     profileRepository: profileRepository,
                     reminderRepository: reminderRepository,
                     reminderService: reminderService,
@@ -162,7 +179,7 @@ struct ProjectBrowserView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                extractionService: extractionService,
                 metrics: metrics
             )
         }
@@ -214,7 +231,14 @@ struct ProjectBrowserView: View {
     }
 
     private func load() async {
-        loadState = .loading
+        // Only the first load shows the spinner. A reload after a verdict must keep the panes it
+        // already has: dropping to `.loading` empties `selectedProject`, which takes the detail
+        // pane out of the hierarchy and dismisses the sheet it presents — the Manual Continuity
+        // Brief closed itself after every single approval, rejection, and ambiguity choice, so
+        // reviewing six candidates meant reopening and re-scrolling six times.
+        if case .loaded = loadState {} else {
+            loadState = .loading
+        }
         do {
             let projects = try await queryService.loadProjects()
             await reminderService?.reconcile()
@@ -345,5 +369,9 @@ private struct ProjectRowView: View {
 }
 
 #Preview {
-    ProjectBrowserView(repository: InMemoryProjectRepository(), extractor: DeterministicWorkStateExtractor())
+    ProjectBrowserView(
+        repository: InMemoryProjectRepository(),
+        transitionRepository: nil,
+        extractor: DeterministicWorkStateExtractor()
+    )
 }

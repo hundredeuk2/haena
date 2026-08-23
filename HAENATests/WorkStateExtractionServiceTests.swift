@@ -157,9 +157,11 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         let service = makeService(.success(ExtractionFixtures.fullResult()))
         _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
 
-        // Simulate the review step this slice does not yet ship: the user confirms one decision
-        // and resolves the open question.
+        // Simulate the review step. Stable provider-key identity means the next extraction resolves
+        // to these same records; it must not append pending-review duplicates beside them.
         var project = try await storedProject()
+        let decisionCreatedAt = project.decisions[0].createdAt
+        let questionCreatedAt = project.openQuestions[0].createdAt
         project.decisions[0].status = .confirmed
         project.openQuestions[0].status = .resolved
         try await repository.save(project)
@@ -167,10 +169,12 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
 
         let updated = try await storedProject()
-        XCTAssertEqual(updated.decisions.count, 2, "the confirmed decision survives alongside the new proposal")
+        XCTAssertEqual(updated.decisions.count, 1, "the confirmed record remains the stable identity")
         XCTAssertEqual(updated.decisions.filter { $0.status == .confirmed }.count, 1)
-        XCTAssertEqual(updated.openQuestions.count, 2)
+        XCTAssertEqual(updated.decisions[0].createdAt, decisionCreatedAt)
+        XCTAssertEqual(updated.openQuestions.count, 1)
         XCTAssertEqual(updated.openQuestions.filter { $0.status == .resolved }.count, 1)
+        XCTAssertEqual(updated.openQuestions[0].createdAt, questionCreatedAt)
     }
 
     func testReExtractingKeepsApprovedOpenQuestionsAndAgendaItems() async throws {
@@ -182,16 +186,20 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         // `reviewedAt` distinguishes them from a fresh proposal.
         let reviewService = WorkStateReviewService(repository: repository, now: { TestFixtures.laterDate })
         let approved = try await storedProject()
+        let questionCreatedAt = approved.openQuestions[0].createdAt
+        let agendaCreatedAt = approved.nextAgenda[0].createdAt
         try await reviewService.approveOpenQuestion(id: approved.openQuestions[0].id, in: approved.id)
         try await reviewService.approveAgendaItem(id: approved.nextAgenda[0].id, in: approved.id)
 
         _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
 
         let updated = try await storedProject()
-        XCTAssertEqual(updated.openQuestions.count, 2, "the approved question must survive re-extraction")
+        XCTAssertEqual(updated.openQuestions.count, 1, "the approved question remains the stable identity")
         XCTAssertEqual(updated.openQuestions.filter { $0.reviewedAt != nil }.count, 1)
-        XCTAssertEqual(updated.nextAgenda.count, 2, "the approved agenda item must survive re-extraction")
+        XCTAssertEqual(updated.openQuestions[0].createdAt, questionCreatedAt)
+        XCTAssertEqual(updated.nextAgenda.count, 1, "the approved agenda item remains the stable identity")
         XCTAssertEqual(updated.nextAgenda.filter { $0.reviewedAt != nil }.count, 1)
+        XCTAssertEqual(updated.nextAgenda[0].createdAt, agendaCreatedAt)
     }
 
     func testReExtractingKeepsHandEnteredAgendaItemsThatHaveNoEvidence() async throws {

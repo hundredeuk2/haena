@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ContentView: View {
     let repository: any ProjectRepository
+    let transitionRepository: any WorkStateTransitionRepository
+    let manualBriefService: ManualContinuityBriefService
+    let transitionReviewService: WorkStateTransitionReviewService
     let extractor: any WorkStateExtractor
     let transcriptionProvider: any TranscriptionProvider
     let audioAssetStore: AudioAssetStore
@@ -61,6 +64,20 @@ struct ContentView: View {
             profileRepository: profileRepository,
             notifications: notificationScheduler,
             ledger: ledgerService
+        )
+    }
+
+    /// The continuity repository is assembled once with the project repository. Extraction owns
+    /// the ordering: project content is committed first, then transition proposals are attempted
+    /// as a non-rolling-back sidecar write.
+    private var extractionService: WorkStateExtractionService {
+        WorkStateExtractionService(
+            repository: repository,
+            extractor: extractor,
+            continuity: WorkStateContinuityService(
+                projects: repository,
+                transitions: transitionRepository
+            )
         )
     }
 
@@ -133,7 +150,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService
             )
@@ -147,7 +164,7 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService
             )
@@ -159,7 +176,7 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
+                extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService
             )
@@ -167,6 +184,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingProjectBrowser) {
             ProjectBrowserView(
                 repository: repository,
+                transitionRepository: transitionRepository,
+                manualBriefService: manualBriefService,
+                transitionReviewService: transitionReviewService,
                 extractor: extractor,
                 audioAssetStore: audioAssetStore,
                 makeAudioPlayer: makeAudioPlayer,
@@ -230,6 +250,16 @@ struct ContentView: View {
 #Preview {
     ContentView(
         repository: InMemoryProjectRepository(),
+        transitionRepository: InMemoryWorkStateTransitionRepository(),
+        manualBriefService: ManualContinuityBriefService(
+            projects: InMemoryProjectRepository(),
+            transitions: InMemoryWorkStateTransitionRepository(),
+            profiles: InMemoryLocalUserProfileRepository()
+        ),
+        transitionReviewService: WorkStateTransitionReviewService(
+            projectRepository: InMemoryProjectRepository(),
+            transitionRepository: InMemoryWorkStateTransitionRepository()
+        ),
         extractor: DeterministicWorkStateExtractor(),
         transcriptionProvider: DeterministicTranscriptionProvider(),
         audioAssetStore: AudioAssetStore(
