@@ -287,4 +287,41 @@ final class MicrophoneConfigurationTests: XCTestCase {
             "This unit-test run is not a UI-test launch."
         )
     }
+
+    func testRecoveryProcessAssemblyRequiresStrictSystemTemporaryRoot() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENA-recovery-contract-test", isDirectory: true)
+        let accepted = try XCTUnwrap(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": temporaryRoot.path,
+                "HAENA_RECOVERY_PROCESS_TEST_CRASH_POINT": "after_project_marker"
+            ]
+        ))
+        XCTAssertEqual(
+            accepted.rootURL.path,
+            temporaryRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        )
+        XCTAssertEqual(accepted.crashCheckpoint, .projectAndMarkerStored)
+
+        XCTAssertThrowsError(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": "/var/haena-recovery-test"
+            ]
+        )) { error in
+            XCTAssertEqual(
+                error as? TransitionApplyRecoveryProcessTestConfiguration.ConfigurationError,
+                .rootOutsideSystemTemporaryDirectory
+            )
+        }
+        XCTAssertThrowsError(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": temporaryRoot.path,
+                "HAENA_RECOVERY_PROCESS_TEST_CRASH_POINT": "unknown"
+            ]
+        ))
+        XCTAssertNil(try TransitionApplyRecoveryProcessTestConfiguration.load(environment: [:]))
+    }
 }

@@ -44,6 +44,16 @@ struct WorkStateTransitionApplyRecoveryOutcome: Equatable, Sendable {
     let result: WorkStateTransitionReviewResult
 }
 
+/// Finite durability boundaries exposed only through dependency injection.
+///
+/// Production assembles a no-op observer. A Debug-only process smoke harness can terminate the
+/// app at one of these boundaries without adding a crash switch to the persistence repositories.
+enum WorkStateTransitionApplyCheckpoint: String, Equatable, Sendable {
+    case intentStored = "after_intent"
+    case projectAndMarkerStored = "after_project_marker"
+    case verdictAndIntentCleanupStored = "after_cleanup"
+}
+
 /// Applies a human verdict without letting a transition proposal mutate Project state directly.
 ///
 /// A durable intent is written before Project mutation. Project state and its apply marker are
@@ -53,15 +63,18 @@ actor WorkStateTransitionReviewService {
     private let projectRepository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let now: @Sendable () -> Date
+    private let didReachCheckpoint: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void
 
     init(
         projectRepository: any WorkStateTransitionProjectRepository,
         transitionRepository: any WorkStateTransitionRepository,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        didReachCheckpoint: @escaping @Sendable (WorkStateTransitionApplyCheckpoint) -> Void = { _ in }
     ) {
         self.projectRepository = projectRepository
         self.transitionRepository = transitionRepository
         self.now = now
+        self.didReachCheckpoint = didReachCheckpoint
     }
 
     func review(
@@ -140,7 +153,7 @@ actor WorkStateTransitionReviewService {
 
         switch await prepare(intent) {
         case .success:
-            break
+            didReachCheckpoint(.intentStored)
         case .failure(let reason):
             return .refused(reason)
         }
@@ -213,7 +226,7 @@ actor WorkStateTransitionReviewService {
         }
         switch await prepare(intent) {
         case .success:
-            break
+            didReachCheckpoint(.intentStored)
         case .failure(let reason):
             return .refused(reason)
         }
@@ -286,6 +299,7 @@ actor WorkStateTransitionReviewService {
         } catch {
             return .refused(.projectPersistenceFailed)
         }
+        didReachCheckpoint(.projectAndMarkerStored)
         return await finalize(intent)
     }
 
@@ -295,8 +309,10 @@ actor WorkStateTransitionReviewService {
         do {
             switch try await transitionRepository.finalizeApplyIntent(intent) {
             case .recorded:
+                didReachCheckpoint(.verdictAndIntentCleanupStored)
                 return .applied
             case .alreadyRecorded:
+                didReachCheckpoint(.verdictAndIntentCleanupStored)
                 return .alreadyApplied
             case .refused:
                 return .projectSavedReviewPersistenceFailed

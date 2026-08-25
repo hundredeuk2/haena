@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import SwiftUI
 
@@ -13,6 +14,172 @@ enum AppComponentSelection {
         _ environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
         environment["HAENA_UI_TESTING"] == "1"
+    }
+}
+
+/// Debug-only assembly contract for process-level recovery smoke tests.
+///
+/// The root is required to be a strict descendant of the system temporary directory. An invalid
+/// opt-in is an error rather than a reason to fall back to the user's Application Support store.
+struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
+    enum ConfigurationError: Error, Equatable {
+        case missingRoot
+        case rootMustBeAbsolute
+        case rootOutsideSystemTemporaryDirectory
+        case invalidCrashPoint
+    }
+
+    static let projectID = UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!
+    static let meetingID = UUID(uuidString: "D0000000-0000-0000-0000-000000000101")!
+    static let segmentID = UUID(uuidString: "D0000000-0000-0000-0000-000000000102")!
+    static let decisionID = UUID(uuidString: "D0000000-0000-0000-0000-000000000002")!
+
+    let rootURL: URL
+    let shouldSeed: Bool
+    let shouldApprove: Bool
+    let crashCheckpoint: WorkStateTransitionApplyCheckpoint?
+
+    var projectsURL: URL { rootURL.appendingPathComponent("projects.json") }
+    var transitionsURL: URL { rootURL.appendingPathComponent("continuity-transitions.json") }
+
+    static func load(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) throws -> Self? {
+        guard environment["HAENA_RECOVERY_PROCESS_TESTING"] == "1" else { return nil }
+        guard let rawRoot = environment["HAENA_RECOVERY_PROCESS_TEST_ROOT"], !rawRoot.isEmpty else {
+            throw ConfigurationError.missingRoot
+        }
+        guard rawRoot.hasPrefix("/") else { throw ConfigurationError.rootMustBeAbsolute }
+
+        let root = URL(fileURLWithPath: rawRoot, isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let systemTemporary = fileManager.temporaryDirectory
+            .standardizedFileURL.resolvingSymlinksInPath()
+        guard root.path.hasPrefix(systemTemporary.path + "/") else {
+            throw ConfigurationError.rootOutsideSystemTemporaryDirectory
+        }
+
+        let crashCheckpoint: WorkStateTransitionApplyCheckpoint?
+        if let raw = environment["HAENA_RECOVERY_PROCESS_TEST_CRASH_POINT"], !raw.isEmpty {
+            guard let parsed = WorkStateTransitionApplyCheckpoint(rawValue: raw) else {
+                throw ConfigurationError.invalidCrashPoint
+            }
+            crashCheckpoint = parsed
+        } else {
+            crashCheckpoint = nil
+        }
+        return Self(
+            rootURL: root,
+            shouldSeed: environment["HAENA_RECOVERY_PROCESS_TEST_SEED"] == "1",
+            shouldApprove: environment["HAENA_RECOVERY_PROCESS_TEST_AUTO_APPROVE"] == "1",
+            crashCheckpoint: crashCheckpoint
+        )
+    }
+
+    var proposalID: UUID {
+        WorkStateTransitionProposal.deterministicID(forDedupKey: proposalDedupKey)
+    }
+
+    var proposalDedupKey: String {
+        WorkStateTransitionProposal.dedupKey(
+            projectID: Self.projectID,
+            workStateKind: .decision,
+            transitionKind: .new,
+            previousStateID: nil,
+            currentObjectID: Self.decisionID
+        )
+    }
+
+    func seedIfRequested(fileManager: FileManager = .default) throws {
+        guard shouldSeed else { return }
+        guard !fileManager.fileExists(atPath: projectsURL.path),
+              !fileManager.fileExists(atPath: transitionsURL.path)
+        else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+
+        let createdAt = Date(timeIntervalSince1970: 1_788_000_000)
+        let quote = "Synthetic recovery evidence"
+        let evidence = EvidenceReference(
+            meetingID: Self.meetingID,
+            transcriptSegmentID: Self.segmentID,
+            quote: quote
+        )
+        let project = Project(
+            id: Self.projectID,
+            name: "Synthetic Transition Recovery",
+            summary: "",
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            meetings: [Meeting(
+                id: Self.meetingID,
+                projectID: Self.projectID,
+                title: "Synthetic recovery meeting",
+                occurredAt: createdAt,
+                sourceType: .pastedText,
+                participants: [],
+                transcriptSegments: [TranscriptSegment(
+                    id: Self.segmentID,
+                    meetingID: Self.meetingID,
+                    speakerID: nil,
+                    sourceSpeakerLabel: "synthetic",
+                    text: quote,
+                    startTime: nil,
+                    endTime: nil
+                )],
+                createdAt: createdAt
+            )],
+            decisions: [Decision(
+                id: Self.decisionID,
+                projectID: Self.projectID,
+                meetingID: Self.meetingID,
+                statement: "Synthetic decision awaiting review",
+                rationale: nil,
+                status: .proposed,
+                evidence: evidence,
+                confidence: .maximum,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )],
+            actionItems: [],
+            openQuestions: [],
+            nextAgenda: []
+        )
+        let proposal = WorkStateTransitionProposal(
+            id: proposalID,
+            projectID: Self.projectID,
+            workStateKind: .decision,
+            transitionKind: .new,
+            previousStateID: nil,
+            currentObjectID: Self.decisionID,
+            sourceMeetingID: Self.meetingID,
+            evidence: TransitionEvidencePointer(
+                meetingID: Self.meetingID,
+                transcriptSegmentID: Self.segmentID
+            ),
+            basis: .noPriorCandidate,
+            requiresConfirmation: true,
+            dedupKey: proposalDedupKey,
+            createdAt: createdAt
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(ProjectStoreFile(projects: [project]))
+            .write(to: projectsURL, options: .atomic)
+        try encoder.encode(WorkStateTransitionStoreFile(proposals: [proposal]))
+            .write(to: transitionsURL, options: .atomic)
+        _ = try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: projectsURL.path)
+        _ = try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: transitionsURL.path)
+    }
+
+    var checkpointObserver: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void {
+        let requested = crashCheckpoint
+        return { reached in
+            guard reached == requested else { return }
+            _exit(86)
+        }
     }
 }
 
@@ -45,6 +212,18 @@ struct HAENAApp: App {
     @State private var showingRecordAudio = false
 
     init() {
+        let recoveryProcessConfiguration: TransitionApplyRecoveryProcessTestConfiguration?
+        #if DEBUG
+        do {
+            recoveryProcessConfiguration = try TransitionApplyRecoveryProcessTestConfiguration.load()
+            try recoveryProcessConfiguration?.seedIfRequested()
+        } catch {
+            fatalError("Invalid isolated transition recovery process-test configuration: \(error)")
+        }
+        #else
+        recoveryProcessConfiguration = nil
+        #endif
+
         // UI tests must never read or write the real Application Support data, nor reach the
         // network, so the app's single assembly point swaps in isolated implementations when
         // launched under test. No other code branches on this — everything downstream just sees
@@ -53,7 +232,30 @@ struct HAENAApp: App {
         // Note this is the *only* place either implementation is chosen: the deterministic
         // extractor is never substituted for OpenAI when a request fails, because showing a user
         // invented decisions and tasks in place of an error would be worse than showing nothing.
-        if _isDebugAssertConfiguration() && AppComponentSelection.isUITesting() {
+        if let recoveryProcessConfiguration {
+            repository = JSONProjectRepository(fileURL: recoveryProcessConfiguration.projectsURL)
+            transitionRepository = JSONWorkStateTransitionRepository(
+                fileURL: recoveryProcessConfiguration.transitionsURL
+            )
+            extractor = DeterministicWorkStateExtractor()
+            transcriptionProvider = DeterministicTranscriptionProvider()
+            credentialResolver = OpenAICredentialResolver(store: InMemoryAPICredentialStore())
+            audioAssetStore = AudioAssetStore(
+                directoryURL: recoveryProcessConfiguration.rootURL
+                    .appendingPathComponent("audio", isDirectory: true)
+            )
+            audioRecorder = DeterministicMeetingAudioRecorder()
+            recordingScratchStore = RecordingScratchStore(
+                directoryURL: recoveryProcessConfiguration.rootURL
+                    .appendingPathComponent("recordings", isDirectory: true)
+            )
+            makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
+            profileRepository = InMemoryLocalUserProfileRepository()
+            reminderRepository = InMemoryActionItemReminderRepository()
+            ledgerRepository = InMemoryAgentLedgerRepository()
+            metricsRepository = InMemoryBetaMetricsRepository()
+            notificationScheduler = InMemoryLocalNotificationScheduler()
+        } else if _isDebugAssertConfiguration() && AppComponentSelection.isUITesting() {
             let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
                 ? ManualContinuityBriefUITestSeed.make()
                 : nil
@@ -139,9 +341,16 @@ struct HAENAApp: App {
             transitions: transitionRepository,
             profiles: profileRepository
         )
+        let checkpointObserver: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void
+        if let recoveryProcessConfiguration {
+            checkpointObserver = recoveryProcessConfiguration.checkpointObserver
+        } else {
+            checkpointObserver = { _ in }
+        }
         transitionReviewService = WorkStateTransitionReviewService(
             projectRepository: repository,
-            transitionRepository: transitionRepository
+            transitionRepository: transitionRepository,
+            didReachCheckpoint: checkpointObserver
         )
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.

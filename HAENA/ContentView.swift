@@ -203,6 +203,16 @@ struct ContentView: View {
             )
         }
         .task {
+            #if DEBUG
+            if let configuration = try? TransitionApplyRecoveryProcessTestConfiguration.load(),
+               configuration.shouldApprove {
+                _ = await transitionReviewService.review(
+                    projectID: TransitionApplyRecoveryProcessTestConfiguration.projectID,
+                    proposalID: configuration.proposalID,
+                    action: .approve
+                )
+            }
+            #endif
             _ = await transitionReviewService.recoverPendingApplies()
             await reminderService.reconcile()
         }
