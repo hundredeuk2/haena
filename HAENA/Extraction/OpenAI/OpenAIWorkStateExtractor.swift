@@ -88,7 +88,8 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
                     strict: true,
                     schema: OpenAIExtractionSchema.schema()
                 )
-            )
+            ),
+            store: false
         )
 
         var request = URLRequest(url: configuration.endpoint)

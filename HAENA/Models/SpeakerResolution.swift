@@ -78,11 +78,16 @@ extension Meeting {
             guard let confirmed = confirmedParticipant(for: participant.id) else {
                 continue
             }
-            // A person the user named is only offered once they are actually linked to a voice;
-            // until then they would be an assignee who never spoke in this meeting.
+            // A person the user named is offered once a stored segment points at them (the pasted
+            // transcript path), or once a diarized voice is explicitly resolved to them (the
+            // audio path). Until either happens they would be an assignee who never spoke here.
+            let isReferencedByTranscript = transcriptSegments.contains {
+                $0.speakerID == participant.id
+            }
             if confirmed.id == participant.id,
                participant.speakerLabel == nil,
-               !speakerResolutions.contains(where: { $0.resolvedParticipantID == participant.id }) {
+               !speakerResolutions.contains(where: { $0.resolvedParticipantID == participant.id }),
+               !isReferencedByTranscript {
                 continue
             }
             if seen.insert(confirmed.id).inserted {

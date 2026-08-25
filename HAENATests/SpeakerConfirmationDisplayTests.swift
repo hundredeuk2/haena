@@ -116,6 +116,56 @@ final class SpeakerConfirmationDisplayTests: XCTestCase {
         XCTAssertEqual(meeting.assignableParticipants.map(\.displayName), ["Speaker 1", "Speaker 2"])
     }
 
+    func testPastedParticipantReferencedByStoredSegmentIsOfferedAsAnAssignee() {
+        let participantID = UUID()
+        let meeting = Meeting(
+            id: TestFixtures.meetingID,
+            projectID: TestFixtures.projectID,
+            title: "붙여넣기 회의",
+            occurredAt: TestFixtures.fixedDate,
+            sourceType: .pastedText,
+            participants: [
+                Participant(
+                    id: participantID,
+                    displayName: "참석자 A",
+                    linkedUserID: nil,
+                    speakerLabel: nil
+                )
+            ],
+            transcriptSegments: [
+                TranscriptSegment(
+                    id: Self.segmentOneID,
+                    meetingID: TestFixtures.meetingID,
+                    speakerID: participantID,
+                    sourceSpeakerLabel: "A",
+                    text: "제가 맡겠습니다.",
+                    startTime: nil,
+                    endTime: nil
+                ),
+                TranscriptSegment(
+                    id: Self.segmentTwoID,
+                    meetingID: TestFixtures.meetingID,
+                    speakerID: nil,
+                    sourceSpeakerLabel: "C",
+                    text: "미연결 발언입니다.",
+                    startTime: nil,
+                    endTime: nil
+                )
+            ],
+            createdAt: TestFixtures.fixedDate
+        )
+
+        XCTAssertEqual(meeting.assignableParticipants.map(\.displayName), ["참석자 A"])
+        XCTAssertEqual(
+            TranscriptSpeakerDisplay.label(for: meeting.transcriptSegments[0], in: meeting),
+            "참석자 A"
+        )
+        XCTAssertEqual(
+            TranscriptSpeakerDisplay.label(for: meeting.transcriptSegments[1], in: meeting),
+            "C"
+        )
+    }
+
     // MARK: - Markdown export
 
     func testMarkdownExportUsesTheConfirmedName() {

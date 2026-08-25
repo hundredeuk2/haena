@@ -216,6 +216,7 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         let body = try XCTUnwrap(request.httpBody)
         let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(json["model"] as? String, "test-model")
+        XCTAssertEqual(json["store"] as? Bool, false)
 
         let format = try XCTUnwrap((json["text"] as? [String: Any])?["format"] as? [String: Any])
         XCTAssertEqual(format["type"] as? String, "json_schema")

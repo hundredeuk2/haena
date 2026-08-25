@@ -11,6 +11,9 @@ struct OpenAIResponsesRequest: Encodable, Equatable, Sendable {
     let model: String
     let input: [InputMessage]
     let text: TextConfiguration
+    /// Extraction responses are consumed once and validated locally. Keeping provider-side
+    /// response storage disabled avoids creating a second durable copy of meeting text.
+    let store: Bool
 
     struct InputMessage: Encodable, Equatable, Sendable {
         let role: String

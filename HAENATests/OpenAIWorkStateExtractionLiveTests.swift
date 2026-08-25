@@ -1,6 +1,88 @@
 import XCTest
 @testable import HAENA
 
+/// Adds a second, test-owned boundary around the production ephemeral transport. Validation runs
+/// before the only forwarded request, and a second invocation is rejected even if retry settings
+/// regress later.
+private actor AuthorizedSingleAttemptTransport: HTTPTransport {
+    private let underlying: any HTTPTransport
+    private let allowedSegmentIDs: Set<String>
+    private let forbiddenStrings: [String]
+    private var invocationCount = 0
+    private(set) var forwardedAttemptCount = 0
+
+    init(
+        underlying: any HTTPTransport,
+        allowedSegmentIDs: Set<UUID>,
+        forbiddenStrings: [String]
+    ) {
+        self.underlying = underlying
+        self.allowedSegmentIDs = Set(allowedSegmentIDs.map { $0.uuidString.uppercased() })
+        self.forbiddenStrings = forbiddenStrings.filter { !$0.isEmpty }
+    }
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        guard invocationCount == 0 else {
+            throw WorkStateExtractionError.invalidConfiguration
+        }
+        invocationCount += 1
+        try validate(request)
+        forwardedAttemptCount += 1
+        return try await underlying.send(request)
+    }
+
+    private func validate(_ request: URLRequest) throws {
+        guard request.url == OpenAIConfiguration.defaultEndpoint,
+              request.httpMethod == "POST",
+              let body = request.httpBody,
+              let json = try JSONSerialization.jsonObject(with: body) as? [String: Any],
+              json["model"] as? String == "gpt-5.6",
+              json["store"] as? Bool == false,
+              let messages = json["input"] as? [[String: Any]],
+              let userContent = messages.last(where: { $0["role"] as? String == "user" })?["content"] as? String else {
+            throw WorkStateExtractionError.invalidConfiguration
+        }
+
+        for forbidden in forbiddenStrings where body.range(of: Data(forbidden.utf8)) != nil {
+            throw WorkStateExtractionError.invalidConfiguration
+        }
+        guard !userContent.contains("input_audio") else {
+            throw WorkStateExtractionError.invalidConfiguration
+        }
+
+        let expression = try NSRegularExpression(
+            pattern: #"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"#
+        )
+        let range = NSRange(userContent.startIndex..<userContent.endIndex, in: userContent)
+        let transmittedUUIDs = Set(expression.matches(in: userContent, range: range).compactMap { match in
+            Range(match.range, in: userContent).map { String(userContent[$0]).uppercased() }
+        })
+        guard transmittedUUIDs.isSubset(of: allowedSegmentIDs),
+              allowedSegmentIDs.isSubset(of: transmittedUUIDs) else {
+            throw WorkStateExtractionError.invalidConfiguration
+        }
+    }
+}
+
+/// The authorized call does not include the stored meeting title. IDs remain available to the
+/// local service and mapper but are not serialized by the provider adapter.
+private struct TitleRedactingWorkStateExtractor: WorkStateExtractor {
+    let underlying: OpenAIWorkStateExtractor
+
+    func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult {
+        try await underlying.extract(
+            from: WorkStateExtractionInput(
+                meetingID: input.meetingID,
+                projectID: input.projectID,
+                meetingTitle: "",
+                occurredAt: input.occurredAt,
+                excerpts: input.excerpts,
+                priorWorkStates: input.priorWorkStates
+            )
+        )
+    }
+}
+
 /// The one test in this project that really calls OpenAI.
 ///
 /// It is opt-in and skips by default, so a normal `xcodebuild test` run — and any CI — costs
@@ -21,6 +103,41 @@ import XCTest
 /// The transcript below is synthetic and deliberately unremarkable — no real meeting data may be
 /// sent to a provider from a test.
 final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
+    private struct AuthorizedAttributionReport: Codable {
+        let actionItemID: UUID
+        let evidenceSegmentID: UUID?
+        let assigneeID: UUID?
+        let basis: String?
+        let speakerLabel: String?
+        let resolution: String?
+        let status: String
+    }
+
+    private struct AuthorizedLiveReport: Codable {
+        let outcome: String
+        let errorCategory: String?
+        let httpAttempts: Int
+        let projectID: UUID
+        let meetingID: UUID
+        let beforeMeetingCount: Int
+        let afterMeetingCount: Int
+        let beforeActionItemCount: Int
+        let afterActionItemCount: Int
+        let newActionItemIDs: [UUID]
+        let storedDecisionCount: Int
+        let storedActionItemCount: Int
+        let storedOpenQuestionCount: Int
+        let storedAgendaItemCount: Int
+        let rejectedProposalCount: Int
+        let replacedProposalCount: Int
+        let approvedStateUnchanged: Bool
+        let relaunchPreserved: Bool
+        let attributions: [AuthorizedAttributionReport]
+    }
+
+    private static let authorizedReportURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("haena-pasted-speaker-linking-openai-report.json")
+
     /// Deliberately outside the repository, so a credential can never be committed.
     private static let localKeyFileURL = FileManager.default
         .homeDirectoryForCurrentUser
@@ -226,6 +343,227 @@ final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
         }
     }
 
+    /// One explicitly authorized real-project validation. It is separately gated from the generic
+    /// synthetic smoke test and accepts target identities only through the invoking process.
+    /// Neither request nor response payloads are logged or written to disk.
+    func testAuthorizedPastedSpeakerAttributionUsesOnePrivacyGuardedRequest() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard OpenAILiveTestGate.isExplicitlyEnabled(environment: environment) else {
+            throw XCTSkip("Authorized pasted-speaker live validation is opt-in.")
+        }
+        guard let projectID = environment["HAENA_AUTHORIZED_PROJECT_ID"].flatMap(UUID.init(uuidString:)),
+              let meetingID = environment["HAENA_AUTHORIZED_MEETING_ID"].flatMap(UUID.init(uuidString:)),
+              let expectedProjectName = environment["HAENA_AUTHORIZED_PROJECT_NAME"],
+              let segmentAID = environment["HAENA_AUTHORIZED_SEGMENT_A_ID"].flatMap(UUID.init(uuidString:)),
+              let segmentBID = environment["HAENA_AUTHORIZED_SEGMENT_B_ID"].flatMap(UUID.init(uuidString:)),
+              let segmentCID = environment["HAENA_AUTHORIZED_SEGMENT_C_ID"].flatMap(UUID.init(uuidString:)),
+              let commitmentText = environment["HAENA_AUTHORIZED_SEGMENT_B_COMMITMENT_TEXT"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !commitmentText.isEmpty,
+              environment["HAENA_AUTHORIZED_LIVE_ACK"] == "\(projectID.uuidString)/\(meetingID.uuidString)/gpt-5.6/ONE_ATTEMPT" else {
+            XCTFail("Exact authorized project, meeting, segments, model, and one-attempt acknowledgement are required.")
+            return
+        }
+        guard let apiKey = Self.resolvedAPIKey(environment: environment) else {
+            throw XCTSkip("No OpenAI credential is available after explicit opt-in.")
+        }
+
+        let repository = JSONProjectRepository(fileURL: JSONProjectRepository.defaultFileURL())
+        let loadedBefore = try await repository.project(id: projectID)
+        var before = try XCTUnwrap(loadedBefore)
+        guard before.name == expectedProjectName,
+              let meetingIndex = before.meetings.firstIndex(where: { $0.id == meetingID }) else {
+            XCTFail("The authorized project or meeting did not match local storage.")
+            return
+        }
+
+        let authorizedSegments = ["A": segmentAID, "B": segmentBID, "C": segmentCID]
+        let storedIDsByLabel = Dictionary(
+            uniqueKeysWithValues: before.meetings[meetingIndex].transcriptSegments.compactMap { segment in
+                segment.sourceSpeakerLabel.map { ($0, segment.id) }
+            }
+        )
+        guard storedIDsByLabel == authorizedSegments else {
+            XCTFail("The stored A/B/C segment identities did not match the authorization.")
+            return
+        }
+
+        // Make B a true omitted-subject speaker commitment without changing its identity or link.
+        if let segmentIndex = before.meetings[meetingIndex].transcriptSegments.firstIndex(where: { $0.id == segmentBID }),
+           before.meetings[meetingIndex].transcriptSegments[segmentIndex].text != commitmentText {
+            before.meetings[meetingIndex].transcriptSegments[segmentIndex].text = commitmentText
+            try await repository.save(before)
+            let reloadedBefore = try await JSONProjectRepository(
+                fileURL: JSONProjectRepository.defaultFileURL()
+            ).project(id: projectID)
+            before = try XCTUnwrap(reloadedBefore)
+        }
+
+        let meeting = try XCTUnwrap(before.meetings.first(where: { $0.id == meetingID }))
+        let segmentsByLabel = Dictionary(
+            uniqueKeysWithValues: meeting.transcriptSegments.compactMap { segment in
+                segment.sourceSpeakerLabel.map { ($0, segment) }
+            }
+        )
+        XCTAssertNotNil(segmentsByLabel["A"]?.speakerID)
+        XCTAssertNotNil(segmentsByLabel["B"]?.speakerID)
+        XCTAssertNil(segmentsByLabel["C"]?.speakerID)
+
+        let beforeApproved = ApprovedWorkStateSnapshot(project: before)
+        let beforeMeetingCount = before.meetings.count
+        let beforeActionIDs = Set(before.actionItems.map(\.id))
+        let beforeActionCount = before.actionItems.count
+        XCTAssertTrue(before.actionItems.filter { $0.meetingID == meetingID }.isEmpty)
+
+        let guardedTransport = AuthorizedSingleAttemptTransport(
+            underlying: URLSessionHTTPTransport(requestTimeout: 60),
+            allowedSegmentIDs: Set(authorizedSegments.values),
+            forbiddenStrings: [before.name, meeting.title]
+                + meeting.participants.flatMap { [$0.displayName, $0.id.uuidString] }
+                + [projectID.uuidString, meetingID.uuidString]
+                + before.decisions.map { $0.id.uuidString }
+                + before.actionItems.map { $0.id.uuidString }
+                + before.openQuestions.map { $0.id.uuidString }
+                + before.nextAgenda.map { $0.id.uuidString }
+        )
+        let configuration = OpenAIConfiguration(
+            modelID: "gpt-5.6",
+            requestTimeout: 60,
+            maxRetries: 0,
+            retryDelay: 0
+        )
+        let extractor = TitleRedactingWorkStateExtractor(
+            underlying: OpenAIWorkStateExtractor(
+                configuration: configuration,
+                apiKeyProvider: { apiKey },
+                transport: guardedTransport
+            )
+        )
+        let service = WorkStateExtractionService(repository: repository, extractor: extractor)
+
+        let extractionReport: WorkStateExtractionReport
+        do {
+            extractionReport = try await service.extractAndApply(meetingID: meetingID, projectID: projectID)
+        } catch {
+            let attempts = await guardedTransport.forwardedAttemptCount
+            let afterFailure = try? await JSONProjectRepository(
+                fileURL: JSONProjectRepository.defaultFileURL()
+            ).project(id: projectID)
+            try writeAuthorizedReport(
+                AuthorizedLiveReport(
+                    outcome: "failed",
+                    errorCategory: finiteErrorCategory(error),
+                    httpAttempts: attempts,
+                    projectID: projectID,
+                    meetingID: meetingID,
+                    beforeMeetingCount: beforeMeetingCount,
+                    afterMeetingCount: afterFailure?.meetings.count ?? beforeMeetingCount,
+                    beforeActionItemCount: beforeActionCount,
+                    afterActionItemCount: afterFailure?.actionItems.count ?? beforeActionCount,
+                    newActionItemIDs: [],
+                    storedDecisionCount: 0,
+                    storedActionItemCount: 0,
+                    storedOpenQuestionCount: 0,
+                    storedAgendaItemCount: 0,
+                    rejectedProposalCount: 0,
+                    replacedProposalCount: 0,
+                    approvedStateUnchanged: afterFailure.map {
+                        ApprovedWorkStateSnapshot(project: $0) == beforeApproved
+                    } ?? false,
+                    relaunchPreserved: false,
+                    attributions: []
+                )
+            )
+            throw error
+        }
+
+        let loadedAfter = try await JSONProjectRepository(
+            fileURL: JSONProjectRepository.defaultFileURL()
+        ).project(id: projectID)
+        let after = try XCTUnwrap(loadedAfter)
+        let newActions = after.actionItems
+            .filter { !beforeActionIDs.contains($0.id) }
+            .sorted { $0.id.uuidString < $1.id.uuidString }
+        let attributions = newActions.map { item in
+            AuthorizedAttributionReport(
+                actionItemID: item.id,
+                evidenceSegmentID: item.evidence?.transcriptSegmentID,
+                assigneeID: item.assigneeID,
+                basis: item.proposedAssigneeAttribution?.basis.rawValue,
+                speakerLabel: item.proposedAssigneeAttribution?.speakerLabel,
+                resolution: item.proposedAssigneeAttribution?.resolution.rawValue,
+                status: item.status.rawValue
+            )
+        }
+        let actionsBySegment = Dictionary(grouping: newActions) { $0.evidence?.transcriptSegmentID }
+        let actionA = try XCTUnwrap(actionsBySegment[segmentAID]?.only)
+        let actionB = try XCTUnwrap(actionsBySegment[segmentBID]?.only)
+        let actionC = try XCTUnwrap(actionsBySegment[segmentCID]?.only)
+
+        let forwardedAttemptCount = await guardedTransport.forwardedAttemptCount
+        XCTAssertEqual(forwardedAttemptCount, 1)
+        XCTAssertEqual(extractionReport.replacedProposals, 0)
+        XCTAssertEqual(extractionReport.storedActionItems, 3)
+        XCTAssertEqual(extractionReport.storedDecisions, 0)
+        XCTAssertEqual(extractionReport.storedOpenQuestions, 0)
+        XCTAssertEqual(extractionReport.storedAgendaItems, 0)
+        XCTAssertEqual(after.meetings.count, beforeMeetingCount)
+        XCTAssertEqual(after.actionItems.count, beforeActionCount + 3)
+        XCTAssertEqual(Set(newActions.map(\.id)).count, newActions.count)
+        XCTAssertEqual(Set(newActions.map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }).count, newActions.count)
+        XCTAssertTrue(newActions.allSatisfy { $0.status == .proposed && PendingAIProposalPolicy.isPending($0) })
+
+        XCTAssertEqual(actionA.assigneeID, segmentsByLabel["A"]?.speakerID)
+        XCTAssertEqual(actionA.proposedAssigneeAttribution?.basis, .selfReference)
+        XCTAssertEqual(actionA.proposedAssigneeAttribution?.speakerLabel, "A")
+        XCTAssertEqual(actionA.proposedAssigneeAttribution?.resolution, .resolved)
+
+        XCTAssertEqual(actionB.assigneeID, segmentsByLabel["B"]?.speakerID)
+        XCTAssertEqual(actionB.proposedAssigneeAttribution?.basis, .speakerCommitment)
+        XCTAssertEqual(actionB.proposedAssigneeAttribution?.speakerLabel, "B")
+        XCTAssertEqual(actionB.proposedAssigneeAttribution?.resolution, .resolved)
+
+        XCTAssertNil(actionC.assigneeID)
+        XCTAssertNotEqual(actionC.proposedAssigneeAttribution?.resolution, .resolved)
+        XCTAssertEqual(actionC.proposedAssigneeAttribution?.speakerLabel, nil)
+
+        let approvedStateUnchanged = ApprovedWorkStateSnapshot(project: after) == beforeApproved
+        XCTAssertTrue(approvedStateUnchanged)
+
+        let loadedRelaunched = try await JSONProjectRepository(
+            fileURL: JSONProjectRepository.defaultFileURL()
+        ).project(id: projectID)
+        let relaunched = try XCTUnwrap(loadedRelaunched)
+        let relaunchedMeeting = try XCTUnwrap(relaunched.meetings.first(where: { $0.id == meetingID }))
+        let relaunchPreserved = relaunchedMeeting == meeting
+            && Set(relaunched.actionItems.filter { !beforeActionIDs.contains($0.id) }.map(\.id)) == Set(newActions.map(\.id))
+        XCTAssertTrue(relaunchPreserved)
+
+        try writeAuthorizedReport(
+            AuthorizedLiveReport(
+                outcome: "completed",
+                errorCategory: nil,
+                httpAttempts: forwardedAttemptCount,
+                projectID: projectID,
+                meetingID: meetingID,
+                beforeMeetingCount: beforeMeetingCount,
+                afterMeetingCount: after.meetings.count,
+                beforeActionItemCount: beforeActionCount,
+                afterActionItemCount: after.actionItems.count,
+                newActionItemIDs: newActions.map(\.id),
+                storedDecisionCount: extractionReport.storedDecisions,
+                storedActionItemCount: extractionReport.storedActionItems,
+                storedOpenQuestionCount: extractionReport.storedOpenQuestions,
+                storedAgendaItemCount: extractionReport.storedAgendaItems,
+                rejectedProposalCount: extractionReport.rejected.count,
+                replacedProposalCount: extractionReport.replacedProposals,
+                approvedStateUnchanged: approvedStateUnchanged,
+                relaunchPreserved: relaunchPreserved,
+                attributions: attributions
+            )
+        )
+        print("[authorized-live] report=\(Self.authorizedReportURL.path)")
+    }
+
     // MARK: - Helpers
 
     private func assertGrounded(
@@ -256,4 +594,34 @@ final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
     private func summary(_ text: String) -> String {
         text.count <= 50 ? text : String(text.prefix(50)) + "…"
     }
+
+    private func writeAuthorizedReport(_ report: AuthorizedLiveReport) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(report).write(to: Self.authorizedReportURL, options: .atomic)
+    }
+
+    private func finiteErrorCategory(_ error: Error) -> String {
+        switch error {
+        case WorkStateExtractionError.missingCredential: "missing_credential"
+        case WorkStateExtractionError.invalidConfiguration: "invalid_configuration"
+        case WorkStateExtractionError.unauthorized: "unauthorized"
+        case WorkStateExtractionError.rateLimited: "rate_limited"
+        case WorkStateExtractionError.serverError: "server_error"
+        case WorkStateExtractionError.requestRejected: "request_rejected"
+        case WorkStateExtractionError.timedOut: "timed_out"
+        case WorkStateExtractionError.networkUnavailable: "network_unavailable"
+        case WorkStateExtractionError.refused: "refused"
+        case WorkStateExtractionError.emptyResponse: "empty_response"
+        case WorkStateExtractionError.malformedResponse: "malformed_response"
+        case WorkStateExtractionServiceError.projectNotFound: "project_not_found"
+        case WorkStateExtractionServiceError.meetingNotFound: "meeting_not_found"
+        case WorkStateExtractionServiceError.repositoryFailure: "repository_failure"
+        default: "unexpected_error"
+        }
+    }
+}
+
+private extension Array {
+    var only: Element? { count == 1 ? first : nil }
 }
