@@ -203,6 +203,7 @@ struct ContentView: View {
             )
         }
         .task {
+            _ = await transitionReviewService.recoverPendingApplies()
             await reminderService.reconcile()
         }
     }

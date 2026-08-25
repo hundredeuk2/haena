@@ -169,7 +169,7 @@ final class WorkStateTransitionRepositoryTests: XCTestCase {
         XCTAssertEqual(migrated.reviewStatus, .rejected)
         XCTAssertEqual(migrated.createdAt, legacy.createdAt)
 
-        // A write upgrades the envelope to v3 and keeps the lifted review separate.
+        // A write upgrades the envelope and keeps the lifted review separate.
         try await repository.upsert([makeProposal(
             workStateKind: .decision,
             transitionKind: .changed,
@@ -179,7 +179,7 @@ final class WorkStateTransitionRepositoryTests: XCTestCase {
             WorkStateTransitionStoreFile.self,
             from: Data(contentsOf: fileURL())
         )
-        XCTAssertEqual(decoded.schemaVersion, 3)
+        XCTAssertEqual(decoded.schemaVersion, WorkStateTransitionStoreFile.currentSchemaVersion)
         XCTAssertEqual(decoded.reviews.first?.status, .rejected)
         XCTAssertTrue(decoded.proposals.allSatisfy { $0.reviewStatus == .pendingReview })
     }
@@ -231,8 +231,44 @@ final class WorkStateTransitionRepositoryTests: XCTestCase {
         let migrated = try JSONDecoder().decode(
             WorkStateTransitionStoreFile.self, from: Data(contentsOf: fileURL())
         )
-        XCTAssertEqual(migrated.schemaVersion, 3)
+        XCTAssertEqual(migrated.schemaVersion, WorkStateTransitionStoreFile.currentSchemaVersion)
         XCTAssertTrue(migrated.ambiguityReviews.isEmpty)
+    }
+
+    func testSchemaThreeRowsLoadWithNoApplyIntentsAndPersistAsCurrentSchema() async throws {
+        struct SchemaThreeStore: Codable {
+            let schemaVersion: Int
+            let proposals: [WorkStateTransitionProposal]
+            let reviews: [WorkStateTransitionReviewState]
+            let ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup]
+            let ambiguityReviews: [WorkStateAmbiguityReviewState]
+            let refusals: [WorkStateTransitionRefusalRecord]
+        }
+        let proposal = makeProposal(workStateKind: .decision, transitionKind: .changed)
+        let legacy = SchemaThreeStore(
+            schemaVersion: 3,
+            proposals: [proposal],
+            reviews: [],
+            ambiguousMatchGroups: [],
+            ambiguityReviews: [],
+            refusals: []
+        )
+        try JSONEncoder().encode(legacy).write(to: fileURL())
+        let repository = JSONWorkStateTransitionRepository(fileURL: fileURL())
+
+        let loadedProposals = try await repository.allProposals()
+        let loadedIntents = try await repository.pendingApplyIntents()
+        XCTAssertEqual(loadedProposals, [proposal])
+        XCTAssertTrue(loadedIntents.isEmpty)
+        try await repository.upsert([proposal])
+
+        let persisted = try JSONDecoder().decode(
+            WorkStateTransitionStoreFile.self,
+            from: Data(contentsOf: fileURL())
+        )
+        XCTAssertEqual(persisted.schemaVersion, WorkStateTransitionStoreFile.currentSchemaVersion)
+        XCTAssertEqual(persisted.proposals.count, 1)
+        XCTAssertTrue(persisted.applyIntents.isEmpty)
     }
 
     func testTerminalDeferredPayloadCannotBecomeBlockedOnRerun() async throws {
@@ -291,6 +327,81 @@ final class WorkStateTransitionRepositoryTests: XCTestCase {
         XCTAssertEqual(first, .recorded)
         XCTAssertEqual(same, .alreadyRecorded)
         XCTAssertEqual(flip, .refused(.terminalVerdictConflict))
+    }
+
+    func testPreparedApplyIntentFinalizesVerdictAndRemovesIntent() async throws {
+        let proposal = makeProposal(workStateKind: .decision, transitionKind: .changed)
+        let repository = InMemoryWorkStateTransitionRepository(proposals: [proposal])
+        let intent = WorkStateTransitionApplyIntent.proposal(
+            projectID: projectID,
+            proposalID: proposal.id,
+            terminalReviews: [.init(proposalID: proposal.id, verdict: .approved)],
+            reviewedAt: fixedDate
+        )
+
+        XCTAssertTrue(intent.hasValidPayloadHash)
+        let prepared = try await repository.prepareApplyIntent(intent)
+        let pending = try await repository.pendingApplyIntents()
+        let finalized = try await repository.finalizeApplyIntent(intent)
+        let remaining = try await repository.pendingApplyIntents()
+        let proposals = await repository.allProposals()
+        XCTAssertEqual(prepared, .recorded)
+        XCTAssertEqual(pending, [intent])
+        XCTAssertEqual(finalized, .recorded)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertEqual(proposals.first?.reviewStatus, .approved)
+    }
+
+    func testPreparedApplyIntentSurvivesRestartAndFinalizesInOnePersistedWrite() async throws {
+        let proposal = makeProposal(workStateKind: .decision, transitionKind: .changed)
+        let intent = WorkStateTransitionApplyIntent.proposal(
+            projectID: projectID,
+            proposalID: proposal.id,
+            terminalReviews: [.init(proposalID: proposal.id, verdict: .approved)],
+            reviewedAt: fixedDate
+        )
+        let writer = JSONWorkStateTransitionRepository(fileURL: fileURL())
+        try await writer.upsert([proposal])
+        let prepared = try await writer.prepareApplyIntent(intent)
+        XCTAssertEqual(prepared, .recorded)
+
+        let restarted = JSONWorkStateTransitionRepository(fileURL: fileURL())
+        let pending = try await restarted.pendingApplyIntents()
+        let finalized = try await restarted.finalizeApplyIntent(intent)
+        XCTAssertEqual(pending, [intent])
+        XCTAssertEqual(finalized, .recorded)
+
+        let verified = JSONWorkStateTransitionRepository(fileURL: fileURL())
+        let remaining = try await verified.pendingApplyIntents()
+        let stored = try await verified.allProposals()
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertEqual(stored.first?.reviewStatus, .approved)
+    }
+
+    func testApplyIntentSidecarContainsOnlyFiniteMetadataAndNoPrivateText() async throws {
+        let proposal = makeProposal(workStateKind: .decision, transitionKind: .changed)
+        let intent = WorkStateTransitionApplyIntent.proposal(
+            projectID: projectID,
+            proposalID: proposal.id,
+            terminalReviews: [.init(proposalID: proposal.id, verdict: .approved)],
+            reviewedAt: fixedDate
+        )
+        let repository = JSONWorkStateTransitionRepository(fileURL: fileURL())
+        try await repository.upsert([proposal])
+        _ = try await repository.prepareApplyIntent(intent)
+
+        let store = try JSONDecoder().decode(
+            WorkStateTransitionStoreFile.self,
+            from: Data(contentsOf: fileURL())
+        )
+        XCTAssertEqual(store.applyIntents, [intent])
+        let encodedIntent = String(
+            data: try JSONEncoder().encode(store.applyIntents), encoding: .utf8
+        )!
+        XCTAssertFalse(encodedIntent.contains("transcript"))
+        XCTAssertFalse(encodedIntent.contains("quote"))
+        XCTAssertFalse(encodedIntent.contains("title"))
+        XCTAssertFalse(encodedIntent.contains("name"))
     }
 
     func testAmbiguitySelectionPersistsAndAtomicallyReviewsSiblings() async throws {

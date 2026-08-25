@@ -18,7 +18,7 @@ enum AppComponentSelection {
 
 @main
 struct HAENAApp: App {
-    private let repository: any ProjectRepository
+    private let repository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let manualBriefService: ManualContinuityBriefService
     private let transitionReviewService: WorkStateTransitionReviewService

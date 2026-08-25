@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// User-owned review state is stored separately from the engine-owned proposal payload.
@@ -33,9 +34,164 @@ enum WorkStateTransitionReviewWriteResult: Equatable, Sendable {
     case refused(WorkStateTransitionReviewWriteRefusalReason)
 }
 
-struct WorkStateTransitionTerminalReview: Equatable, Sendable {
+struct WorkStateTransitionTerminalReview: Codable, Equatable, Sendable {
     let proposalID: UUID
     let verdict: WorkStateTransitionTerminalVerdict
+}
+
+enum WorkStateTransitionApplyIntentWriteRefusalReason: String, Codable, Equatable, Sendable {
+    case payloadConflict = "payload_conflict"
+    case invalidPayloadHash = "invalid_payload_hash"
+}
+
+enum WorkStateTransitionApplyIntentWriteResult: Equatable, Sendable {
+    case recorded
+    case alreadyRecorded
+    case refused(WorkStateTransitionApplyIntentWriteRefusalReason)
+}
+
+/// Durable, privacy-safe description of one user-approved apply operation.
+///
+/// It deliberately contains identifiers, finite enums, a timestamp and a hash only. Project
+/// content, evidence quotes, names and provider payloads remain in their existing authorities.
+struct WorkStateTransitionApplyIntent: Codable, Equatable, Sendable {
+    let projectID: UUID
+    let operationID: UUID
+    let operationKind: WorkStateTransitionApplyOperationKind
+    let terminalReviews: [WorkStateTransitionTerminalReview]
+    let ambiguitySelectionKind: WorkStateAmbiguitySelectionKind?
+    let selectedPriorStateID: UUID?
+    let reviewedAt: Date
+    let payloadHash: String
+
+    var storageKey: String {
+        "\(projectID.uuidString.lowercased())|\(operationKind.rawValue)|\(operationID.uuidString.lowercased())"
+    }
+
+    var hasValidPayloadHash: Bool { payloadHash == Self.payloadHash(
+        projectID: projectID,
+        operationID: operationID,
+        operationKind: operationKind,
+        terminalReviews: terminalReviews,
+        ambiguitySelectionKind: ambiguitySelectionKind,
+        selectedPriorStateID: selectedPriorStateID,
+        reviewedAt: reviewedAt
+    ) }
+
+    static func proposal(
+        projectID: UUID,
+        proposalID: UUID,
+        terminalReviews: [WorkStateTransitionTerminalReview],
+        reviewedAt: Date
+    ) -> Self {
+        make(
+            projectID: projectID,
+            operationID: proposalID,
+            operationKind: .proposal,
+            terminalReviews: terminalReviews,
+            ambiguitySelectionKind: nil,
+            selectedPriorStateID: nil,
+            reviewedAt: reviewedAt
+        )
+    }
+
+    static func ambiguity(
+        projectID: UUID,
+        groupID: UUID,
+        selection: WorkStateAmbiguousMatchSelection,
+        reviewedAt: Date
+    ) -> Self {
+        let kind: WorkStateAmbiguitySelectionKind
+        let selectedPriorStateID: UUID?
+        switch selection {
+        case .priorCandidate(let id):
+            kind = .priorCandidate
+            selectedPriorStateID = id
+        case .new:
+            kind = .new
+            selectedPriorStateID = nil
+        }
+        return make(
+            projectID: projectID,
+            operationID: groupID,
+            operationKind: .ambiguity,
+            terminalReviews: [],
+            ambiguitySelectionKind: kind,
+            selectedPriorStateID: selectedPriorStateID,
+            reviewedAt: reviewedAt
+        )
+    }
+
+    var ambiguitySelection: WorkStateAmbiguousMatchSelection? {
+        switch ambiguitySelectionKind {
+        case .priorCandidate:
+            selectedPriorStateID.map(WorkStateAmbiguousMatchSelection.priorCandidate)
+        case .new:
+            .new
+        case nil:
+            nil
+        }
+    }
+
+    private static func make(
+        projectID: UUID,
+        operationID: UUID,
+        operationKind: WorkStateTransitionApplyOperationKind,
+        terminalReviews: [WorkStateTransitionTerminalReview],
+        ambiguitySelectionKind: WorkStateAmbiguitySelectionKind?,
+        selectedPriorStateID: UUID?,
+        reviewedAt: Date
+    ) -> Self {
+        let sortedReviews = terminalReviews.sorted {
+            let left = $0.proposalID.uuidString.lowercased()
+            let right = $1.proposalID.uuidString.lowercased()
+            return left == right ? $0.verdict.rawValue < $1.verdict.rawValue : left < right
+        }
+        return Self(
+            projectID: projectID,
+            operationID: operationID,
+            operationKind: operationKind,
+            terminalReviews: sortedReviews,
+            ambiguitySelectionKind: ambiguitySelectionKind,
+            selectedPriorStateID: selectedPriorStateID,
+            reviewedAt: reviewedAt,
+            payloadHash: payloadHash(
+                projectID: projectID,
+                operationID: operationID,
+                operationKind: operationKind,
+                terminalReviews: sortedReviews,
+                ambiguitySelectionKind: ambiguitySelectionKind,
+                selectedPriorStateID: selectedPriorStateID,
+                reviewedAt: reviewedAt
+            )
+        )
+    }
+
+    private static func payloadHash(
+        projectID: UUID,
+        operationID: UUID,
+        operationKind: WorkStateTransitionApplyOperationKind,
+        terminalReviews: [WorkStateTransitionTerminalReview],
+        ambiguitySelectionKind: WorkStateAmbiguitySelectionKind?,
+        selectedPriorStateID: UUID?,
+        reviewedAt: Date
+    ) -> String {
+        let reviews = terminalReviews.map {
+            "\($0.proposalID.uuidString.lowercased()):\($0.verdict.rawValue)"
+        }.joined(separator: ",")
+        let canonical = [
+            projectID.uuidString.lowercased(),
+            operationKind.rawValue,
+            operationID.uuidString.lowercased(),
+            reviews,
+            ambiguitySelectionKind?.rawValue ?? "none",
+            selectedPriorStateID?.uuidString.lowercased() ?? "none",
+            String(reviewedAt.timeIntervalSince1970.bitPattern)
+        ].joined(separator: "|")
+        return SHA256.hash(data: Data(canonical.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
 }
 
 enum WorkStateAmbiguitySelectionKind: String, Codable, Equatable, Sendable {
@@ -63,11 +219,11 @@ struct WorkStateAmbiguityReviewState: Codable, Equatable, Sendable {
 
 /// The on-disk shape of `continuity-transitions.json`.
 ///
-/// Schema 3 adds terminal ambiguity selections. Missing newer arrays decode as empty so v1/v2
-/// files migrate without losing proposals, terminal review state, ambiguity groups, or refusals.
+/// Schema 3 adds terminal ambiguity selections. Schema 4 adds durable apply intents. Missing newer
+/// arrays decode as empty so v1/v2/v3 files migrate without losing existing state.
 struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 3
-    static let readableSchemaVersions: Set<Int> = [1, 2, 3]
+    static let currentSchemaVersion = 4
+    static let readableSchemaVersions: Set<Int> = [1, 2, 3, 4]
 
     var schemaVersion: Int
     var proposals: [WorkStateTransitionProposal]
@@ -75,6 +231,7 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
     var ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup]
     var ambiguityReviews: [WorkStateAmbiguityReviewState]
     var refusals: [WorkStateTransitionRefusalRecord]
+    var applyIntents: [WorkStateTransitionApplyIntent]
 
     init(
         schemaVersion: Int = WorkStateTransitionStoreFile.currentSchemaVersion,
@@ -82,7 +239,8 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         reviews: [WorkStateTransitionReviewState] = [],
         ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup] = [],
         ambiguityReviews: [WorkStateAmbiguityReviewState] = [],
-        refusals: [WorkStateTransitionRefusalRecord] = []
+        refusals: [WorkStateTransitionRefusalRecord] = [],
+        applyIntents: [WorkStateTransitionApplyIntent] = []
     ) {
         self.schemaVersion = schemaVersion
         self.proposals = proposals
@@ -90,10 +248,12 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         self.ambiguousMatchGroups = ambiguousMatchGroups
         self.ambiguityReviews = ambiguityReviews
         self.refusals = refusals
+        self.applyIntents = applyIntents
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, proposals, reviews, ambiguousMatchGroups, ambiguityReviews, refusals
+        case applyIntents
     }
 
     init(from decoder: Decoder) throws {
@@ -111,6 +271,9 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         ) ?? []
         refusals = try container.decodeIfPresent(
             [WorkStateTransitionRefusalRecord].self, forKey: .refusals
+        ) ?? []
+        applyIntents = try container.decodeIfPresent(
+            [WorkStateTransitionApplyIntent].self, forKey: .applyIntents
         ) ?? []
     }
 }
@@ -144,6 +307,13 @@ protocol WorkStateTransitionRepository: Sendable {
         selection: WorkStateAmbiguousMatchSelection,
         reviewedAt: Date
     ) async throws -> WorkStateTransitionReviewWriteResult
+    func pendingApplyIntents() async throws -> [WorkStateTransitionApplyIntent]
+    func prepareApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionApplyIntentWriteResult
+    func finalizeApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionReviewWriteResult
 }
 
 private struct WorkStateTransitionStoreCache {
@@ -152,6 +322,7 @@ private struct WorkStateTransitionStoreCache {
     var ambiguousMatchGroups: [String: WorkStateAmbiguousMatchGroup] = [:]
     var ambiguityReviews: [UUID: WorkStateAmbiguityReviewState] = [:]
     var refusals: [String: WorkStateTransitionRefusalRecord] = [:]
+    var applyIntents: [String: WorkStateTransitionApplyIntent] = [:]
 }
 
 actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
@@ -198,6 +369,71 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         try sortedRefusals(loadIfNeeded())
     }
 
+    func pendingApplyIntents() throws -> [WorkStateTransitionApplyIntent] {
+        try loadIfNeeded().applyIntents.values.sorted { $0.storageKey < $1.storageKey }
+    }
+
+    func prepareApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) throws -> WorkStateTransitionApplyIntentWriteResult {
+        guard intent.hasValidPayloadHash else { return .refused(.invalidPayloadHash) }
+        var stored = try loadIfNeeded()
+        if let existing = stored.applyIntents[intent.storageKey] {
+            return existing == intent ? .alreadyRecorded : .refused(.payloadConflict)
+        }
+        stored.applyIntents[intent.storageKey] = intent
+        try persist(stored)
+        cache = stored
+        return .recorded
+    }
+
+    func finalizeApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) throws -> WorkStateTransitionReviewWriteResult {
+        guard intent.hasValidPayloadHash else {
+            return .refused(.terminalVerdictConflict)
+        }
+        var stored = try loadIfNeeded()
+        guard stored.applyIntents[intent.storageKey] == intent else {
+            return .refused(.terminalVerdictConflict)
+        }
+
+        let result: WorkStateTransitionReviewWriteResult
+        switch intent.operationKind {
+        case .proposal:
+            guard intent.ambiguitySelectionKind == nil,
+                  intent.selectedPriorStateID == nil,
+                  !intent.terminalReviews.isEmpty
+            else { return .refused(.terminalVerdictConflict) }
+            result = applyTerminalReviews(
+                projectID: intent.projectID,
+                reviews: intent.terminalReviews,
+                to: &stored
+            )
+        case .ambiguity:
+            guard intent.terminalReviews.isEmpty,
+                  let selection = intent.ambiguitySelection
+            else { return .refused(.terminalVerdictConflict) }
+            result = applyAmbiguityResolution(
+                projectID: intent.projectID,
+                groupID: intent.operationID,
+                selection: selection,
+                reviewedAt: intent.reviewedAt,
+                to: &stored
+            )
+        }
+
+        switch result {
+        case .recorded, .alreadyRecorded:
+            stored.applyIntents.removeValue(forKey: intent.storageKey)
+            try persist(stored)
+            cache = stored
+        case .refused:
+            break
+        }
+        return result
+    }
+
     func upsert(_ proposals: [WorkStateTransitionProposal]) throws {
         try upsert(proposals: proposals, ambiguousMatchGroups: [], refusals: [])
     }
@@ -241,6 +477,18 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         reviews: [WorkStateTransitionTerminalReview]
     ) throws -> WorkStateTransitionReviewWriteResult {
         var stored = try loadIfNeeded()
+        let result = applyTerminalReviews(projectID: projectID, reviews: reviews, to: &stored)
+        guard result == .recorded else { return result }
+        try persist(stored)
+        cache = stored
+        return .recorded
+    }
+
+    private func applyTerminalReviews(
+        projectID: UUID,
+        reviews: [WorkStateTransitionTerminalReview],
+        to stored: inout WorkStateTransitionStoreCache
+    ) -> WorkStateTransitionReviewWriteResult {
         var requestedByDedup: [String: WorkStateTransitionReviewStatus] = [:]
         for review in reviews {
             guard let proposal = stored.proposals.values.first(where: { $0.id == review.proposalID }) else {
@@ -263,8 +511,6 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         for (dedupKey, requested) in requestedByDedup {
             stored.reviews[dedupKey] = requested
         }
-        try persist(stored)
-        cache = stored
         return .recorded
     }
 
@@ -275,6 +521,26 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         reviewedAt: Date
     ) throws -> WorkStateTransitionReviewWriteResult {
         var stored = try loadIfNeeded()
+        let result = applyAmbiguityResolution(
+            projectID: projectID,
+            groupID: groupID,
+            selection: selection,
+            reviewedAt: reviewedAt,
+            to: &stored
+        )
+        guard result == .recorded else { return result }
+        try persist(stored)
+        cache = stored
+        return .recorded
+    }
+
+    private func applyAmbiguityResolution(
+        projectID: UUID,
+        groupID: UUID,
+        selection: WorkStateAmbiguousMatchSelection,
+        reviewedAt: Date,
+        to stored: inout WorkStateTransitionStoreCache
+    ) -> WorkStateTransitionReviewWriteResult {
         guard let group = stored.ambiguousMatchGroups.values.first(where: { $0.id == groupID }) else {
             return .refused(.unknownAmbiguityGroup)
         }
@@ -316,8 +582,6 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
             selectedPriorStateID: selectedPriorID,
             reviewedAt: reviewedAt
         )
-        try persist(stored)
-        cache = stored
         return .recorded
     }
 
@@ -375,6 +639,11 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         }
         for refusal in store.refusals {
             loaded.refusals[refusal.dedupKey] = refusal
+        }
+        for intent in store.applyIntents {
+            // Keep a malformed durable record observable so launch recovery can return a finite
+            // refusal for that operation. It must never become a silent empty recovery result.
+            loaded.applyIntents[intent.storageKey] = intent
         }
         cache = loaded
         return loaded
@@ -447,7 +716,8 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
             ambiguityReviews: stored.ambiguityReviews.values.sorted {
                 $0.groupID.uuidString.lowercased() < $1.groupID.uuidString.lowercased()
             },
-            refusals: sortedRefusals(stored)
+            refusals: sortedRefusals(stored),
+            applyIntents: stored.applyIntents.values.sorted { $0.storageKey < $1.storageKey }
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -541,6 +811,60 @@ actor InMemoryWorkStateTransitionRepository: WorkStateTransitionRepository {
 
     func allRefusals() -> [WorkStateTransitionRefusalRecord] {
         cache.refusals.values.sorted { $0.dedupKey < $1.dedupKey }
+    }
+
+    func pendingApplyIntents() -> [WorkStateTransitionApplyIntent] {
+        cache.applyIntents.values.sorted { $0.storageKey < $1.storageKey }
+    }
+
+    func prepareApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) throws -> WorkStateTransitionApplyIntentWriteResult {
+        guard intent.hasValidPayloadHash else { return .refused(.invalidPayloadHash) }
+        if let existing = cache.applyIntents[intent.storageKey] {
+            return existing == intent ? .alreadyRecorded : .refused(.payloadConflict)
+        }
+        if let saveError { throw saveError }
+        cache.applyIntents[intent.storageKey] = intent
+        return .recorded
+    }
+
+    func finalizeApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) throws -> WorkStateTransitionReviewWriteResult {
+        guard intent.hasValidPayloadHash,
+              cache.applyIntents[intent.storageKey] == intent
+        else { return .refused(.terminalVerdictConflict) }
+
+        let result: WorkStateTransitionReviewWriteResult
+        switch intent.operationKind {
+        case .proposal:
+            guard intent.ambiguitySelectionKind == nil,
+                  intent.selectedPriorStateID == nil,
+                  !intent.terminalReviews.isEmpty
+            else { return .refused(.terminalVerdictConflict) }
+            result = try recordTerminalReviews(
+                projectID: intent.projectID,
+                reviews: intent.terminalReviews
+            )
+        case .ambiguity:
+            guard intent.terminalReviews.isEmpty,
+                  let selection = intent.ambiguitySelection
+            else { return .refused(.terminalVerdictConflict) }
+            result = try resolveAmbiguity(
+                projectID: intent.projectID,
+                groupID: intent.operationID,
+                selection: selection,
+                reviewedAt: intent.reviewedAt
+            )
+        }
+        switch result {
+        case .recorded, .alreadyRecorded:
+            cache.applyIntents.removeValue(forKey: intent.storageKey)
+        case .refused:
+            break
+        }
+        return result
     }
 
     func upsert(_ proposals: [WorkStateTransitionProposal]) throws {

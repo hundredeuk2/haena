@@ -938,6 +938,19 @@ private actor CountingTransitionRepository: WorkStateTransitionRepository {
     }
     func refusals(forProject projectID: UUID) async throws -> [WorkStateTransitionRefusalRecord] { [] }
     func allRefusals() async throws -> [WorkStateTransitionRefusalRecord] { [] }
+    func pendingApplyIntents() async throws -> [WorkStateTransitionApplyIntent] { [] }
+    func prepareApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionApplyIntentWriteResult {
+        writeCount += 1
+        return .recorded
+    }
+    func finalizeApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionReviewWriteResult {
+        writeCount += 1
+        return .recorded
+    }
     func upsert(_ proposals: [WorkStateTransitionProposal]) async throws { writeCount += 1 }
     func upsert(
         proposals: [WorkStateTransitionProposal],

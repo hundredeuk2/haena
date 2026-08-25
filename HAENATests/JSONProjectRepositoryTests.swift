@@ -83,7 +83,7 @@ final class JSONProjectRepositoryTests: XCTestCase {
             XCTFail("Expected unsupportedSchemaVersion")
         } catch JSONRepositoryError.unsupportedSchemaVersion(let found, let supported) {
             XCTAssertEqual(found, 999)
-            XCTAssertEqual(supported, 1)
+            XCTAssertEqual(supported, ProjectStoreFile.currentSchemaVersion)
         }
     }
 
@@ -120,14 +120,14 @@ final class JSONProjectRepositoryTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL().path))
     }
 
-    func testSavedFileHasSchemaVersion1() async throws {
+    func testSavedFileHasCurrentSchemaVersion() async throws {
         let repository = JSONProjectRepository(fileURL: fileURL())
         try await repository.save(makeProject(id: TestFixtures.projectID))
 
         let data = try Data(contentsOf: fileURL())
         let store = try JSONDecoder().decode(ProjectStoreFile.self, from: data)
 
-        XCTAssertEqual(store.schemaVersion, 1)
+        XCTAssertEqual(store.schemaVersion, ProjectStoreFile.currentSchemaVersion)
     }
 
     func testSavedProjectIsInJSON() async throws {
@@ -191,6 +191,74 @@ final class JSONProjectRepositoryTests: XCTestCase {
         let all = try await secondRepository.allProjects()
 
         XCTAssertEqual(all, [project])
+    }
+
+    func testProjectAndTransitionApplyMarkerPersistAtomicallyAcrossRepositoryRestart() async throws {
+        let url = fileURL()
+        var project = makeProject(id: TestFixtures.projectID, name: "Before")
+        project.name = "After"
+        let marker = WorkStateTransitionApplyMarker(
+            projectID: project.id,
+            operationID: UUID(uuidString: "00000000-0000-0000-0000-000000000901")!,
+            operationKind: .proposal,
+            intentHash: "opaque-intent-hash",
+            appliedAt: TestFixtures.fixedDate
+        )
+
+        let writer = JSONProjectRepository(fileURL: url)
+        try await writer.save(project, recording: marker)
+
+        let restarted = JSONProjectRepository(fileURL: url)
+        let reloadedProject = try await restarted.project(id: project.id)
+        let reloadedMarker = try await restarted.transitionApplyMarker(
+            projectID: project.id,
+            operationID: marker.operationID,
+            operationKind: marker.operationKind
+        )
+        XCTAssertEqual(reloadedProject, project)
+        XCTAssertEqual(reloadedMarker, marker)
+    }
+
+    func testOrdinaryProjectSavePreservesExistingTransitionApplyMarker() async throws {
+        let project = makeProject(id: TestFixtures.projectID, name: "Before")
+        let marker = WorkStateTransitionApplyMarker(
+            projectID: project.id,
+            operationID: UUID(uuidString: "00000000-0000-0000-0000-000000000902")!,
+            operationKind: .ambiguity,
+            intentHash: "opaque-intent-hash",
+            appliedAt: TestFixtures.fixedDate
+        )
+        let repository = JSONProjectRepository(fileURL: fileURL())
+        try await repository.save(project, recording: marker)
+        var renamed = project
+        renamed.name = "After"
+        try await repository.save(renamed)
+
+        let restarted = JSONProjectRepository(fileURL: fileURL())
+        let preserved = try await restarted.transitionApplyMarker(
+            projectID: project.id,
+            operationID: marker.operationID,
+            operationKind: marker.operationKind
+        )
+        XCTAssertEqual(preserved, marker)
+    }
+
+    func testLegacyProjectStoreLoadsWithoutTransitionApplyMarkers() async throws {
+        let project = makeProject(id: TestFixtures.projectID)
+        let legacy = """
+        {"schemaVersion":1,"projects":\(String(data: try JSONEncoder().encode([project]), encoding: .utf8)!)}
+        """
+        try Data(legacy.utf8).write(to: fileURL())
+
+        let repository = JSONProjectRepository(fileURL: fileURL())
+        let loaded = try await repository.project(id: project.id)
+        let marker = try await repository.transitionApplyMarker(
+            projectID: project.id,
+            operationID: UUID(),
+            operationKind: .proposal
+        )
+        XCTAssertEqual(loaded, project)
+        XCTAssertNil(marker)
     }
 
     // MARK: - Deletion

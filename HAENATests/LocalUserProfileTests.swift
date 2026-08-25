@@ -57,16 +57,15 @@ final class LocalUserProfileTests: XCTestCase {
         XCTAssertNil(profile)
     }
 
-    /// The existing project data is untouched by this feature — same file, same schema version.
-    func testTheProjectStoreSchemaIsUnchanged() async throws {
+    /// Profile data remains outside the versioned Project envelope, regardless of its schema.
+    func testTheProjectStoreContainsNoProfileData() async throws {
         let projectsURL = directory.appendingPathComponent("projects.json")
         let projects = JSONProjectRepository(fileURL: projectsURL)
         try await projects.save(Fixture.project())
 
         let raw = try XCTUnwrap(String(data: try Data(contentsOf: projectsURL), encoding: .utf8))
-        XCTAssertTrue(raw.contains("\"schemaVersion\":1"))
+        XCTAssertTrue(raw.contains("\"schemaVersion\":\(ProjectStoreFile.currentSchemaVersion)"))
         XCTAssertFalse(raw.contains("profile"), "The profile must not have leaked into the project store.")
-        XCTAssertEqual(ProjectStoreFile.currentSchemaVersion, 1)
     }
 
     // MARK: - Naming

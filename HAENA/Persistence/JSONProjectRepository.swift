@@ -8,12 +8,17 @@ import Foundation
 /// State is loaded lazily on first access and cached in memory afterward; every mutation is
 /// written back to disk immediately via an atomic temp-file-then-replace, so the file on disk
 /// never reflects a half-written state.
-actor JSONProjectRepository: ProjectRepository {
+private struct ProjectStoreCache {
+    var projects: [UUID: Project] = [:]
+    var transitionApplyMarkers: [String: WorkStateTransitionApplyMarker] = [:]
+}
+
+actor JSONProjectRepository: WorkStateTransitionProjectRepository {
     static let supportedSchemaVersion = ProjectStoreFile.currentSchemaVersion
 
     private let fileURL: URL
     private let fileManager: FileManager
-    private var cache: [UUID: Project]?
+    private var cache: ProjectStoreCache?
 
     init(fileURL: URL, fileManager: FileManager = .default) {
         self.fileURL = fileURL
@@ -36,39 +41,73 @@ actor JSONProjectRepository: ProjectRepository {
     }
 
     func save(_ project: Project) async throws {
-        var projects = try loadIfNeeded()
-        projects[project.id] = project
-        try persist(projects)
-        cache = projects
+        var stored = try loadIfNeeded()
+        stored.projects[project.id] = project
+        try persist(stored)
+        cache = stored
+    }
+
+    func save(
+        _ project: Project,
+        recording marker: WorkStateTransitionApplyMarker
+    ) async throws {
+        guard project.id == marker.projectID else {
+            throw JSONRepositoryError.encodingFailed(
+                underlying: "transition apply marker project mismatch"
+            )
+        }
+        var stored = try loadIfNeeded()
+        stored.projects[project.id] = project
+        stored.transitionApplyMarkers[marker.storageKey] = marker
+        try persist(stored)
+        cache = stored
+    }
+
+    func transitionApplyMarker(
+        projectID: UUID,
+        operationID: UUID,
+        operationKind: WorkStateTransitionApplyOperationKind
+    ) async throws -> WorkStateTransitionApplyMarker? {
+        let stored = try loadIfNeeded()
+        let key = WorkStateTransitionApplyMarker(
+            projectID: projectID,
+            operationID: operationID,
+            operationKind: operationKind,
+            intentHash: "",
+            appliedAt: .distantPast
+        ).storageKey
+        return stored.transitionApplyMarkers[key]
     }
 
     func project(id: UUID) async throws -> Project? {
-        let projects = try loadIfNeeded()
-        return projects[id]
+        try loadIfNeeded().projects[id]
     }
 
     func allProjects() async throws -> [Project] {
-        let projects = try loadIfNeeded()
-        return sorted(projects)
+        sorted(try loadIfNeeded().projects)
     }
 
     func delete(id: UUID) async throws {
-        var projects = try loadIfNeeded()
-        projects.removeValue(forKey: id)
-        try persist(projects)
-        cache = projects
+        var stored = try loadIfNeeded()
+        stored.projects.removeValue(forKey: id)
+        stored.transitionApplyMarkers = stored.transitionApplyMarkers.filter {
+            $0.value.projectID != id
+        }
+        try persist(stored)
+        cache = stored
     }
 
     // MARK: - Loading
 
-    private func loadIfNeeded() throws -> [UUID: Project] {
+    private func loadIfNeeded() throws -> ProjectStoreCache {
         if let cache {
             return cache
         }
 
         guard fileManager.fileExists(atPath: fileURL.path) else {
-            cache = [:]
-            return [:]
+            let empty = ProjectStoreCache()
+            cache = empty
+            return empty
         }
 
         let data: Data
@@ -85,27 +124,35 @@ actor JSONProjectRepository: ProjectRepository {
             throw JSONRepositoryError.decodingFailed(underlying: String(describing: error))
         }
 
-        guard store.schemaVersion == Self.supportedSchemaVersion else {
+        guard ProjectStoreFile.readableSchemaVersions.contains(store.schemaVersion) else {
             throw JSONRepositoryError.unsupportedSchemaVersion(
                 found: store.schemaVersion,
                 supported: Self.supportedSchemaVersion
             )
         }
 
-        var projects: [UUID: Project] = [:]
+        var loaded = ProjectStoreCache()
         for project in store.projects {
-            projects[project.id] = project
+            loaded.projects[project.id] = project
         }
-        cache = projects
-        return projects
+        for marker in store.transitionApplyMarkers {
+            loaded.transitionApplyMarkers[marker.storageKey] = marker
+        }
+        cache = loaded
+        return loaded
     }
 
     // MARK: - Persisting
 
-    private func persist(_ projects: [UUID: Project]) throws {
+    private func persist(_ stored: ProjectStoreCache) throws {
         try ensureDirectoryExists()
 
-        let store = ProjectStoreFile(projects: sorted(projects))
+        let store = ProjectStoreFile(
+            projects: sorted(stored.projects),
+            transitionApplyMarkers: stored.transitionApplyMarkers.values.sorted {
+                $0.storageKey < $1.storageKey
+            }
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
 

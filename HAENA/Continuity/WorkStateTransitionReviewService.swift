@@ -26,8 +26,8 @@ enum WorkStateTransitionReviewResult: Equatable, Sendable {
     case rejected
     case alreadyRejected
     case refused(WorkStateTransitionReviewRefusalReason)
-    /// The Project mutation is durable but its terminal transition verdict is not. Retrying the
-    /// same action on this service is safe and attempts only the missing review write.
+    /// The Project mutation and durable apply marker are saved, but the terminal transition
+    /// verdict is not. A later app launch resumes from the persisted intent without replaying it.
     case projectSavedReviewPersistenceFailed
 }
 
@@ -38,20 +38,24 @@ enum WorkStateTransitionAmbiguityReviewResult: Equatable, Sendable {
     case projectSavedReviewPersistenceFailed
 }
 
+struct WorkStateTransitionApplyRecoveryOutcome: Equatable, Sendable {
+    let operationID: UUID
+    let operationKind: WorkStateTransitionApplyOperationKind
+    let result: WorkStateTransitionReviewResult
+}
+
 /// Applies a human verdict without letting a transition proposal mutate Project state directly.
 ///
-/// The actor owns a finite in-memory partial-commit receipt. Project is saved first; if the
-/// transition-file write then fails, a retry on the same service never replays the Project
-/// mutation. Nothing privacy-sensitive is kept in that receipt — proposal/group identifiers only.
+/// A durable intent is written before Project mutation. Project state and its apply marker are
+/// then saved atomically, followed by one atomic sidecar write that records the verdict and removes
+/// the intent. The marker makes launch-time recovery idempotent without storing private content.
 actor WorkStateTransitionReviewService {
-    private let projectRepository: any ProjectRepository
+    private let projectRepository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let now: @Sendable () -> Date
-    private var partiallyAppliedProposalIDs: Set<UUID> = []
-    private var partiallyAppliedAmbiguityGroups: [UUID: Date] = [:]
 
     init(
-        projectRepository: any ProjectRepository,
+        projectRepository: any WorkStateTransitionProjectRepository,
         transitionRepository: any WorkStateTransitionRepository,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
@@ -65,6 +69,16 @@ actor WorkStateTransitionReviewService {
         proposalID: UUID,
         action: WorkStateTransitionReviewAction
     ) async -> WorkStateTransitionReviewResult {
+        if let intent = await pendingIntent(
+            projectID: projectID,
+            operationID: proposalID,
+            operationKind: .proposal
+        ) {
+            return action == .approve
+                ? await resume(intent)
+                : .refused(.terminalVerdictConflict)
+        }
+
         let proposal: WorkStateTransitionProposal
         let allProposals: [WorkStateTransitionProposal]
         do {
@@ -93,70 +107,44 @@ actor WorkStateTransitionReviewService {
         }
 
         let terminalReviews = terminalReviewBatch(for: proposal, allProposals: allProposals)
-        for review in terminalReviews {
-            guard let row = allProposals.first(where: { $0.id == review.proposalID }) else {
-                return .refused(.staleProposal)
-            }
-            let expected = review.verdict.reviewStatus
-            if row.reviewStatus != .pendingReview && row.reviewStatus != expected {
-                return .refused(.terminalVerdictConflict)
-            }
+        if let reason = validate(
+            terminalReviews,
+            projectID: projectID,
+            against: allProposals
+        ) {
+            return .refused(reason)
         }
 
-        var projectMutationDurable = partiallyAppliedProposalIDs.contains(proposalID)
-        if !partiallyAppliedProposalIDs.contains(proposalID) {
-            let reviewedAt = now()
-            let project: Project
-            do {
-                guard let loaded = try await projectRepository.project(id: projectID) else {
-                    return .refused(.projectNotFound)
-                }
-                project = loaded
-            } catch {
-                return .refused(.projectPersistenceFailed)
-            }
-
-            var updated = project
-            switch apply(proposal, to: &updated, reviewedAt: reviewedAt) {
-            case .failure(let reason): return .refused(reason)
-            case .success(let changed):
-                if changed {
-                    updated.updatedAt = reviewedAt
-                    do {
-                        try await projectRepository.save(updated)
-                        projectMutationDurable = true
-                    } catch {
-                        return .refused(.projectPersistenceFailed)
-                    }
-                }
-            }
-        }
-
+        let reviewedAt = now()
+        let intent = WorkStateTransitionApplyIntent.proposal(
+            projectID: projectID,
+            proposalID: proposalID,
+            terminalReviews: terminalReviews,
+            reviewedAt: reviewedAt
+        )
+        let project: Project
         do {
-            let result = try await transitionRepository.recordTerminalReviews(
-                projectID: projectID, reviews: terminalReviews
-            )
-            switch result {
-            case .recorded:
-                partiallyAppliedProposalIDs.remove(proposalID)
-                return .applied
-            case .alreadyRecorded:
-                partiallyAppliedProposalIDs.remove(proposalID)
-                return .alreadyApplied
-            case .refused(let reason):
-                if projectMutationDurable {
-                    partiallyAppliedProposalIDs.insert(proposalID)
-                    return .projectSavedReviewPersistenceFailed
-                }
-                return .refused(map(reason))
+            guard let loaded = try await projectRepository.project(id: projectID) else {
+                return .refused(.projectNotFound)
             }
+            project = loaded
         } catch {
-            if projectMutationDurable {
-                partiallyAppliedProposalIDs.insert(proposalID)
-                return .projectSavedReviewPersistenceFailed
-            }
-            return .refused(.reviewPersistenceFailed)
+            return .refused(.projectPersistenceFailed)
         }
+        var updated = project
+        switch apply(proposal, to: &updated, reviewedAt: reviewedAt) {
+        case .failure(let reason): return .refused(reason)
+        case .success(let changed):
+            if changed { updated.updatedAt = reviewedAt }
+        }
+
+        switch await prepare(intent) {
+        case .success:
+            break
+        case .failure(let reason):
+            return .refused(reason)
+        }
+        return await persistProjectAndFinalize(updated, intent: intent)
     }
 
     func resolveAmbiguity(
@@ -164,7 +152,19 @@ actor WorkStateTransitionReviewService {
         groupID: UUID,
         selection: WorkStateAmbiguousMatchSelection
     ) async -> WorkStateTransitionAmbiguityReviewResult {
+        if let intent = await pendingIntent(
+            projectID: projectID,
+            operationID: groupID,
+            operationKind: .ambiguity
+        ) {
+            guard intent.ambiguitySelection == selection else {
+                return .refused(.terminalVerdictConflict)
+            }
+            return mapAmbiguityResult(await resume(intent))
+        }
+
         let group: WorkStateAmbiguousMatchGroup
+        let allProposals: [WorkStateTransitionProposal]
         do {
             guard let found = try await transitionRepository.allAmbiguousMatchGroups().first(where: {
                 $0.id == groupID
@@ -177,99 +177,280 @@ actor WorkStateTransitionReviewService {
                     ? .alreadyApplied
                     : .refused(.terminalVerdictConflict)
             }
+            allProposals = try await transitionRepository.allProposals()
         } catch {
             return .refused(.reviewPersistenceFailed)
         }
         guard group.projectID == projectID else { return .refused(.projectMismatch) }
         guard group.accepts(selection) else { return .refused(.invalidAmbiguitySelection) }
 
-        let reviewedAt = partiallyAppliedAmbiguityGroups[groupID] ?? now()
-        var projectMutationDurable = partiallyAppliedAmbiguityGroups[groupID] != nil
-        if partiallyAppliedAmbiguityGroups[groupID] == nil {
-            var project: Project
-            do {
-                guard let loaded = try await projectRepository.project(id: projectID) else {
-                    return .refused(.projectNotFound)
-                }
-                project = loaded
-            } catch {
-                return .refused(.projectPersistenceFailed)
-            }
-
-            let application: Result<Bool, WorkStateTransitionReviewRefusalReason>
-            switch selection {
-            case .priorCandidate(let priorID):
-                let proposal: WorkStateTransitionProposal?
-                do {
-                    proposal = try await transitionRepository.proposals(forProject: projectID)
-                        .first(where: {
-                            $0.workStateKind == group.workStateKind
-                                && $0.currentObjectID == group.incomingObjectID
-                                && $0.previousStateID == priorID
-                        })
-                } catch {
-                    return .refused(.reviewPersistenceFailed)
-                }
-                guard let proposal else { return .refused(.staleProposal) }
-                application = apply(proposal, to: &project, reviewedAt: reviewedAt)
-            case .new:
-                guard let reference = evidenceReference(
-                    kind: group.workStateKind, id: group.incomingObjectID, in: project
-                ), evidenceReferenceExists(reference, in: project) else {
-                    return .refused(.evidenceNoLongerExists)
-                }
-                application = approveCurrent(
-                    kind: group.workStateKind,
-                    id: group.incomingObjectID,
-                    sourceMeetingID: group.sourceMeetingID,
-                    in: &project,
-                    reviewedAt: reviewedAt,
-                    requirePending: true
-                )
-            }
-
-            switch application {
-            case .failure(let reason): return .refused(reason)
-            case .success(let changed):
-                if changed {
-                    project.updatedAt = reviewedAt
-                    do {
-                        try await projectRepository.save(project)
-                        projectMutationDurable = true
-                    } catch {
-                        return .refused(.projectPersistenceFailed)
-                    }
-                }
-            }
-        }
-
+        let reviewedAt = now()
+        let intent = WorkStateTransitionApplyIntent.ambiguity(
+            projectID: projectID,
+            groupID: groupID,
+            selection: selection,
+            reviewedAt: reviewedAt
+        )
+        var project: Project
         do {
-            let result = try await transitionRepository.resolveAmbiguity(
-                projectID: projectID,
-                groupID: groupID,
-                selection: selection,
-                reviewedAt: reviewedAt
-            )
-            switch result {
-            case .recorded:
-                partiallyAppliedAmbiguityGroups.removeValue(forKey: groupID)
-                return .applied
-            case .alreadyRecorded:
-                partiallyAppliedAmbiguityGroups.removeValue(forKey: groupID)
-                return .alreadyApplied
-            case .refused(let reason):
-                if projectMutationDurable {
-                    partiallyAppliedAmbiguityGroups[groupID] = reviewedAt
-                    return .projectSavedReviewPersistenceFailed
-                }
-                return .refused(map(reason))
+            guard let loaded = try await projectRepository.project(id: projectID) else {
+                return .refused(.projectNotFound)
+            }
+            project = loaded
+        } catch {
+            return .refused(.projectPersistenceFailed)
+        }
+        switch applyAmbiguity(
+            group,
+            selection: selection,
+            allProposals: allProposals,
+            to: &project,
+            reviewedAt: reviewedAt
+        ) {
+        case .failure(let reason): return .refused(reason)
+        case .success(let changed):
+            if changed { project.updatedAt = reviewedAt }
+        }
+        switch await prepare(intent) {
+        case .success:
+            break
+        case .failure(let reason):
+            return .refused(reason)
+        }
+        return mapAmbiguityResult(await persistProjectAndFinalize(project, intent: intent))
+    }
+
+    /// Explicit launch/bootstrap recovery entry point. Manual Brief loading remains read-only.
+    func recoverPendingApplies() async -> [WorkStateTransitionApplyRecoveryOutcome] {
+        let intents: [WorkStateTransitionApplyIntent]
+        do {
+            intents = try await transitionRepository.pendingApplyIntents()
+        } catch {
+            return []
+        }
+        var outcomes: [WorkStateTransitionApplyRecoveryOutcome] = []
+        for intent in intents {
+            outcomes.append(WorkStateTransitionApplyRecoveryOutcome(
+                operationID: intent.operationID,
+                operationKind: intent.operationKind,
+                result: await resume(intent)
+            ))
+        }
+        return outcomes
+    }
+
+    private func pendingIntent(
+        projectID: UUID,
+        operationID: UUID,
+        operationKind: WorkStateTransitionApplyOperationKind
+    ) async -> WorkStateTransitionApplyIntent? {
+        do {
+            return try await transitionRepository.pendingApplyIntents().first {
+                $0.projectID == projectID
+                    && $0.operationID == operationID
+                    && $0.operationKind == operationKind
             }
         } catch {
-            if projectMutationDurable {
-                partiallyAppliedAmbiguityGroups[groupID] = reviewedAt
+            return nil
+        }
+    }
+
+    private func prepare(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async -> Result<Void, WorkStateTransitionReviewRefusalReason> {
+        do {
+            switch try await transitionRepository.prepareApplyIntent(intent) {
+            case .recorded, .alreadyRecorded:
+                return .success(())
+            case .refused:
+                return .failure(.terminalVerdictConflict)
+            }
+        } catch {
+            return .failure(.reviewPersistenceFailed)
+        }
+    }
+
+    private func persistProjectAndFinalize(
+        _ project: Project,
+        intent: WorkStateTransitionApplyIntent
+    ) async -> WorkStateTransitionReviewResult {
+        let marker = WorkStateTransitionApplyMarker(
+            projectID: intent.projectID,
+            operationID: intent.operationID,
+            operationKind: intent.operationKind,
+            intentHash: intent.payloadHash,
+            appliedAt: intent.reviewedAt
+        )
+        do {
+            try await projectRepository.save(project, recording: marker)
+        } catch {
+            return .refused(.projectPersistenceFailed)
+        }
+        return await finalize(intent)
+    }
+
+    private func finalize(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async -> WorkStateTransitionReviewResult {
+        do {
+            switch try await transitionRepository.finalizeApplyIntent(intent) {
+            case .recorded:
+                return .applied
+            case .alreadyRecorded:
+                return .alreadyApplied
+            case .refused:
                 return .projectSavedReviewPersistenceFailed
             }
+        } catch {
+            return .projectSavedReviewPersistenceFailed
+        }
+    }
+
+    private func resume(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async -> WorkStateTransitionReviewResult {
+        guard intent.hasValidPayloadHash else { return .refused(.staleProposal) }
+        do {
+            if let marker = try await projectRepository.transitionApplyMarker(
+                projectID: intent.projectID,
+                operationID: intent.operationID,
+                operationKind: intent.operationKind
+            ) {
+                guard marker.intentHash == intent.payloadHash else {
+                    return .refused(.terminalVerdictConflict)
+                }
+                return await finalize(intent)
+            }
+        } catch {
+            return .refused(.projectPersistenceFailed)
+        }
+
+        let project: Project
+        do {
+            guard let loaded = try await projectRepository.project(id: intent.projectID) else {
+                return .refused(.projectNotFound)
+            }
+            project = loaded
+        } catch {
+            return .refused(.projectPersistenceFailed)
+        }
+        let allProposals: [WorkStateTransitionProposal]
+        do {
+            allProposals = try await transitionRepository.allProposals()
+        } catch {
             return .refused(.reviewPersistenceFailed)
+        }
+        var updated = project
+        let application: Result<Bool, WorkStateTransitionReviewRefusalReason>
+        switch intent.operationKind {
+        case .proposal:
+            guard let proposal = allProposals.first(where: { $0.id == intent.operationID }) else {
+                return .refused(.staleProposal)
+            }
+            guard proposal.projectID == intent.projectID else {
+                return .refused(.projectMismatch)
+            }
+            if let reason = validate(
+                intent.terminalReviews,
+                projectID: intent.projectID,
+                against: allProposals
+            ) {
+                return .refused(reason)
+            }
+            application = apply(proposal, to: &updated, reviewedAt: intent.reviewedAt)
+        case .ambiguity:
+            let groups: [WorkStateAmbiguousMatchGroup]
+            do {
+                groups = try await transitionRepository.allAmbiguousMatchGroups()
+            } catch {
+                return .refused(.reviewPersistenceFailed)
+            }
+            guard let group = groups.first(where: { $0.id == intent.operationID }),
+                  group.projectID == intent.projectID,
+                  let selection = intent.ambiguitySelection,
+                  group.accepts(selection)
+            else { return .refused(.staleProposal) }
+            application = applyAmbiguity(
+                group,
+                selection: selection,
+                allProposals: allProposals,
+                to: &updated,
+                reviewedAt: intent.reviewedAt
+            )
+        }
+        switch application {
+        case .failure(let reason): return .refused(reason)
+        case .success(let changed):
+            if changed { updated.updatedAt = intent.reviewedAt }
+        }
+        return await persistProjectAndFinalize(updated, intent: intent)
+    }
+
+    private func validate(
+        _ reviews: [WorkStateTransitionTerminalReview],
+        projectID: UUID,
+        against proposals: [WorkStateTransitionProposal]
+    ) -> WorkStateTransitionReviewRefusalReason? {
+        guard !reviews.isEmpty else { return .staleProposal }
+        for review in reviews {
+            guard let row = proposals.first(where: { $0.id == review.proposalID }) else {
+                return .staleProposal
+            }
+            guard row.projectID == projectID else { return .projectMismatch }
+            let expected = review.verdict.reviewStatus
+            if row.reviewStatus != .pendingReview && row.reviewStatus != expected {
+                return .terminalVerdictConflict
+            }
+        }
+        return nil
+    }
+
+    private func applyAmbiguity(
+        _ group: WorkStateAmbiguousMatchGroup,
+        selection: WorkStateAmbiguousMatchSelection,
+        allProposals: [WorkStateTransitionProposal],
+        to project: inout Project,
+        reviewedAt: Date
+    ) -> Result<Bool, WorkStateTransitionReviewRefusalReason> {
+        switch selection {
+        case .priorCandidate(let priorID):
+            guard let proposal = allProposals.first(where: {
+                $0.projectID == group.projectID
+                    && $0.workStateKind == group.workStateKind
+                    && $0.currentObjectID == group.incomingObjectID
+                    && $0.previousStateID == priorID
+            }) else { return .failure(.staleProposal) }
+            return apply(proposal, to: &project, reviewedAt: reviewedAt)
+        case .new:
+            guard let reference = evidenceReference(
+                kind: group.workStateKind,
+                id: group.incomingObjectID,
+                in: project
+            ), evidenceReferenceExists(reference, in: project) else {
+                return .failure(.evidenceNoLongerExists)
+            }
+            return approveCurrent(
+                kind: group.workStateKind,
+                id: group.incomingObjectID,
+                sourceMeetingID: group.sourceMeetingID,
+                in: &project,
+                reviewedAt: reviewedAt,
+                requirePending: true
+            )
+        }
+    }
+
+    private func mapAmbiguityResult(
+        _ result: WorkStateTransitionReviewResult
+    ) -> WorkStateTransitionAmbiguityReviewResult {
+        switch result {
+        case .applied: return .applied
+        case .alreadyApplied: return .alreadyApplied
+        case .projectSavedReviewPersistenceFailed:
+            return .projectSavedReviewPersistenceFailed
+        case .refused(let reason): return .refused(reason)
+        case .rejected, .alreadyRejected:
+            return .refused(.terminalVerdictConflict)
         }
     }
 

@@ -285,7 +285,28 @@ final class WorkStateTransitionReviewServiceTests: XCTestCase {
         )
         XCTAssertEqual(result, .refused(.projectPersistenceFailed))
         let stored = try await transitions.allProposals()
+        let pendingIntents = try await transitions.pendingApplyIntents()
         XCTAssertEqual(stored.first?.reviewStatus, .pendingReview)
+        XCTAssertEqual(pendingIntents.count, 1, "durable intent remains available for launch recovery")
+    }
+
+    func testIntentSaveFailureDoesNotMutateProject() async throws {
+        var project = makeProject()
+        project.decisions = [decision(2)]
+        let original = project
+        let row = proposal(kind: .decision, transition: .new, currentID: id(2))
+        let projects = InMemoryProjectRepository(projects: [project])
+        let base = InMemoryWorkStateTransitionRepository(proposals: [row])
+        let transitions = FailOnceTransitionRepository(base: base, failurePoint: .prepare)
+
+        let result = await service(projects, transitions).review(
+            projectID: project.id, proposalID: row.id, action: .approve
+        )
+        let saved = try await projects.project(id: project.id)
+        let pendingIntents = try await base.pendingApplyIntents()
+        XCTAssertEqual(result, .refused(.reviewPersistenceFailed))
+        XCTAssertEqual(saved, original)
+        XCTAssertTrue(pendingIntents.isEmpty)
     }
 
     func testReviewWriteFailureReturnsPartialAndSameServiceRetryIsSafe() async throws {
@@ -309,6 +330,171 @@ final class WorkStateTransitionReviewServiceTests: XCTestCase {
         XCTAssertEqual(retry, .applied)
         let stored = try await base.allProposals()
         XCTAssertEqual(stored.first?.reviewStatus, .approved)
+    }
+
+    func testRestartAfterProjectMarkerBeforeVerdictFinalizesWithoutReapplyingProject() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENA-transition-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let projectURL = directory.appendingPathComponent("projects.json")
+        let transitionURL = directory.appendingPathComponent("continuity-transitions.json")
+        var project = makeProject()
+        project.decisions = [decision(2)]
+        let row = proposal(kind: .decision, transition: .new, currentID: id(2))
+        let projects = JSONProjectRepository(fileURL: projectURL)
+        let transitionBase = JSONWorkStateTransitionRepository(fileURL: transitionURL)
+        try await projects.save(project)
+        try await transitionBase.upsert([row])
+        let failFinalWrite = FailOnceTransitionRepository(base: transitionBase)
+
+        let first = await service(projects, failFinalWrite).review(
+            projectID: project.id, proposalID: row.id, action: .approve
+        )
+        let afterFirstProject = try await projects.project(id: project.id)
+        let afterFirstIntents = try await transitionBase.pendingApplyIntents()
+        XCTAssertEqual(first, .projectSavedReviewPersistenceFailed)
+        XCTAssertEqual(afterFirstProject?.decisions.count, 1)
+        XCTAssertEqual(afterFirstIntents.count, 1)
+
+        let restartedProjects = JSONProjectRepository(fileURL: projectURL)
+        let restartedTransitions = JSONWorkStateTransitionRepository(fileURL: transitionURL)
+        let outcomes = await service(restartedProjects, restartedTransitions).recoverPendingApplies()
+        let recoveredProject = try await restartedProjects.project(id: project.id)
+        let remainingIntents = try await restartedTransitions.pendingApplyIntents()
+        let recoveredProposals = try await restartedTransitions.allProposals()
+
+        XCTAssertEqual(outcomes.map(\.result), [.applied])
+        XCTAssertEqual(recoveredProject?.decisions.count, 1)
+        XCTAssertTrue(remainingIntents.isEmpty)
+        XCTAssertEqual(recoveredProposals.first?.reviewStatus, .approved)
+    }
+
+    func testRestartAfterDurableIntentBeforeProjectSaveAppliesExactlyOnce() async throws {
+        var project = makeProject()
+        project.decisions = [decision(2)]
+        let row = proposal(kind: .decision, transition: .new, currentID: id(2))
+        let projects = InMemoryProjectRepository(projects: [project])
+        let transitions = InMemoryWorkStateTransitionRepository(proposals: [row])
+        let intent = WorkStateTransitionApplyIntent.proposal(
+            projectID: project.id,
+            proposalID: row.id,
+            terminalReviews: [.init(proposalID: row.id, verdict: .approved)],
+            reviewedAt: Self.reviewedAt
+        )
+        let prepared = try await transitions.prepareApplyIntent(intent)
+
+        let reviewer = service(projects, transitions)
+        let firstRecovery = await reviewer.recoverPendingApplies()
+        let secondRecovery = await reviewer.recoverPendingApplies()
+        let recovered = try await projects.project(id: project.id)
+        XCTAssertEqual(prepared, .recorded)
+        XCTAssertEqual(firstRecovery.map(\.result), [.applied])
+        XCTAssertEqual(secondRecovery, [])
+        XCTAssertEqual(recovered?.decisions.count, 1)
+        XCTAssertEqual(recovered?.decisions.first?.status, .confirmed)
+    }
+
+    func testCorruptIntentHashProducesFiniteRecoveryRefusalWithoutProjectMutation() async throws {
+        var project = makeProject()
+        project.decisions = [decision(2)]
+        let original = project
+        let row = proposal(kind: .decision, transition: .new, currentID: id(2))
+        let valid = WorkStateTransitionApplyIntent.proposal(
+            projectID: project.id,
+            proposalID: row.id,
+            terminalReviews: [.init(proposalID: row.id, verdict: .approved)],
+            reviewedAt: Self.reviewedAt
+        )
+        let corrupt = WorkStateTransitionApplyIntent(
+            projectID: valid.projectID,
+            operationID: valid.operationID,
+            operationKind: valid.operationKind,
+            terminalReviews: valid.terminalReviews,
+            ambiguitySelectionKind: valid.ambiguitySelectionKind,
+            selectedPriorStateID: valid.selectedPriorStateID,
+            reviewedAt: valid.reviewedAt,
+            payloadHash: "corrupt"
+        )
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENA-corrupt-transition-intent-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let transitionURL = directory.appendingPathComponent("continuity-transitions.json")
+        let store = WorkStateTransitionStoreFile(proposals: [row], applyIntents: [corrupt])
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(store).write(to: transitionURL)
+        let projects = InMemoryProjectRepository(projects: [project])
+        let transitions = JSONWorkStateTransitionRepository(fileURL: transitionURL)
+
+        let outcomes = await service(projects, transitions).recoverPendingApplies()
+        let saved = try await projects.project(id: project.id)
+        XCTAssertEqual(outcomes.map(\.result), [.refused(.staleProposal)])
+        XCTAssertEqual(saved, original)
+    }
+
+    func testNoOpDelayPersistsMarkerWithoutChangingProjectTimestamp() async throws {
+        var project = makeProject()
+        project.actionItems = [action(1, approved: true, dueDate: Self.createdAt)]
+        let row = proposal(
+            kind: .actionItem,
+            transition: .delayed,
+            previousID: id(1),
+            basis: .structuredProgressSignal,
+            disposition: .blocked
+        )
+        let projects = InMemoryProjectRepository(projects: [project])
+        let transitions = InMemoryWorkStateTransitionRepository(proposals: [row])
+
+        let result = await service(projects, transitions).review(
+            projectID: project.id, proposalID: row.id, action: .approve
+        )
+        let saved = try await projects.project(id: project.id)
+        let marker = try await projects.transitionApplyMarker(
+            projectID: project.id,
+            operationID: row.id,
+            operationKind: .proposal
+        )
+        XCTAssertEqual(result, .applied)
+        XCTAssertEqual(saved?.updatedAt, Self.createdAt)
+        XCTAssertNotNil(marker)
+    }
+
+    func testAmbiguityCandidateAndNewRecoverAfterMarkerWithoutDuplicate() async throws {
+        let selections: [WorkStateAmbiguousMatchSelection] = [.priorCandidate(id(1)), .new]
+        for selection in selections {
+            var project = makeProject()
+            project.decisions = [decision(1, approved: true), decision(3, approved: true), decision(2)]
+            let first = proposal(
+                kind: .decision, transition: .changed, previousID: id(1), currentID: id(2)
+            )
+            let second = proposal(
+                kind: .decision, transition: .changed, previousID: id(3), currentID: id(2)
+            )
+            let group = WorkStateAmbiguousMatchGroup(
+                projectID: project.id,
+                sourceMeetingID: id(101),
+                workStateKind: .decision,
+                incomingObjectID: id(2),
+                priorCandidateIDs: [id(1), id(3)]
+            )
+            let projects = InMemoryProjectRepository(projects: [project])
+            let base = InMemoryWorkStateTransitionRepository(
+                proposals: [first, second], ambiguousMatchGroups: [group]
+            )
+            let failFinalWrite = FailOnceTransitionRepository(base: base)
+            let firstResult = await service(projects, failFinalWrite).resolveAmbiguity(
+                projectID: project.id, groupID: group.id, selection: selection
+            )
+            XCTAssertEqual(firstResult, .projectSavedReviewPersistenceFailed, "\(selection)")
+
+            let recovery = await service(projects, base).recoverPendingApplies()
+            let saved = try await projects.project(id: project.id)
+            let review = try await base.ambiguityReview(groupID: group.id)
+            let remainingIntents = try await base.pendingApplyIntents()
+            XCTAssertEqual(recovery.map(\.result), [.applied], "\(selection)")
+            XCTAssertTrue(remainingIntents.isEmpty, "\(selection)")
+            XCTAssertEqual(review?.matches(selection), true, "\(selection)")
+            XCTAssertEqual(Set(saved?.decisions.map(\.id) ?? []).count, saved?.decisions.count)
+        }
     }
 
     func testFiniteReviewRaceAfterProjectSaveIsReportedAsPartialFailure() async throws {
@@ -422,7 +608,7 @@ final class WorkStateTransitionReviewServiceTests: XCTestCase {
     // MARK: Fixtures
 
     private func service(
-        _ projects: any ProjectRepository,
+        _ projects: any WorkStateTransitionProjectRepository,
         _ transitions: any WorkStateTransitionRepository
     ) -> WorkStateTransitionReviewService {
         WorkStateTransitionReviewService(
@@ -538,10 +724,19 @@ final class WorkStateTransitionReviewServiceTests: XCTestCase {
 
 private enum ReviewTestError: Error { case forced }
 
-private actor FailingProjectRepository: ProjectRepository {
+private actor FailingProjectRepository: WorkStateTransitionProjectRepository {
     private let stored: Project
     init(project: Project) { stored = project }
     func save(_ project: Project) throws { throw ReviewTestError.forced }
+    func save(
+        _ project: Project,
+        recording marker: WorkStateTransitionApplyMarker
+    ) throws { throw ReviewTestError.forced }
+    func transitionApplyMarker(
+        projectID: UUID,
+        operationID: UUID,
+        operationKind: WorkStateTransitionApplyOperationKind
+    ) -> WorkStateTransitionApplyMarker? { nil }
     func project(id: UUID) -> Project? { stored.id == id ? stored : nil }
     func allProjects() -> [Project] { [stored] }
     func delete(id: UUID) throws { throw ReviewTestError.forced }
@@ -549,12 +744,19 @@ private actor FailingProjectRepository: ProjectRepository {
 
 private actor FailOnceTransitionRepository: WorkStateTransitionRepository {
     enum FailureMode { case throwing, finiteConflict }
-    private let base: InMemoryWorkStateTransitionRepository
+    enum FailurePoint { case prepare, finalize }
+    private let base: any WorkStateTransitionRepository
     private let mode: FailureMode
+    private let failurePoint: FailurePoint
     private var shouldFail = true
-    init(base: InMemoryWorkStateTransitionRepository, mode: FailureMode = .throwing) {
+    init(
+        base: any WorkStateTransitionRepository,
+        mode: FailureMode = .throwing,
+        failurePoint: FailurePoint = .finalize
+    ) {
         self.base = base
         self.mode = mode
+        self.failurePoint = failurePoint
     }
 
     func proposals(forProject projectID: UUID) async throws -> [WorkStateTransitionProposal] {
@@ -575,6 +777,30 @@ private actor FailOnceTransitionRepository: WorkStateTransitionRepository {
     }
     func allRefusals() async throws -> [WorkStateTransitionRefusalRecord] {
         try await base.allRefusals()
+    }
+    func pendingApplyIntents() async throws -> [WorkStateTransitionApplyIntent] {
+        try await base.pendingApplyIntents()
+    }
+    func prepareApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionApplyIntentWriteResult {
+        if shouldFail && failurePoint == .prepare {
+            shouldFail = false
+            throw ReviewTestError.forced
+        }
+        return try await base.prepareApplyIntent(intent)
+    }
+    func finalizeApplyIntent(
+        _ intent: WorkStateTransitionApplyIntent
+    ) async throws -> WorkStateTransitionReviewWriteResult {
+        if shouldFail && failurePoint == .finalize {
+            shouldFail = false
+            switch mode {
+            case .throwing: throw ReviewTestError.forced
+            case .finiteConflict: return .refused(.terminalVerdictConflict)
+            }
+        }
+        return try await base.finalizeApplyIntent(intent)
     }
     func upsert(_ proposals: [WorkStateTransitionProposal]) async throws { try await base.upsert(proposals) }
     func upsert(
@@ -597,13 +823,6 @@ private actor FailOnceTransitionRepository: WorkStateTransitionRepository {
     func recordTerminalReviews(
         projectID: UUID, reviews: [WorkStateTransitionTerminalReview]
     ) async throws -> WorkStateTransitionReviewWriteResult {
-        if shouldFail {
-            shouldFail = false
-            switch mode {
-            case .throwing: throw ReviewTestError.forced
-            case .finiteConflict: return .refused(.terminalVerdictConflict)
-            }
-        }
         return try await base.recordTerminalReviews(projectID: projectID, reviews: reviews)
     }
     func resolveAmbiguity(
