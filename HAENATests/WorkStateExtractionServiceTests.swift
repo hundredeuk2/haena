@@ -83,6 +83,134 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         XCTAssertEqual(report.metadata.modelID, "test-model")
     }
 
+    // MARK: - Phase instrumentation
+
+    /// The markers exist to answer "how far did it get?" after a run that never reached the
+    /// completion screen, so what matters is which boundaries a run reached — not the order the
+    /// rows happened to land in, which is why every assertion sorts by the enum's own sequence.
+    func testASuccessfulRunRecordsTheServiceSidePhasesInLogicalOrder() async throws {
+        let probe = PhaseProbe()
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+
+        _ = try await service.extractAndApply(
+            meetingID: meeting.id,
+            projectID: meeting.projectID,
+            phases: probe.recorder
+        )
+
+        let reached = try await probe.reachedPhases()
+        XCTAssertEqual(
+            reached,
+            [.extractionStarted, .providerReturned, .projectSaved, .transitionRecordReturned]
+        )
+    }
+
+    func testAProviderThatNeverReturnsLeavesOnlyTheStartedPhase() async throws {
+        let probe = PhaseProbe()
+        let service = makeService(.failure(.rateLimited))
+
+        do {
+            _ = try await service.extractAndApply(
+                meetingID: meeting.id,
+                projectID: meeting.projectID,
+                phases: probe.recorder
+            )
+            XCTFail("expected the provider error to propagate")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .rateLimited)
+        }
+
+        let reached = try await probe.reachedPhases()
+        XCTAssertEqual(reached, [.extractionStarted])
+    }
+
+    func testAFailedProjectSaveStopsTheMarkersAtTheBoundaryItReached() async throws {
+        let probe = PhaseProbe()
+        let failing = PhaseFailingProjectRepository(
+            stored: try await storedProject()
+        )
+        let service = makeService(.success(ExtractionFixtures.fullResult()), repository: failing)
+
+        do {
+            _ = try await service.extractAndApply(
+                meetingID: meeting.id,
+                projectID: meeting.projectID,
+                phases: probe.recorder
+            )
+            XCTFail("expected the repository failure to propagate")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionServiceError, .repositoryFailure)
+        }
+
+        let reached = try await probe.reachedPhases()
+        XCTAssertEqual(
+            reached,
+            [.extractionStarted, .providerReturned],
+            "projectSaved must not be claimed for a save that threw"
+        )
+    }
+
+    /// `transitionRecordReturned` says the continuity call came back finitely, which is a different
+    /// fact from the transitions having been written. A run with no continuity store configured
+    /// still passes that boundary.
+    func testTheTransitionBoundaryIsRecordedEvenWhenNothingWasPersisted() async throws {
+        let probe = PhaseProbe()
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+
+        let report = try await service.extractAndApply(
+            meetingID: meeting.id,
+            projectID: meeting.projectID,
+            phases: probe.recorder
+        )
+
+        XCTAssertEqual(report.transitionPersistenceStatus, .notConfigured)
+        let reached = try await probe.reachedPhases()
+        XCTAssertTrue(reached.contains(.transitionRecordReturned))
+    }
+
+    /// The whole point of the detached recorder: instrumentation must not become the next place a
+    /// run can fail or stall.
+    func testAMetricsRepositoryFailureDoesNotStopTheExtractionFromCompleting() async throws {
+        let recorder = ExtractionPhaseRecorder(
+            runID: UUID(),
+            projectID: meeting.projectID,
+            meetingID: meeting.id,
+            metrics: BetaMetricsService(repository: FailingBetaMetricsRepository()),
+            elapsedMilliseconds: { 0 }
+        )
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+
+        let report = try await service.extractAndApply(
+            meetingID: meeting.id,
+            projectID: meeting.projectID,
+            phases: recorder
+        )
+
+        XCTAssertEqual(report.storedDecisions, 1)
+        let project = try await storedProject()
+        XCTAssertEqual(project.decisions.count, 1)
+    }
+
+    /// Summary numbers describe the beta, not this investigation. A phase row must never move a
+    /// rate up or down.
+    func testPhaseRowsAreExcludedFromEverySummaryFigure() async throws {
+        let probe = PhaseProbe()
+        let service = makeService(.success(ExtractionFixtures.fullResult()))
+        _ = try await service.extractAndApply(
+            meetingID: meeting.id,
+            projectID: meeting.projectID,
+            phases: probe.recorder
+        )
+        _ = try await probe.reachedPhases()
+
+        let store = try await probe.store.store()
+        let summary = BetaMetricsSummary(store: store, calendar: Calendar(identifier: .gregorian))
+        XCTAssertEqual(summary.meetingsProcessed, 0)
+        XCTAssertEqual(summary.reviewedProposals, 0)
+        XCTAssertEqual(summary.durationSampleCount, 0)
+        XCTAssertNil(summary.medianDurationMilliseconds)
+    }
+
     // MARK: - Failure must not damage stored data
 
     func testProviderFailureLeavesTheSavedMeetingAndProjectUntouched() async throws {
@@ -391,4 +519,47 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         XCTAssertEqual(reloaded.nextAgenda[0].confidence, Confidence(0.8))
         XCTAssertEqual(reloaded.nextAgenda[0].evidence?.transcriptSegmentID, TestFixtures.segmentID)
     }
+}
+
+/// Collects the phase markers the detached recorder writes.
+///
+/// The recorder deliberately does not tell its caller when a mark landed, so the probe polls the
+/// store until the count settles rather than awaiting anything the extraction path can see.
+private struct PhaseProbe {
+    let store = InMemoryBetaMetricsRepository()
+
+    var recorder: ExtractionPhaseRecorder {
+        ExtractionPhaseRecorder(
+            runID: UUID(uuidString: "44000000-0000-4000-8000-000000000001")!,
+            projectID: TestFixtures.projectID,
+            meetingID: nil,
+            metrics: BetaMetricsService(repository: store),
+            elapsedMilliseconds: { 0 }
+        )
+    }
+
+    func reachedPhases() async throws -> [BetaMetricExtractionPhase] {
+        var previous = -1
+        for _ in 0..<200 {
+            let events = try await store.store().events.filter { $0.type == .extractionPhase }
+            if events.count == previous, previous >= 0 { break }
+            previous = events.count
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let events = try await store.store().events.filter { $0.type == .extractionPhase }
+        return events
+            .compactMap(\.extractionPhase)
+            .sorted { $0.sequence < $1.sequence }
+    }
+}
+
+private struct PhaseFailingProjectRepository: ProjectRepository {
+    enum SimulatedError: Error { case save }
+
+    let stored: Project
+
+    func save(_ project: Project) async throws { throw SimulatedError.save }
+    func project(id: UUID) async throws -> Project? { stored.id == id ? stored : nil }
+    func allProjects() async throws -> [Project] { [stored] }
+    func delete(id: UUID) async throws {}
 }

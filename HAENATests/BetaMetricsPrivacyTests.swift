@@ -61,11 +61,12 @@ final class BetaMetricsPrivacyTests: XCTestCase {
         "id", "deduplicationKey", "type", "occurredAt",
         "projectID", "meetingID", "proposalID", "proposalKind",
         "verdict", "fieldCategory", "captureSource", "outcome",
-        "durationMilliseconds", "resultCount"
+        "durationMilliseconds", "resultCount", "extractionPhase"
     ]
 
     private static let allowedEnumRawValues: Set<String> = Set(
         BetaMetricEventType.allCases.map(\.rawValue)
+            + BetaMetricExtractionPhase.allCases.map(\.rawValue)
             + BetaMetricVerdict.allCases.map(\.rawValue)
             + BetaMetricProposalKind.allCases.map(\.rawValue)
             + BetaMetricFieldCategory.allCases.map(\.rawValue)
@@ -219,7 +220,7 @@ final class BetaMetricsPrivacyTests: XCTestCase {
             [
                 "id", "deduplicationKey", "type", "occurredAt", "projectID", "meetingID",
                 "proposalID", "proposalKind", "verdict", "fieldCategory", "captureSource",
-                "outcome", "durationMilliseconds", "resultCount"
+                "outcome", "durationMilliseconds", "resultCount", "extractionPhase"
             ],
             "A changed field list is a schema change and must be reviewed here first."
         )
@@ -423,7 +424,8 @@ final class BetaMetricsPrivacyTests: XCTestCase {
             captureSource: .importedAudio,
             outcome: .succeeded,
             durationMilliseconds: 8_421,
-            resultCount: 12
+            resultCount: 12,
+            extractionPhase: .providerReturned
         )
     }
 

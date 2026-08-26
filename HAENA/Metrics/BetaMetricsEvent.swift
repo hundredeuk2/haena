@@ -11,6 +11,36 @@ enum BetaMetricEventType: String, Codable, Equatable, Sendable, CaseIterable {
     case proposalReviewed
     case proposalModified
     case processingDuration
+    /// Where one extraction run got to. Not a beta measurement of the product — a diagnostic
+    /// boundary marker for the completion-state investigation, deliberately kept in this store
+    /// because it already guarantees that only ids, finite enums, and durations are written.
+    case extractionPhase
+}
+
+/// The finite boundaries one `extractAndApply` run passes through, in logical order.
+///
+/// The whole point is to answer "how far did it get?" after a run that never reached the
+/// completion screen, without recording anything about what was extracted. Order is decided by
+/// this enum, never by the order rows happen to land in the file: the markers are written from a
+/// detached observation task, so file order says nothing about the run.
+///
+/// `transitionRecordReturned` says the continuity call returned finitely — persisted, failed, or
+/// not configured. It deliberately does not claim the transitions were saved; conflating "the
+/// call came back" with "the write succeeded" is what would make this marker lie.
+enum BetaMetricExtractionPhase: String, Codable, Equatable, Sendable, CaseIterable {
+    case extractionStarted
+    case providerReturned
+    case projectSaved
+    case transitionRecordReturned
+    case applyReturned
+    case runExtractionExited
+    case outcomeShown
+
+    /// Logical position, so a reader can sort markers without trusting append order.
+    var sequence: Int {
+        guard let index = Self.allCases.firstIndex(of: self) else { return 0 }
+        return index + 1
+    }
 }
 
 /// A person's verdict on one AI proposal, reduced to the only distinction the beta measures.
@@ -112,6 +142,9 @@ struct BetaMetricEvent: Identifiable, Codable, Equatable, Sendable {
     let outcome: BetaMetricOutcome?
     let durationMilliseconds: Int?
     let resultCount: Int?
+    /// Present only on `.extractionPhase` rows. Optional and additive: a file written before this
+    /// field existed decodes with nil.
+    let extractionPhase: BetaMetricExtractionPhase?
 
     init(
         id: UUID,
@@ -127,7 +160,8 @@ struct BetaMetricEvent: Identifiable, Codable, Equatable, Sendable {
         captureSource: BetaMetricCaptureSource? = nil,
         outcome: BetaMetricOutcome? = nil,
         durationMilliseconds: Int? = nil,
-        resultCount: Int? = nil
+        resultCount: Int? = nil,
+        extractionPhase: BetaMetricExtractionPhase? = nil
     ) {
         self.id = id
         self.deduplicationKey = deduplicationKey
@@ -143,6 +177,7 @@ struct BetaMetricEvent: Identifiable, Codable, Equatable, Sendable {
         self.outcome = outcome
         self.durationMilliseconds = durationMilliseconds
         self.resultCount = resultCount
+        self.extractionPhase = extractionPhase
     }
 }
 

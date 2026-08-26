@@ -168,6 +168,7 @@
 		816C7F91E1031FC92EF878E7 /* CredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42CD04B98CDB8B3BF0EA8815 /* CredentialStoreTests.swift */; };
 		830767CBDCF70F68F6E2A5DA /* AudioFileValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6C5362404550D20169DF16 /* AudioFileValidatorTests.swift */; };
 		834F87A588641B4497DE2409 /* JSONProjectRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCBB3302A2C8A2E4FA5C2D9 /* JSONProjectRepository.swift */; };
+		83F383E46CF5E53AB27111E2 /* ExtractionPhaseRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127862B899ECD773F8B9B074 /* ExtractionPhaseRecorder.swift */; };
 		845A025BB999125014855F7F /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56952421557CED7EF65F86BC /* Project.swift */; };
 		87163F5E7BCA47C7FBB1DBCF /* AgentLedgerReminderIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083FC97266BE266F1C933652 /* AgentLedgerReminderIntegrationTests.swift */; };
 		87482EE98FCF50233B00BEFD /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1FC2B0C8387160678C5E7A /* JSONValue.swift */; };
@@ -363,6 +364,7 @@
 		0BAB9FB0BCD3553973DEC991 /* PasteTranscriptUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTranscriptUITests.swift; sourceTree = "<group>"; };
 		0BF0EB15856555142F021913 /* PresentationFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationFormattingTests.swift; sourceTree = "<group>"; };
 		0DF1A19572856905CB897C50 /* PredictionArtifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionArtifact.swift; sourceTree = "<group>"; };
+		127862B899ECD773F8B9B074 /* ExtractionPhaseRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionPhaseRecorder.swift; sourceTree = "<group>"; };
 		12F6508DB11D12F1B2241ADA /* PastedTranscriptPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastedTranscriptPersistenceTests.swift; sourceTree = "<group>"; };
 		140065D09E7BFEC5C3A7D2EC /* WorkStateInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateInbox.swift; sourceTree = "<group>"; };
 		14196260E32CCD0BA4543306 /* WorkStateContinuityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateContinuityService.swift; sourceTree = "<group>"; };
@@ -785,6 +787,7 @@
 				5ED38377F3A2CDE356CC39A4 /* BetaMetricsRepository.swift */,
 				4573A5FFAC134E3C301234DC /* BetaMetricsService.swift */,
 				8E8560EC57139E877E320611 /* BetaMetricsSummary.swift */,
+				127862B899ECD773F8B9B074 /* ExtractionPhaseRecorder.swift */,
 			);
 			path = Metrics;
 			sourceTree = "<group>";
@@ -1527,6 +1530,7 @@
 				FE3DCFA308D930BB7BDA541F /* DeterministicTranscriptionProvider.swift in Sources */,
 				6612A9E67C516BA0459BEAED /* DeterministicWorkStateExtractor.swift in Sources */,
 				D5EFEC1663327623F5E0871A /* EvidenceReference.swift in Sources */,
+				83F383E46CF5E53AB27111E2 /* ExtractionPhaseRecorder.swift in Sources */,
 				3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */,
 				4F34E1483A7ED1CC786CBFE2 /* HTTPTransport.swift in Sources */,
 				0B410ACE996570B683C215E0 /* HomeSummary.swift in Sources */,

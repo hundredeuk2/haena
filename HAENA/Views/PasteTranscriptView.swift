@@ -457,7 +457,14 @@ struct PasteTranscriptView: View {
 
             // The transcript is already safely persisted at this point. Extraction runs after,
             // as a separate step whose failure is reported but never rolls the save back.
-            let notice = await runExtraction(for: meeting)
+            let phases = ExtractionPhaseRecorder(
+                runID: run.id,
+                projectID: meeting.projectID,
+                meetingID: meeting.id,
+                metrics: metrics,
+                elapsedMilliseconds: { run.elapsedMilliseconds }
+            )
+            let notice = await runExtraction(for: meeting, phases: phases)
             let completed = await CaptureOutcome.make(
                 for: meeting,
                 notice: notice,
@@ -465,6 +472,7 @@ struct PasteTranscriptView: View {
             )
             // The screen is handed the result first; measuring waits its turn behind it.
             outcome = completed
+            phases.mark(.outcomeShown)
             await run.recordSuccess(completed)
         }
     }
@@ -472,15 +480,25 @@ struct PasteTranscriptView: View {
     /// Returns the non-blocking notice to carry onto the completion screen, or nil when extraction
     /// did what it was asked to. A failure here never undoes the save, so it is reported beside the
     /// meeting rather than instead of it.
-    private func runExtraction(for meeting: Meeting) async -> String? {
+    private func runExtraction(
+        for meeting: Meeting,
+        phases: ExtractionPhaseRecorder
+    ) async -> String? {
         isExtracting = true
-        defer { isExtracting = false }
+        // Marked after the flag is cleared, not on entering the defer, so the boundary means "the
+        // spinner is down" rather than "we are about to put it down".
+        defer {
+            isExtracting = false
+            phases.mark(.runExtractionExited)
+        }
 
         do {
             try await extractionService.extractAndApply(
                 meetingID: meeting.id,
-                projectID: meeting.projectID
+                projectID: meeting.projectID,
+                phases: phases
             )
+            phases.mark(.applyReturned)
             return nil
         } catch {
             return extractionFailureMessage(for: error)

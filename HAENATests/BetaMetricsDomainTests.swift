@@ -341,6 +341,42 @@ final class BetaMetricsDomainTests: XCTestCase {
 
     /// The report is read from disk on every launch, so a store written and read back has to yield
     /// the identical summary — a beta whose numbers change across a restart is not a measurement.
+    /// A file written before `extractionPhase` existed must still decode, and a file with the new
+    /// rows must round-trip. The field is additive and optional and the store stays on schema 1,
+    /// so no existing `beta-metrics.json` is stranded by this investigation.
+    func testASchemaOneFileWithoutThePhaseFieldStillDecodesAndRoundTrips() throws {
+        let legacy = """
+        {"schemaVersion":1,"measurementStartedAt":0,"events":[{\
+        "id":"55000000-0000-4000-8000-000000000001",\
+        "deduplicationKey":"meetingProcessed:55000000-0000-4000-8000-000000000002",\
+        "type":"meetingProcessed","occurredAt":0,\
+        "meetingID":"55000000-0000-4000-8000-000000000002"}]}
+        """
+        let decoded = try JSONDecoder().decode(
+            BetaMetricsStoreFile.self,
+            from: Data(legacy.utf8)
+        )
+        XCTAssertEqual(decoded.events.count, 1)
+        XCTAssertNil(decoded.events[0].extractionPhase)
+
+        var withPhase = decoded
+        withPhase.events.append(
+            BetaMetricEvent(
+                id: UUID(uuidString: "55000000-0000-4000-8000-000000000003")!,
+                deduplicationKey: "extractionPhase:55000000-0000-4000-8000-000000000004:projectSaved",
+                type: .extractionPhase,
+                occurredAt: Date(timeIntervalSinceReferenceDate: 0),
+                durationMilliseconds: 1_200,
+                extractionPhase: .projectSaved
+            )
+        )
+        let reencoded = try JSONEncoder().encode(withPhase)
+        let roundTripped = try JSONDecoder().decode(BetaMetricsStoreFile.self, from: reencoded)
+        XCTAssertEqual(roundTripped, withPhase)
+        XCTAssertEqual(roundTripped.events.last?.extractionPhase, .projectSaved)
+        XCTAssertEqual(roundTripped.schemaVersion, 1)
+    }
+
     func testTheSummaryIsUnchangedAfterAJSONRoundTrip() async throws {
         let url = directory.appendingPathComponent("beta-metrics.json")
         let writer = JSONBetaMetricsRepository(fileURL: url, now: { Self.now })

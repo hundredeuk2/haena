@@ -70,7 +70,14 @@ struct WorkStateExtractionService: Sendable {
     }
 
     @discardableResult
-    func extractAndApply(meetingID: UUID, projectID: UUID) async throws -> WorkStateExtractionReport {
+    /// `phases` is diagnostic only. It is never awaited, never changes control flow, and a nil
+    /// recorder leaves this method byte-for-byte the behaviour it had before.
+    func extractAndApply(
+        meetingID: UUID,
+        projectID: UUID,
+        phases: ExtractionPhaseRecorder? = nil
+    ) async throws -> WorkStateExtractionReport {
+        phases?.mark(.extractionStarted)
         let initialProject = try await requireProject(projectID)
         guard let meeting = initialProject.meetings.first(where: { $0.id == meetingID }) else {
             throw WorkStateExtractionServiceError.meetingNotFound
@@ -86,6 +93,7 @@ struct WorkStateExtractionService: Sendable {
                 priorWorkStates: priorContext.providerReferences
             )
         )
+        phases?.mark(.providerReturned)
 
         // Phase one validates and assigns stable app identity to base work state. Phase two maps
         // sidecars only through accepted provider keys and the local prior-reference allow-list.
@@ -122,6 +130,7 @@ struct WorkStateExtractionService: Sendable {
         } catch {
             throw WorkStateExtractionServiceError.repositoryFailure
         }
+        phases?.mark(.projectSaved)
 
         var persistenceStatus: WorkStateTransitionPersistenceStatus = .notConfigured
         if let continuity {
@@ -143,6 +152,9 @@ struct WorkStateExtractionService: Sendable {
                 persistenceStatus = .failed
             }
         }
+        // Says the continuity call came back finitely — persisted, failed, or not configured. It
+        // is not a claim that the transitions were written; `persistenceStatus` is.
+        phases?.mark(.transitionRecordReturned)
 
         return WorkStateExtractionReport(
             storedDecisions: validated.decisions.count,

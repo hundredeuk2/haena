@@ -82,6 +82,33 @@ struct BetaMetricsService: Sendable {
         )
     }
 
+    /// Where one extraction run got to, keyed on the run and the boundary so a repeated marker for
+    /// the same boundary of the same run collapses to one row.
+    ///
+    /// Nothing about what was extracted is recorded — no transcript, title, participant, provider
+    /// payload, error text, or attempt count. Only the run id, the finite boundary, how long the
+    /// user had been waiting when it was reached, and the ids the caller already holds.
+    func recordExtractionPhase(
+        runID: UUID,
+        phase: BetaMetricExtractionPhase,
+        milliseconds: Int,
+        projectID: UUID?,
+        meetingID: UUID?
+    ) async {
+        await record(
+            BetaMetricEvent(
+                id: makeID(),
+                deduplicationKey: Self.key(.extractionPhase, runID, phase.rawValue),
+                type: .extractionPhase,
+                occurredAt: now(),
+                projectID: projectID,
+                meetingID: meetingID,
+                durationMilliseconds: milliseconds,
+                extractionPhase: phase
+            )
+        )
+    }
+
     /// A person's verdict on one proposal. Keyed on the proposal, so the **first** verdict wins.
     ///
     /// The first verdict is the one the extraction earned: if a user approves an item and later
