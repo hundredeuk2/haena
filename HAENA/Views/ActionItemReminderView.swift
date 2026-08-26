@@ -30,8 +30,14 @@ struct ActionItemReminderView: View {
         self.existingReminder = existingReminder
         self.onChanged = onChanged
         self.onClose = onClose
+        // Editing a live reminder opens on the time the user already approved. Re-approving a
+        // retired one does not: its fire time was chosen against a deadline that has since moved,
+        // so offering it again would walk the user straight back into the date they need to
+        // reconsider. The suggestion is only a default either way — nothing is scheduled until the
+        // user confirms it below.
+        let activeReminder = existingReminder.flatMap { $0.status == .scheduled ? $0 : nil }
         _fireAt = State(
-            initialValue: existingReminder?.fireAt
+            initialValue: activeReminder?.fireAt
                 ?? service.suggestedFireDate(for: actionItem.dueDate ?? Date())
         )
     }

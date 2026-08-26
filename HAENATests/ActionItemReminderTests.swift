@@ -262,6 +262,248 @@ final class ActionItemReminderTests: XCTestCase {
         XCTAssertTrue(pending.isEmpty)
     }
 
+    /// The projection gate, exercised through `schedule` rather than only through `eligibility`.
+    ///
+    /// Every one of these is a task the user has not personally taken on with a settled deadline,
+    /// and a reminder for any of them would be the app asserting an assignment nobody made. An
+    /// unresolved attribution reaches this as a nil `assigneeID` — the mapper only fills that in
+    /// for `.resolved` — so "unowned" and "unresolved" are refused by the same rule.
+    func testScheduleRefusesEveryTaskThatIsNotApprovedOwnedAndDated() async throws {
+        let cases: [(String, ActionItem, ActionItemReminderEligibility)] = [
+            ("pending proposal", makeActionItem(status: .proposed), .notConfirmed),
+            ("unresolved attribution", makeActionItem(assigneeID: nil), .notAssignedToUser),
+            ("someone else's task", makeActionItem(assigneeID: UUID()), .notAssignedToUser),
+            ("no due date", makeActionItem(dueDate: nil), .dueDateMissing)
+        ]
+
+        for (label, item, expected) in cases {
+            let reminders = InMemoryActionItemReminderRepository()
+            let notifications = InMemoryLocalNotificationScheduler()
+            let service = try await makeService(
+                actionItem: item,
+                reminders: reminders,
+                notifications: notifications
+            )
+
+            do {
+                _ = try await service.schedule(
+                    projectID: Self.projectID,
+                    actionItemID: Self.actionItemID,
+                    fireAt: Self.now.addingTimeInterval(3_600)
+                )
+                XCTFail("\(label): expected the projection to be refused")
+            } catch {
+                XCTAssertEqual(error as? ActionItemReminderError, .ineligible(expected), label)
+            }
+
+            let stored = await reminders.reminder(for: Self.actionItemID)
+            let pending = await notifications.pendingIdentifiers()
+            XCTAssertNil(stored, "\(label): no job may be stored")
+            XCTAssertTrue(pending.isEmpty, "\(label): no OS request may be left behind")
+        }
+    }
+
+    /// Reconcile runs on every browser open, so "repair what drifted" must never mean "add another
+    /// one". The store keys jobs by Action Item, and this pins that the repeated pass leaves both
+    /// the job and the OS request exactly as they were.
+    func testRepeatedReconcileRepairsWithoutEverDuplicatingTheProjection() async throws {
+        let reminder = makeReminder(fireAt: Self.now.addingTimeInterval(3_600))
+        let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
+        let notifications = InMemoryLocalNotificationScheduler(authorization: .authorized)
+        let service = try await makeService(reminders: reminders, notifications: notifications)
+
+        for _ in 0..<3 {
+            await service.reconcile()
+        }
+
+        let stored = await reminders.allReminders()
+        let pending = await notifications.pendingIdentifiers()
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored.first, reminder, "an unchanged task must not be rewritten")
+        XCTAssertEqual(pending, [reminder.notificationIdentifier])
+    }
+
+    /// Excluding a task is not the same event as completing one, and the cancellation reason is
+    /// what a later Ledger read uses to tell them apart.
+    func testReconcileCancelsAnExcludedTaskAsCancelledRatherThanCompleted() async throws {
+        let reminder = makeReminder(fireAt: Self.now.addingTimeInterval(3_600))
+        let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
+        let notifications = InMemoryLocalNotificationScheduler(
+            requests: [makeNotificationRequest(for: reminder)]
+        )
+        let service = try await makeService(
+            actionItem: makeActionItem(status: .cancelled),
+            reminders: reminders,
+            notifications: notifications
+        )
+
+        await service.reconcile()
+
+        let stored = await reminders.reminder(for: Self.actionItemID)
+        let pending = await notifications.pendingIdentifiers()
+        XCTAssertEqual(stored?.status, .cancelled)
+        XCTAssertEqual(stored?.cancellationReason, .actionItemCancelled)
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    // MARK: - Due-date changes after approval
+
+    func testScheduleRecordsTheDueDateTheUserApprovedAgainst() async throws {
+        let reminders = InMemoryActionItemReminderRepository()
+        let due = Self.now.addingTimeInterval(86_400)
+        let service = try await makeService(
+            actionItem: makeActionItem(dueDate: due),
+            reminders: reminders
+        )
+
+        _ = try await service.schedule(
+            projectID: Self.projectID,
+            actionItemID: Self.actionItemID,
+            fireAt: Self.now.addingTimeInterval(3_600)
+        )
+
+        let stored = await reminders.reminder(for: Self.actionItemID)
+        XCTAssertEqual(stored?.approvedDueDate, due)
+    }
+
+    func testReconcileLeavesTheApprovedTimeAloneWhenTheDueDateIsUnchanged() async throws {
+        let due = Self.now.addingTimeInterval(86_400)
+        let reminder = makeReminder(fireAt: Self.now.addingTimeInterval(3_600), approvedDueDate: due)
+        let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
+        let notifications = InMemoryLocalNotificationScheduler(
+            requests: [makeNotificationRequest(for: reminder)]
+        )
+        let service = try await makeService(
+            actionItem: makeActionItem(dueDate: due),
+            reminders: reminders,
+            notifications: notifications
+        )
+
+        await service.reconcile()
+
+        let stored = await reminders.reminder(for: Self.actionItemID)
+        let pending = await notifications.pendingIdentifiers()
+        XCTAssertEqual(stored, reminder)
+        XCTAssertEqual(pending, [reminder.notificationIdentifier])
+    }
+
+    /// The deadline moved after the user approved a time for it. Following it automatically would
+    /// rewrite the user's own choice, so the job is retired and a fresh approval is asked for.
+    func testReconcileRetiresTheProjectionWhenTheDueDateMovedAfterApproval() async throws {
+        let approvedDue = Self.now.addingTimeInterval(86_400)
+        let reminder = makeReminder(
+            fireAt: Self.now.addingTimeInterval(3_600),
+            approvedDueDate: approvedDue
+        )
+        let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
+        let notifications = InMemoryLocalNotificationScheduler(
+            requests: [makeNotificationRequest(for: reminder)]
+        )
+        let ledgerRepository = InMemoryAgentLedgerRepository()
+        let service = try await makeService(
+            actionItem: makeActionItem(dueDate: approvedDue.addingTimeInterval(172_800)),
+            reminders: reminders,
+            notifications: notifications,
+            ledger: AgentLedgerService(repository: ledgerRepository, now: { Self.now })
+        )
+
+        await service.reconcile()
+
+        let stored = await reminders.reminder(for: Self.actionItemID)
+        let pending = await notifications.pendingIdentifiers()
+        XCTAssertEqual(stored?.status, .cancelled)
+        XCTAssertEqual(stored?.cancellationReason, .dueDateChanged)
+        XCTAssertEqual(stored?.fireAt, reminder.fireAt, "the approved time is never rewritten")
+        XCTAssertTrue(pending.isEmpty)
+
+        let events = await ledgerRepository.events(limit: nil)
+        let cancellation = try XCTUnwrap(events.first { $0.type == .cancelled }?.cancellation)
+        XCTAssertEqual(
+            cancellation.reason,
+            .dueDateChanged,
+            "the Ledger records the same policy outcome as the reminder"
+        )
+    }
+
+    /// Rows written before the approved due date was recorded cannot answer "did it move?", so the
+    /// honest outcome is to leave them alone rather than cancel on a comparison we cannot make.
+    func testLegacyReminderWithoutAnApprovedDueDateIsNeverCancelledOnAGuess() async throws {
+        let reminder = makeReminder(fireAt: Self.now.addingTimeInterval(3_600), approvedDueDate: nil)
+        let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
+        let notifications = InMemoryLocalNotificationScheduler(
+            requests: [makeNotificationRequest(for: reminder)]
+        )
+        let service = try await makeService(
+            actionItem: makeActionItem(dueDate: Self.now.addingTimeInterval(999_999)),
+            reminders: reminders,
+            notifications: notifications
+        )
+
+        await service.reconcile()
+
+        let stored = await reminders.reminder(for: Self.actionItemID)
+        let pending = await notifications.pendingIdentifiers()
+        XCTAssertEqual(stored?.status, .scheduled)
+        XCTAssertNil(stored?.cancellationReason)
+        XCTAssertEqual(pending, [reminder.notificationIdentifier])
+    }
+
+    func testReapprovingAfterADueDateChangeStartsANewRunAgainstTheCurrentDueDate() async throws {
+        let approvedDue = Self.now.addingTimeInterval(86_400)
+        let movedDue = approvedDue.addingTimeInterval(172_800)
+        var retired = makeReminder(fireAt: Self.now.addingTimeInterval(3_600), approvedDueDate: approvedDue)
+        retired.status = .cancelled
+        retired.cancellationReason = .dueDateChanged
+        let reminders = InMemoryActionItemReminderRepository(reminders: [retired])
+        let successorID = UUID(uuidString: "10000000-0000-0000-0000-000000000009")!
+        let service = try await makeService(
+            actionItem: makeActionItem(dueDate: movedDue),
+            reminders: reminders,
+            makeID: { successorID }
+        )
+
+        let reapproved = try await service.schedule(
+            projectID: Self.projectID,
+            actionItemID: Self.actionItemID,
+            fireAt: Self.now.addingTimeInterval(7_200)
+        )
+
+        let stored = await reminders.allReminders()
+        XCTAssertEqual(stored.count, 1, "re-approval replaces the retired job rather than adding one")
+        XCTAssertEqual(reapproved.approvedDueDate, movedDue)
+        XCTAssertEqual(reapproved.status, .scheduled)
+        XCTAssertNil(reapproved.cancellationReason)
+        XCTAssertEqual(reapproved.id, successorID, "a retired job's successor is a new run")
+    }
+
+    /// A file written before `approvedDueDate` existed must still load and re-save. The field is
+    /// additive and the store stays on schema 1, so no user's existing reminders are stranded.
+    func testSchemaOneFileWithoutTheNewFieldStillLoadsAndResaves() async throws {
+        let url = directory.appendingPathComponent("agent-jobs.json")
+        let legacy = """
+        {"schemaVersion":1,"reminders":[{"id":"\(Self.reminderID.uuidString)",\
+        "projectID":"\(Self.projectID.uuidString)","actionItemID":"\(Self.actionItemID.uuidString)",\
+        "fireAt":\(Self.now.addingTimeInterval(3_600).timeIntervalSinceReferenceDate),\
+        "status":"scheduled","createdAt":\(Self.now.timeIntervalSinceReferenceDate),\
+        "updatedAt":\(Self.now.timeIntervalSinceReferenceDate)}]}
+        """
+        try Data(legacy.utf8).write(to: url)
+
+        let store = JSONActionItemReminderRepository(fileURL: url)
+        let loaded = try await store.allReminders()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertNil(loaded.first?.approvedDueDate)
+
+        var updated = try XCTUnwrap(loaded.first)
+        updated.approvedDueDate = Self.now.addingTimeInterval(86_400)
+        try await store.save(updated)
+
+        let reloaded = try await JSONActionItemReminderRepository(fileURL: url).allReminders()
+        XCTAssertEqual(reloaded, [updated])
+        let raw = try XCTUnwrap(String(data: Data(contentsOf: url), encoding: .utf8))
+        XCTAssertTrue(raw.contains("\"schemaVersion\":1"))
+    }
+
     func testReconcileRestoresAMissingPendingRequestWithoutPrompting() async throws {
         let reminder = makeReminder(fireAt: Self.now.addingTimeInterval(3600))
         let reminders = InMemoryActionItemReminderRepository(reminders: [reminder])
@@ -280,7 +522,9 @@ final class ActionItemReminderTests: XCTestCase {
         actionItem: ActionItem? = nil,
         reminders: any ActionItemReminderRepository = InMemoryActionItemReminderRepository(),
         notifications: any LocalNotificationScheduler = InMemoryLocalNotificationScheduler(),
-        now: @escaping @Sendable () -> Date = { ActionItemReminderTests.now }
+        ledger: AgentLedgerService? = nil,
+        now: @escaping @Sendable () -> Date = { ActionItemReminderTests.now },
+        makeID: @escaping @Sendable () -> UUID = { ActionItemReminderTests.reminderID }
     ) async throws -> ActionItemReminderService {
         let projects = InMemoryProjectRepository()
         try await projects.save(makeProject(actionItem: actionItem ?? makeActionItem()))
@@ -290,9 +534,10 @@ final class ActionItemReminderTests: XCTestCase {
             projectRepository: projects,
             profileRepository: profiles,
             notifications: notifications,
+            ledger: ledger,
             calendar: calendar,
             now: now,
-            makeID: { Self.reminderID }
+            makeID: makeID
         )
     }
 
@@ -357,12 +602,16 @@ final class ActionItemReminderTests: XCTestCase {
         )
     }
 
-    private func makeReminder(fireAt: Date) -> ActionItemReminder {
+    private func makeReminder(
+        fireAt: Date,
+        approvedDueDate: Date? = nil
+    ) -> ActionItemReminder {
         ActionItemReminder(
             id: Self.reminderID,
             projectID: Self.projectID,
             actionItemID: Self.actionItemID,
             fireAt: fireAt,
+            approvedDueDate: approvedDueDate,
             status: .scheduled,
             createdAt: Self.now,
             updatedAt: Self.now,

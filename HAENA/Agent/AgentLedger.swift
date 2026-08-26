@@ -33,6 +33,7 @@ enum AgentLedgerCancellationReason: String, Codable, Equatable, Sendable {
     case projectDeleted
     case noLongerAssignedToUser
     case dueDateRemoved
+    case dueDateChanged
     case notificationPermissionDenied
 
     init(_ reason: ActionItemReminderCancellationReason) {
@@ -44,6 +45,7 @@ enum AgentLedgerCancellationReason: String, Codable, Equatable, Sendable {
         case .projectDeleted: self = .projectDeleted
         case .noLongerAssignedToUser: self = .noLongerAssignedToUser
         case .dueDateRemoved: self = .dueDateRemoved
+        case .dueDateChanged: self = .dueDateChanged
         case .notificationPermissionDenied: self = .notificationPermissionDenied
         }
     }
