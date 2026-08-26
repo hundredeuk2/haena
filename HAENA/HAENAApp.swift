@@ -1,5 +1,7 @@
 import AppKit
+#if DEBUG
 import Darwin
+#endif
 import Foundation
 import SwiftUI
 
@@ -17,6 +19,7 @@ enum AppComponentSelection {
     }
 }
 
+#if DEBUG
 /// Debug-only assembly contract for process-level recovery smoke tests.
 ///
 /// The root is required to be a strict descendant of the system temporary directory. An invalid
@@ -182,6 +185,25 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
         }
     }
 }
+#endif
+
+private struct AppComponentAssembly {
+    let repository: any WorkStateTransitionProjectRepository
+    let transitionRepository: any WorkStateTransitionRepository
+    let extractor: any WorkStateExtractor
+    let transcriptionProvider: any TranscriptionProvider
+    let credentialResolver: OpenAICredentialResolver
+    let audioAssetStore: AudioAssetStore
+    let audioRecorder: any MeetingAudioRecorder
+    let recordingScratchStore: RecordingScratchStore
+    let makeAudioPlayer: () -> any MeetingAudioPlayer
+    let profileRepository: any LocalUserProfileRepository
+    let reminderRepository: any ActionItemReminderRepository
+    let ledgerRepository: any AgentLedgerRepository
+    let metricsRepository: any BetaMetricsRepository
+    let notificationScheduler: any LocalNotificationScheduler
+    let didReachCheckpoint: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void
+}
 
 @main
 struct HAENAApp: App {
@@ -212,16 +234,42 @@ struct HAENAApp: App {
     @State private var showingRecordAudio = false
 
     init() {
-        let recoveryProcessConfiguration: TransitionApplyRecoveryProcessTestConfiguration?
+        let recoveryProcessAssembly: AppComponentAssembly?
         #if DEBUG
         do {
-            recoveryProcessConfiguration = try TransitionApplyRecoveryProcessTestConfiguration.load()
-            try recoveryProcessConfiguration?.seedIfRequested()
+            let configuration = try TransitionApplyRecoveryProcessTestConfiguration.load()
+            try configuration?.seedIfRequested()
+            recoveryProcessAssembly = configuration.map { configuration in
+                AppComponentAssembly(
+                    repository: JSONProjectRepository(fileURL: configuration.projectsURL),
+                    transitionRepository: JSONWorkStateTransitionRepository(
+                        fileURL: configuration.transitionsURL
+                    ),
+                    extractor: DeterministicWorkStateExtractor(),
+                    transcriptionProvider: DeterministicTranscriptionProvider(),
+                    credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
+                    audioAssetStore: AudioAssetStore(
+                        directoryURL: configuration.rootURL.appendingPathComponent("audio", isDirectory: true)
+                    ),
+                    audioRecorder: DeterministicMeetingAudioRecorder(),
+                    recordingScratchStore: RecordingScratchStore(
+                        directoryURL: configuration.rootURL
+                            .appendingPathComponent("recordings", isDirectory: true)
+                    ),
+                    makeAudioPlayer: { DeterministicMeetingAudioPlayer() },
+                    profileRepository: InMemoryLocalUserProfileRepository(),
+                    reminderRepository: InMemoryActionItemReminderRepository(),
+                    ledgerRepository: InMemoryAgentLedgerRepository(),
+                    metricsRepository: InMemoryBetaMetricsRepository(),
+                    notificationScheduler: InMemoryLocalNotificationScheduler(),
+                    didReachCheckpoint: configuration.checkpointObserver
+                )
+            }
         } catch {
             fatalError("Invalid isolated transition recovery process-test configuration: \(error)")
         }
         #else
-        recoveryProcessConfiguration = nil
+        recoveryProcessAssembly = nil
         #endif
 
         // UI tests must never read or write the real Application Support data, nor reach the
@@ -232,29 +280,21 @@ struct HAENAApp: App {
         // Note this is the *only* place either implementation is chosen: the deterministic
         // extractor is never substituted for OpenAI when a request fails, because showing a user
         // invented decisions and tasks in place of an error would be worse than showing nothing.
-        if let recoveryProcessConfiguration {
-            repository = JSONProjectRepository(fileURL: recoveryProcessConfiguration.projectsURL)
-            transitionRepository = JSONWorkStateTransitionRepository(
-                fileURL: recoveryProcessConfiguration.transitionsURL
-            )
-            extractor = DeterministicWorkStateExtractor()
-            transcriptionProvider = DeterministicTranscriptionProvider()
-            credentialResolver = OpenAICredentialResolver(store: InMemoryAPICredentialStore())
-            audioAssetStore = AudioAssetStore(
-                directoryURL: recoveryProcessConfiguration.rootURL
-                    .appendingPathComponent("audio", isDirectory: true)
-            )
-            audioRecorder = DeterministicMeetingAudioRecorder()
-            recordingScratchStore = RecordingScratchStore(
-                directoryURL: recoveryProcessConfiguration.rootURL
-                    .appendingPathComponent("recordings", isDirectory: true)
-            )
-            makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
-            profileRepository = InMemoryLocalUserProfileRepository()
-            reminderRepository = InMemoryActionItemReminderRepository()
-            ledgerRepository = InMemoryAgentLedgerRepository()
-            metricsRepository = InMemoryBetaMetricsRepository()
-            notificationScheduler = InMemoryLocalNotificationScheduler()
+        if let recoveryProcessAssembly {
+            repository = recoveryProcessAssembly.repository
+            transitionRepository = recoveryProcessAssembly.transitionRepository
+            extractor = recoveryProcessAssembly.extractor
+            transcriptionProvider = recoveryProcessAssembly.transcriptionProvider
+            credentialResolver = recoveryProcessAssembly.credentialResolver
+            audioAssetStore = recoveryProcessAssembly.audioAssetStore
+            audioRecorder = recoveryProcessAssembly.audioRecorder
+            recordingScratchStore = recoveryProcessAssembly.recordingScratchStore
+            makeAudioPlayer = recoveryProcessAssembly.makeAudioPlayer
+            profileRepository = recoveryProcessAssembly.profileRepository
+            reminderRepository = recoveryProcessAssembly.reminderRepository
+            ledgerRepository = recoveryProcessAssembly.ledgerRepository
+            metricsRepository = recoveryProcessAssembly.metricsRepository
+            notificationScheduler = recoveryProcessAssembly.notificationScheduler
         } else if _isDebugAssertConfiguration() && AppComponentSelection.isUITesting() {
             let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
                 ? ManualContinuityBriefUITestSeed.make()
@@ -341,17 +381,18 @@ struct HAENAApp: App {
             transitions: transitionRepository,
             profiles: profileRepository
         )
-        let checkpointObserver: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void
-        if let recoveryProcessConfiguration {
-            checkpointObserver = recoveryProcessConfiguration.checkpointObserver
+        if let recoveryProcessAssembly {
+            transitionReviewService = WorkStateTransitionReviewService(
+                projectRepository: repository,
+                transitionRepository: transitionRepository,
+                didReachCheckpoint: recoveryProcessAssembly.didReachCheckpoint
+            )
         } else {
-            checkpointObserver = { _ in }
+            transitionReviewService = WorkStateTransitionReviewService(
+                projectRepository: repository,
+                transitionRepository: transitionRepository
+            )
         }
-        transitionReviewService = WorkStateTransitionReviewService(
-            projectRepository: repository,
-            transitionRepository: transitionRepository,
-            didReachCheckpoint: checkpointObserver
-        )
 
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
         // Recordings are scratch by definition: nothing outside a live recording screen refers to
