@@ -269,7 +269,7 @@ final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
             repository: repository,
             extractor: OpenAIWorkStateExtractor(
                 configuration: configuration,
-                apiKeyProvider: { apiKey }
+                credentialProvider: { .resolved(apiKey) }
             )
         )
 
@@ -434,7 +434,7 @@ final class OpenAIWorkStateExtractionLiveTests: XCTestCase {
         let extractor = TitleRedactingWorkStateExtractor(
             underlying: OpenAIWorkStateExtractor(
                 configuration: configuration,
-                apiKeyProvider: { apiKey },
+                credentialProvider: { .resolved(apiKey) },
                 transport: guardedTransport
             )
         )

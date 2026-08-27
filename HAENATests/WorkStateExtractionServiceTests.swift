@@ -83,6 +83,43 @@ final class WorkStateExtractionServiceTests: XCTestCase {
         XCTAssertEqual(report.metadata.modelID, "test-model")
     }
 
+    // MARK: - Credential boundary
+
+    /// The product promise behind the credential split: a run that cannot get a key finishes, and
+    /// finishes having touched nothing. The meeting the user already saved stays exactly as it was.
+    func testACredentialThatNeedsInteractionLeavesTheMeetingAndChangesNothingElse() async throws {
+        let before = try await storedProject()
+        let service = makeService(.failure(.credentialInteractionRequired))
+
+        do {
+            _ = try await service.extractAndApply(meetingID: meeting.id, projectID: meeting.projectID)
+            XCTFail("expected the credential boundary to propagate")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .credentialInteractionRequired)
+        }
+
+        let after = try await storedProject()
+        XCTAssertEqual(after.meetings.map(\.id), before.meetings.map(\.id))
+        XCTAssertTrue(after.decisions.isEmpty)
+        XCTAssertTrue(after.actionItems.isEmpty)
+        XCTAssertTrue(after.openQuestions.isEmpty)
+        XCTAssertTrue(after.nextAgenda.isEmpty)
+    }
+
+    func testACredentialThatNeedsInteractionStopsTheMarkersAtTheStartedBoundary() async throws {
+        let probe = PhaseProbe()
+        let service = makeService(.failure(.credentialInteractionRequired))
+
+        _ = try? await service.extractAndApply(
+            meetingID: meeting.id,
+            projectID: meeting.projectID,
+            phases: probe.recorder
+        )
+
+        let reached = try await probe.reachedPhases()
+        XCTAssertEqual(reached, [.extractionStarted])
+    }
+
     // MARK: - Phase instrumentation
 
     /// The markers exist to answer "how far did it get?" after a run that never reached the

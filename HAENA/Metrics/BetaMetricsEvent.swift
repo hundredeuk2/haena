@@ -29,6 +29,9 @@ enum BetaMetricEventType: String, Codable, Equatable, Sendable, CaseIterable {
 /// call came back" with "the write succeeded" is what would make this marker lie.
 enum BetaMetricExtractionPhase: String, Codable, Equatable, Sendable, CaseIterable {
     case extractionStarted
+    case credentialResolutionStarted
+    case credentialResolved
+    case requestDispatched
     case providerReturned
     case projectSaved
     case transitionRecordReturned

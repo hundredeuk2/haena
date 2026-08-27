@@ -91,7 +91,19 @@ struct WorkStateExtractionService: Sendable {
             from: WorkStateExtractionInput(
                 meeting: meeting,
                 priorWorkStates: priorContext.providerReferences
-            )
+            ),
+            // Same recorder, same run id, same non-blocking contract as every other marker here.
+            // The provider reports where inside its own call it got to; the mapping to a stored
+            // phase stays on this side so the provider never names a metrics type.
+            phases: phases.map { recorder -> WorkStateExtractionPhaseSink in
+                { @Sendable phase in
+                    switch phase {
+                    case .credentialResolutionStarted: recorder.mark(.credentialResolutionStarted)
+                    case .credentialResolved: recorder.mark(.credentialResolved)
+                    case .requestDispatched: recorder.mark(.requestDispatched)
+                    }
+                }
+            }
         )
         phases?.mark(.providerReturned)
 

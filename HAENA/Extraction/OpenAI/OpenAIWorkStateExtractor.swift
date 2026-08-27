@@ -9,30 +9,54 @@ import Foundation
 /// added as a sibling type without the rest of the app knowing.
 struct OpenAIWorkStateExtractor: WorkStateExtractor {
     private let configuration: OpenAIConfiguration
-    private let apiKeyProvider: @Sendable () -> String?
+    private let credentialProvider: @Sendable () async -> CredentialResolution
     private let transport: any HTTPTransport
     private let now: @Sendable () -> Date
 
     init(
         configuration: OpenAIConfiguration = .fromEnvironment(),
-        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAICredentialResolver.shared.apiKey() },
+        credentialProvider: @escaping @Sendable () async -> CredentialResolution = {
+            await OpenAICredentialResolver.shared.resolveWithoutInteraction()
+        },
         transport: (any HTTPTransport)? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.configuration = configuration
-        self.apiKeyProvider = apiKeyProvider
+        self.credentialProvider = credentialProvider
         self.transport = transport ?? URLSessionHTTPTransport(requestTimeout: configuration.requestTimeout)
         self.now = now
     }
 
     func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult {
+        try await extract(from: input, phases: nil)
+    }
+
+    func extract(
+        from input: WorkStateExtractionInput,
+        phases: WorkStateExtractionPhaseSink?
+    ) async throws -> WorkStateExtractionResult {
         // Resolved per call, not at init: the app must launch, and meetings must keep saving,
         // when no key is configured.
-        guard let apiKey = apiKeyProvider() else {
+        //
+        // Non-interactive on purpose. Extraction is started by saving a meeting, not by a user
+        // asking for their Keychain, so a credential prompt here is a window nobody requested in
+        // front of a screen that can only show a spinner. Every outcome below is finite.
+        phases?(.credentialResolutionStarted)
+        let apiKey: String
+        switch await credentialProvider() {
+        case let .resolved(key):
+            apiKey = key
+        case .notConfigured:
             throw WorkStateExtractionError.missingCredential
+        case .interactionRequired:
+            throw WorkStateExtractionError.credentialInteractionRequired
+        case .unavailable:
+            throw WorkStateExtractionError.credentialUnavailable
         }
+        phases?(.credentialResolved)
 
         let request = try makeRequest(for: input, apiKey: apiKey)
+        phases?(.requestDispatched)
         let (data, response) = try await send(request)
         try Self.validate(statusCode: response.statusCode)
 

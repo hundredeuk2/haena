@@ -55,9 +55,18 @@ final class CredentialStoreTests: XCTestCase {
     /// collapse into one error.
     func testKeychainStatusesMapToDistinctErrors() {
         XCTAssertEqual(KeychainAPICredentialStore.mapped(errSecUserCanceled), .accessDenied)
-        XCTAssertEqual(KeychainAPICredentialStore.mapped(errSecInteractionNotAllowed), .accessDenied)
         XCTAssertEqual(KeychainAPICredentialStore.mapped(errSecAuthFailed), .accessDenied)
         XCTAssertEqual(KeychainAPICredentialStore.mapped(errSecIO), .unavailable(status: errSecIO))
+        // "I would have to ask the user" moved out of `accessDenied`: nobody has declined anything,
+        // and the caller's next move is different — wait for a person, not report a refusal.
+        XCTAssertEqual(
+            KeychainAPICredentialStore.mapped(errSecInteractionNotAllowed),
+            .interactionRequired
+        )
+        XCTAssertEqual(
+            KeychainAPICredentialStore.mapped(errSecInteractionRequired),
+            .interactionRequired
+        )
     }
 
     /// The item's name is fixed in one place, so a second credential cannot quietly land in this
@@ -147,21 +156,31 @@ final class CredentialStoreTests: XCTestCase {
 
     /// Transcription and extraction must never end up on different keys — that shows up as one half
     /// of the pipeline mysteriously failing.
-    func testTranscriptionAndExtractionResolveThroughTheSameSource() {
+    ///
+    /// The two now enter through different doors — transcription still asks synchronously, while
+    /// extraction asks the non-interactive way — but both doors open onto the same resolver, which
+    /// is what keeps a replaced key from moving only one of them.
+    func testTranscriptionAndExtractionResolveThroughTheSameSource() async {
         let store = InMemoryAPICredentialStore(credential: Self.sampleKey)
         let resolver = OpenAICredentialResolver(store: store, environment: { [:] })
         let provider = resolver.apiKeyProvider()
 
         let transcription = OpenAITranscriptionProvider(apiKeyProvider: provider)
-        let extractor = OpenAIWorkStateExtractor(apiKeyProvider: provider)
+        let extractor = OpenAIWorkStateExtractor(
+            credentialProvider: { await resolver.resolveWithoutInteraction() }
+        )
         XCTAssertNotNil(transcription)
         XCTAssertNotNil(extractor)
 
         XCTAssertEqual(provider(), Self.sampleKey)
+        var resolution = await resolver.resolveWithoutInteraction()
+        XCTAssertEqual(resolution, .resolved(Self.sampleKey))
 
         // Replacing the key moves both at once, because there is only one place to change.
         try? store.save(Self.otherKey)
         XCTAssertEqual(provider(), Self.otherKey)
+        resolution = await resolver.resolveWithoutInteraction()
+        XCTAssertEqual(resolution, .resolved(Self.otherKey))
     }
 
     /// The environment reader used by the resolver is the same one the existing tests and live-test
@@ -288,6 +307,96 @@ final class CredentialStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Non-interactive reads
+
+    /// The whole point of the split. Extraction must never be the thing that puts a Keychain
+    /// window on screen, so the read it uses is the one that refuses to prompt.
+    func testAnEnvironmentKeyIsResolvedWithoutTouchingTheKeychain() async {
+        let store = CountingCredentialStore(credential: "keychain-key")
+        let resolver = OpenAICredentialResolver(
+            store: store,
+            environment: { [OpenAIConfiguration.apiKeyEnvironmentKey: "env-key"] }
+        )
+
+        let resolution = await resolver.resolveWithoutInteraction()
+
+        XCTAssertEqual(resolution, .resolved("env-key"))
+        XCTAssertEqual(store.reads, 0, "the environment must win before the Keychain is consulted")
+    }
+
+    func testAStoredKeyResolvesWithoutInteraction() async {
+        let resolver = OpenAICredentialResolver(
+            store: InMemoryAPICredentialStore(credential: "stored-key"),
+            environment: { [:] }
+        )
+
+        let resolution = await resolver.resolveWithoutInteraction()
+
+        XCTAssertEqual(resolution, .resolved("stored-key"))
+    }
+
+    /// "A key exists but reading it needs the user" is its own answer. Reporting it as
+    /// `notConfigured` would send someone who already has a key off to create another one.
+    func testAKeyThatNeedsAPromptResolvesAsInteractionRequired() async {
+        let resolver = OpenAICredentialResolver(
+            store: InMemoryAPICredentialStore(
+                credential: "stored-key",
+                nonInteractiveFailure: .interactionRequired
+            ),
+            environment: { [:] }
+        )
+
+        let resolution = await resolver.resolveWithoutInteraction()
+
+        XCTAssertEqual(resolution, .interactionRequired)
+    }
+
+    func testABrokenStoreResolvesAsUnavailableRatherThanMissing() async {
+        let resolver = OpenAICredentialResolver(
+            store: InMemoryAPICredentialStore(failure: .unavailable(status: -1)),
+            environment: { [:] }
+        )
+
+        let resolution = await resolver.resolveWithoutInteraction()
+
+        XCTAssertEqual(resolution, .unavailable)
+    }
+
+    /// The reproduction this whole change exists for: a Keychain read that does not come back.
+    /// The caller must get a finite answer, and that answer must never be a credential.
+    func testAReadThatBlocksPastTheBudgetResolvesAsInteractionRequired() async {
+        let resolver = OpenAICredentialResolver(
+            // Long enough to be unambiguously past the budget, short enough that the thread it
+            // blocks — which cannot be cancelled, the whole point of the test — is released well
+            // before the rest of the suite needs it.
+            store: InMemoryAPICredentialStore(credential: "stored-key", readDelay: 2),
+            environment: { [:] },
+            readBudget: .milliseconds(50)
+        )
+
+        let started = ContinuousClock.now
+        let resolution = await resolver.resolveWithoutInteraction()
+        let elapsed = ContinuousClock.now - started
+
+        XCTAssertEqual(resolution, .interactionRequired)
+        // The bound has to be well under the read's own duration, not merely finite. An earlier
+        // version of this returned the right answer and still waited the full 2 seconds, because
+        // the task group it used could not return while the uncancellable read was outstanding —
+        // which in the reproduction this fixes would have been a seven-hour wait.
+        XCTAssertLessThan(elapsed, .seconds(1), "the caller must not wait on the blocked read")
+    }
+
+    /// The settings screen is the one place a prompt is part of what the user asked for, so it
+    /// keeps the interactive read.
+    func testTheSettingsStatusPathUsesTheInteractiveRead() {
+        let store = CountingCredentialStore(credential: "stored-key")
+        let resolver = OpenAICredentialResolver(store: store, environment: { [:] })
+
+        XCTAssertEqual(resolver.status(), .configured(.keychain))
+        XCTAssertEqual(store.interactiveReads, 1)
+        XCTAssertEqual(store.nonInteractiveReads, 0)
+    }
+
     // MARK: - Guidance
 
     /// The cost and privacy notices are the whole reason a BYOK screen is honest. Losing one would
@@ -312,4 +421,44 @@ private struct StubVerifier: OpenAICredentialVerifying {
     func verify(_ credential: String) async -> CredentialVerificationResult {
         result
     }
+}
+
+/// Counts which of the two reads a caller took, so the split between the settings path and the
+/// extraction path can be asserted rather than assumed.
+private final class CountingCredentialStore: APICredentialStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private let stored: String?
+    private var interactive = 0
+    private var nonInteractive = 0
+
+    init(credential: String?) {
+        stored = credential
+    }
+
+    var interactiveReads: Int {
+        lock.lock(); defer { lock.unlock() }
+        return interactive
+    }
+
+    var nonInteractiveReads: Int {
+        lock.lock(); defer { lock.unlock() }
+        return nonInteractive
+    }
+
+    var reads: Int { interactiveReads + nonInteractiveReads }
+
+    func credential() throws -> String? {
+        lock.lock(); defer { lock.unlock() }
+        interactive += 1
+        return stored
+    }
+
+    func credentialWithoutInteraction() throws -> String? {
+        lock.lock(); defer { lock.unlock() }
+        nonInteractive += 1
+        return stored
+    }
+
+    func save(_ credential: String) throws {}
+    func delete() throws {}
 }

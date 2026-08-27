@@ -343,7 +343,11 @@ struct HAENAApp: App {
             )
             let resolver = OpenAICredentialResolver.shared
             credentialResolver = resolver
-            extractor = OpenAIWorkStateExtractor(apiKeyProvider: resolver.apiKeyProvider())
+            // Extraction gets the non-interactive resolver: it runs off saving a meeting, so it
+            // must never be the thing that puts a Keychain prompt on screen.
+            extractor = OpenAIWorkStateExtractor(
+                credentialProvider: { await resolver.resolveWithoutInteraction() }
+            )
             transcriptionProvider = OpenAITranscriptionProvider(apiKeyProvider: resolver.apiKeyProvider())
             audioAssetStore = AudioAssetStore(directoryURL: AudioAssetStore.defaultDirectoryURL())
             audioRecorder = AVFoundationMeetingAudioRecorder()

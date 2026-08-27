@@ -16,7 +16,21 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         configuration.retryDelay = 0
         return OpenAIWorkStateExtractor(
             configuration: configuration,
-            apiKeyProvider: { apiKey },
+            credentialProvider: { apiKey.map { .resolved($0) } ?? .notConfigured },
+            transport: transport,
+            now: { TestFixtures.fixedDate }
+        )
+    }
+
+    private func makeExtractor(
+        transport: RecordingHTTPTransport,
+        credential: CredentialResolution
+    ) -> OpenAIWorkStateExtractor {
+        var configuration = OpenAIConfiguration(modelID: "test-model")
+        configuration.retryDelay = 0
+        return OpenAIWorkStateExtractor(
+            configuration: configuration,
+            credentialProvider: { credential },
             transport: transport,
             now: { TestFixtures.fixedDate }
         )
@@ -35,6 +49,82 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         } catch {
             return error as? WorkStateExtractionError
         }
+    }
+
+    // MARK: - Credential boundary
+
+    /// A credential that needs the user is a finite refusal, not a wait — and crucially not a
+    /// request. Nothing may reach the provider before a key is actually in hand.
+    func testACredentialNeedingInteractionEndsTheRunWithoutAnyHTTPRequest() async throws {
+        let transport = RecordingHTTPTransport([.status(200, body: Data())])
+        let extractor = makeExtractor(transport: transport, credential: .interactionRequired)
+
+        do {
+            _ = try await extractor.extract(from: input)
+            XCTFail("expected the credential boundary to end the run")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .credentialInteractionRequired)
+        }
+
+        let attempts = await transport.attemptCount
+        XCTAssertEqual(attempts, 0)
+    }
+
+    func testAnUnreadableCredentialStoreEndsTheRunWithoutAnyHTTPRequest() async throws {
+        let transport = RecordingHTTPTransport([.status(200, body: Data())])
+        let extractor = makeExtractor(transport: transport, credential: .unavailable)
+
+        do {
+            _ = try await extractor.extract(from: input)
+            XCTFail("expected the credential boundary to end the run")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .credentialUnavailable)
+        }
+
+        let attempts = await transport.attemptCount
+        XCTAssertEqual(attempts, 0)
+    }
+
+    func testAMissingCredentialStillMakesNoHTTPRequest() async throws {
+        let transport = RecordingHTTPTransport([.status(200, body: Data())])
+        let extractor = makeExtractor(transport: transport, credential: .notConfigured)
+
+        do {
+            _ = try await extractor.extract(from: input)
+            XCTFail("expected the credential boundary to end the run")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .missingCredential)
+        }
+
+        let attempts = await transport.attemptCount
+        XCTAssertEqual(attempts, 0)
+    }
+
+    // MARK: - Provider-side phases
+
+    /// The gap this closes: without these three markers, "stopped before the provider answered"
+    /// cannot separate a Keychain window nobody saw from a request sitting on the network.
+    func testASuccessfulCallReportsTheCredentialAndDispatchBoundariesInOrder() async throws {
+        let transport = RecordingHTTPTransport([.status(200, body: try successBody())])
+        let recorder = PhaseSinkRecorder()
+        let extractor = makeExtractor(transport: transport, credential: .resolved(fakeAPIKey))
+
+        _ = try await extractor.extract(from: input, phases: recorder.sink)
+
+        XCTAssertEqual(
+            recorder.phases,
+            [.credentialResolutionStarted, .credentialResolved, .requestDispatched]
+        )
+    }
+
+    func testACredentialFailureReportsOnlyTheBoundaryItReached() async {
+        let transport = RecordingHTTPTransport([.status(200, body: Data())])
+        let recorder = PhaseSinkRecorder()
+        let extractor = makeExtractor(transport: transport, credential: .interactionRequired)
+
+        _ = try? await extractor.extract(from: input, phases: recorder.sink)
+
+        XCTAssertEqual(recorder.phases, [.credentialResolutionStarted])
     }
 
     // MARK: - Response bodies
@@ -469,5 +559,24 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         let error = await extractionError(from: RecordingHTTPTransport([.status(200, body: body)]))
 
         XCTAssertFalse(String(describing: try XCTUnwrap(error)).contains(secret))
+    }
+}
+
+/// Collects provider-side phase markers synchronously. The sink is documented as non-blocking, so
+/// a plain lock-guarded array is all a test needs.
+private final class PhaseSinkRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [WorkStateExtractionPhase] = []
+
+    var phases: [WorkStateExtractionPhase] {
+        lock.lock(); defer { lock.unlock() }
+        return recorded
+    }
+
+    var sink: WorkStateExtractionPhaseSink {
+        { [self] phase in
+            lock.lock(); defer { lock.unlock() }
+            recorded.append(phase)
+        }
     }
 }

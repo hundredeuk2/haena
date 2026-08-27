@@ -320,8 +320,40 @@ struct WorkStateExtractionResult: Equatable, Sendable {
 /// Implementations may call a commercial API, run a local model, or compute results in process;
 /// nothing about that choice may leak through this protocol. Only Foundation and HAE.NA domain
 /// types appear in its signature — no request/response DTO, endpoint, or JSON Schema.
+/// Boundaries inside a provider call that the app needs to be able to tell apart afterwards.
+///
+/// Deliberately a domain vocabulary, not OpenAI's: every provider has to get a credential from
+/// somewhere and then put a request in flight, and those two waits fail for completely different
+/// reasons. Without a marker between them, "the run stopped before the provider answered" cannot
+/// distinguish a Keychain window nobody saw from a request sitting on the network.
+enum WorkStateExtractionPhase: Equatable, Sendable {
+    case credentialResolutionStarted
+    case credentialResolved
+    case requestDispatched
+}
+
+/// Diagnostic only. A provider must behave identically whether or not one is supplied, and must
+/// never wait on it.
+typealias WorkStateExtractionPhaseSink = @Sendable (WorkStateExtractionPhase) -> Void
+
 protocol WorkStateExtractor: Sendable {
     func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult
+    /// The same call, with somewhere to report its internal boundaries.
+    func extract(
+        from input: WorkStateExtractionInput,
+        phases: WorkStateExtractionPhaseSink?
+    ) async throws -> WorkStateExtractionResult
+}
+
+extension WorkStateExtractor {
+    /// Providers that have no interesting internal boundaries — a local model, a deterministic
+    /// stub — get this and stay unchanged.
+    func extract(
+        from input: WorkStateExtractionInput,
+        phases: WorkStateExtractionPhaseSink?
+    ) async throws -> WorkStateExtractionResult {
+        try await extract(from: input)
+    }
 }
 
 /// Failure modes every provider must map onto, so callers can react (retry, ask for credentials,
@@ -332,6 +364,12 @@ protocol WorkStateExtractor: Sendable {
 enum WorkStateExtractionError: Error, Equatable, Sendable {
     /// No API key was available. Never thrown with the key's value or length attached.
     case missingCredential
+    /// A key is stored, but handing it over needs the user to answer a system prompt. Extraction
+    /// refuses to wait for one it did not ask for, so this ends the run instead of hanging it.
+    case credentialInteractionRequired
+    /// The credential store itself could not be read. Distinct from `missingCredential`: telling
+    /// the user they have no key when the store is simply broken sends them to re-enter one.
+    case credentialUnavailable
     case invalidConfiguration
     case unauthorized
     case rateLimited

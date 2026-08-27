@@ -290,4 +290,26 @@ private struct AudioCaptureContext {
     func audioFile(named name: String = "meeting.m4a") throws -> URL {
         try AudioTestSupport.writeFile(named: name, byteCount: 256, in: sourceDirectory)
     }
+
+    // MARK: - Credential boundary copy
+
+    /// A user whose key is already saved must not be told to register one. The copy has to send
+    /// them to the one screen where a Keychain prompt is part of what they asked for.
+    func testInteractionRequiredCopyPointsAtSettingsRatherThanRegistration() {
+        let text = CaptureFailureCopy.extraction(WorkStateExtractionError.credentialInteractionRequired)
+
+        XCTAssertTrue(text.contains("AI 설정"))
+        XCTAssertFalse(text.contains("등록"), "the key already exists; do not ask for a new one")
+        // "연결 확인" only checks a key typed into the field next to it — it never reads the stored
+        // item, so it cannot clear this state and must not be what the user is sent to do.
+        XCTAssertFalse(text.contains("연결 확인"))
+    }
+
+    func testUnreadableCredentialCopyIsDistinctFromMissingCredentialCopy() {
+        let unavailable = CaptureFailureCopy.extraction(WorkStateExtractionError.credentialUnavailable)
+        let missing = CaptureFailureCopy.extraction(WorkStateExtractionError.missingCredential)
+
+        XCTAssertNotEqual(unavailable, missing)
+        XCTAssertTrue(unavailable.contains("AI 설정"))
+    }
 }

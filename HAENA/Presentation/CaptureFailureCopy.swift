@@ -23,6 +23,15 @@ enum CaptureFailureCopy {
         switch error {
         case .missingCredential:
             return "업무 상태를 추출하려면 AI 설정에서 OpenAI API 키를 등록해주세요."
+        case .credentialInteractionRequired:
+            // Says what to do, not what went wrong: the key is there, the app just may not read it
+            // without the user. Opening the settings screen is the instruction because that screen
+            // reads the stored key on appear, which is what raises the system prompt — "연결 확인"
+            // would be wrong advice, as it only checks a key typed into the field beside it.
+            // Re-running is the user's to start, so no automatic retry is implied.
+            return "저장된 API 키를 읽으려면 확인이 필요합니다. AI 설정을 열어 시스템 확인 창에 응답한 뒤 다시 시도해주세요."
+        case .credentialUnavailable:
+            return "저장된 API 키를 읽지 못했습니다. AI 설정에서 키 상태를 확인해주세요."
         case .unauthorized:
             return "AI 인증에 실패했습니다. AI 설정에서 키를 확인해주세요."
         case .rateLimited:
