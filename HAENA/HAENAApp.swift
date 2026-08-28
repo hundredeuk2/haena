@@ -345,8 +345,18 @@ struct HAENAApp: App {
             credentialResolver = resolver
             // Extraction gets the non-interactive resolver: it runs off saving a meeting, so it
             // must never be the thing that puts a Keychain prompt on screen.
+            var extractionTransport: (any HTTPTransport)?
+            #if DEBUG
+            // Off unless a run asks for it. Reproducing a pre-network failure means proving no
+            // request left the machine, and the only airtight way to prove that is to make one
+            // impossible. Absent in Release, where this branch does not compile.
+            if _isDebugAssertConfiguration(), FailClosedHTTPTransport.isRequested() {
+                extractionTransport = FailClosedHTTPTransport()
+            }
+            #endif
             extractor = OpenAIWorkStateExtractor(
-                credentialProvider: { await resolver.resolveWithoutInteraction() }
+                credentialProvider: { await resolver.resolveWithoutInteraction() },
+                transport: extractionTransport
             )
             transcriptionProvider = OpenAITranscriptionProvider(apiKeyProvider: resolver.apiKeyProvider())
             audioAssetStore = AudioAssetStore(directoryURL: AudioAssetStore.defaultDirectoryURL())

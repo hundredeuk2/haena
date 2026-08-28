@@ -100,6 +100,41 @@ final class OpenAIWorkStateExtractorTests: XCTestCase {
         XCTAssertEqual(attempts, 0)
     }
 
+    // MARK: - Debug-only network block
+
+    /// The guard that lets a Debug reproduction claim "no request left the machine" as a fact
+    /// rather than an assumption. Fail-closed: there is no allow-list to get wrong.
+    func testTheFailClosedTransportRefusesEveryRequestAndCountsIt() async throws {
+        let attempts = FailClosedHTTPTransport.Attempts()
+        let key = fakeAPIKey
+        var configuration = OpenAIConfiguration(modelID: "test-model")
+        configuration.retryDelay = 0
+        configuration.maxRetries = 0
+        let extractor = OpenAIWorkStateExtractor(
+            configuration: configuration,
+            credentialProvider: { .resolved(key) },
+            transport: FailClosedHTTPTransport(attempts: attempts),
+            now: { TestFixtures.fixedDate }
+        )
+
+        do {
+            _ = try await extractor.extract(from: input)
+            XCTFail("the fail-closed transport must never let a request through")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .networkUnavailable)
+        }
+
+        // A credential resolved and the run reached the transport — and still nothing was sent.
+        XCTAssertEqual(attempts.count, 1)
+    }
+
+    /// Opt-in only. A developer running the app normally must get the real transport.
+    func testTheNetworkBlockIsOffUnlessAskedFor() {
+        XCTAssertFalse(FailClosedHTTPTransport.isRequested([:]))
+        XCTAssertFalse(FailClosedHTTPTransport.isRequested([FailClosedHTTPTransport.environmentKey: "0"]))
+        XCTAssertTrue(FailClosedHTTPTransport.isRequested([FailClosedHTTPTransport.environmentKey: "1"]))
+    }
+
     // MARK: - Provider-side phases
 
     /// The gap this closes: without these three markers, "stopped before the provider answered"
