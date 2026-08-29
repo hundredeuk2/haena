@@ -140,6 +140,12 @@ targets:
           - WorkStateContinuityService.swift
           - WorkStateTransitionEngine.swift
           - WorkStateTransitionRepository.swift
+          # The deletion closure is a pure value type, but it is expressed over
+          # `WorkStateTransitionApplyIntent` and `MeetingDeletionIntent`, which are declared in the
+          # repository file above. Compiling it here would either fail to resolve those types or
+          # force the repository back into the harness — and the whole point of that exclusion is
+          # that no repository type is linked into the CLI at all.
+          - MeetingDeletionClosure.swift
       - path: HAENA/Credentials
       # The CLI compiles the app's provider-neutral transcription seam and OpenAI adapter so an
       # explicitly approved future live run can normalize the same diarized response contract.

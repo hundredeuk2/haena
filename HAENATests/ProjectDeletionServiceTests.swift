@@ -439,4 +439,252 @@ final class ProjectDeletionServiceTests: XCTestCase {
 
         XCTAssertTrue(updated.decisions.isEmpty, "The Decision — and the EvidenceReference embedded inside it — must both be gone")
     }
+
+    // MARK: - Continuity sidecar lifecycle
+
+    /// A meeting deletion is an explicit user verdict that the meeting's Work State goes too, so the
+    /// sidecar has to lose everything that was about it. These build the smallest sidecar that can
+    /// tell a correct cleanup from an over-eager one: something to remove, and something next to it
+    /// that must not move.
+    private func makeProposal(
+        projectID: UUID,
+        sourceMeetingID: UUID,
+        currentObjectID: UUID? = nil,
+        previousStateID: UUID? = nil,
+        relatedObjectID: UUID? = nil,
+        kind: WorkStateKind = .decision,
+        reviewStatus: WorkStateTransitionReviewStatus = .pendingReview
+    ) -> WorkStateTransitionProposal {
+        let key = WorkStateTransitionProposal.dedupKey(
+            projectID: projectID,
+            workStateKind: kind,
+            transitionKind: .new,
+            previousStateID: previousStateID,
+            currentObjectID: currentObjectID
+        ) + "|\(sourceMeetingID.uuidString.lowercased())"
+        return WorkStateTransitionProposal(
+            id: WorkStateTransitionProposal.deterministicID(forDedupKey: key),
+            projectID: projectID,
+            workStateKind: kind,
+            transitionKind: .new,
+            previousStateID: previousStateID,
+            currentObjectID: currentObjectID,
+            sourceMeetingID: sourceMeetingID,
+            basis: .noPriorCandidate,
+            requiresConfirmation: false,
+            reviewStatus: reviewStatus,
+            relations: relatedObjectID.map {
+                [WorkStateTransitionRelation(kind: .derivedFrom, relatedKind: .actionItem, relatedObjectID: $0)]
+            } ?? [],
+            dedupKey: key,
+            createdAt: TestFixtures.fixedDate
+        )
+    }
+
+    private func makeDeletionFixture() async throws -> (
+        repository: InMemoryProjectRepository,
+        transitions: InMemoryWorkStateTransitionRepository,
+        service: ProjectDeletionService,
+        doomedMeetingID: UUID,
+        keptMeetingID: UUID,
+        approvedDecisionID: UUID
+    ) {
+        let repository = InMemoryProjectRepository()
+        let doomed = makeMeeting(projectID: TestFixtures.projectID, title: "Doomed")
+        let kept = makeMeeting(projectID: TestFixtures.projectID, title: "Kept")
+        var approved = makeDecision(projectID: TestFixtures.projectID, meetingID: doomed.id)
+        approved.status = .confirmed
+        let keptDecision = makeDecision(projectID: TestFixtures.projectID, meetingID: kept.id)
+        try await repository.save(makeProject(
+            id: TestFixtures.projectID,
+            meetings: [doomed, kept],
+            decisions: [approved, keptDecision]
+        ))
+
+        let transitions = InMemoryWorkStateTransitionRepository(
+            proposals: [
+                // From the doomed meeting, never reviewed.
+                makeProposal(projectID: TestFixtures.projectID, sourceMeetingID: doomed.id),
+                // From the doomed meeting, already given a terminal verdict.
+                makeProposal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: doomed.id,
+                    currentObjectID: approved.id,
+                    reviewStatus: .approved
+                ),
+                // From the *kept* meeting, but about the object the deletion removes.
+                makeProposal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: kept.id,
+                    previousStateID: approved.id,
+                    kind: .actionItem
+                ),
+                // From the kept meeting and about nothing being removed. Must survive intact.
+                makeProposal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: kept.id,
+                    currentObjectID: keptDecision.id,
+                    kind: .openQuestion,
+                    reviewStatus: .approved
+                )
+            ]
+        )
+        let service = ProjectDeletionService(
+            repository: repository,
+            transitions: transitions,
+            now: { TestFixtures.laterDate }
+        )
+        return (repository, transitions, service, doomed.id, kept.id, approved.id)
+    }
+
+    func testDeletingAMeetingRemovesItsUnreviewedProposal() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.allProposals()
+        XCTAssertTrue(remaining.allSatisfy { $0.sourceMeetingID != f.doomedMeetingID })
+    }
+
+    /// B: a verdict about a proposal that is going cannot be kept — there is nothing left for it to
+    /// be a verdict on.
+    func testDeletingAMeetingRemovesItsTerminalReviewToo() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.allProposals()
+        XCTAssertFalse(remaining.contains { $0.sourceMeetingID == f.doomedMeetingID })
+        XCTAssertTrue(remaining.allSatisfy { $0.reviewStatus != .approved || $0.sourceMeetingID == f.keptMeetingID })
+    }
+
+    /// A: approved canonical Work State goes with its origin meeting. No tombstone, no rehoming.
+    func testDeletingAMeetingRemovesApprovedCanonicalWorkState() async throws {
+        let f = try await makeDeletionFixture()
+        let updated = try await f.service.deleteMeeting(
+            meetingID: f.doomedMeetingID,
+            fromProjectID: TestFixtures.projectID
+        )
+
+        XCTAssertFalse(updated.decisions.contains { $0.id == f.approvedDecisionID })
+        XCTAssertTrue(updated.decisions.allSatisfy { $0.meetingID == f.keptMeetingID })
+    }
+
+    /// The second orphan class: a later meeting's transition whose subject this deletion removed.
+    func testDeletingAMeetingCleansDependentTransitionsFromOtherMeetings() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.allProposals()
+        XCTAssertFalse(
+            remaining.contains { $0.previousStateID == f.approvedDecisionID },
+            "a transition pointing at a removed object is the same orphan wearing a different hat"
+        )
+    }
+
+    func testDeletingAMeetingLeavesUnrelatedMeetingsAndSidecarRowsIntact() async throws {
+        let f = try await makeDeletionFixture()
+        let before = try await f.transitions.allProposals()
+            .filter { $0.sourceMeetingID == f.keptMeetingID && $0.previousStateID == nil }
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let after = try await f.transitions.allProposals()
+            .filter { $0.sourceMeetingID == f.keptMeetingID && $0.previousStateID == nil }
+        XCTAssertEqual(after, before, "an unrelated meeting's rows must come through unchanged")
+        XCTAssertFalse(after.isEmpty)
+    }
+
+    /// Crash right after the intent, before the Project save. Recovery has to finish both halves.
+    func testRecoveryFinishesADeletionInterruptedAfterTheIntent() async throws {
+        let f = try await makeDeletionFixture()
+        let loadedProject = try await f.repository.project(id: TestFixtures.projectID)
+        let project = try XCTUnwrap(loadedProject)
+        let intent = MeetingDeletionIntent(
+            projectID: TestFixtures.projectID,
+            meetingID: f.doomedMeetingID,
+            removedWorkStateIDs: [f.approvedDecisionID],
+            requestedAt: TestFixtures.fixedDate
+        )
+        try await f.transitions.recordMeetingDeletionIntent(intent)
+        XCTAssertTrue(project.meetings.contains { $0.id == f.doomedMeetingID })
+
+        await f.service.recoverInterruptedMeetingDeletions()
+
+        let loadedRecovered = try await f.repository.project(id: TestFixtures.projectID)
+        let recovered = try XCTUnwrap(loadedRecovered)
+        XCTAssertFalse(recovered.meetings.contains { $0.id == f.doomedMeetingID })
+        XCTAssertFalse(recovered.decisions.contains { $0.id == f.approvedDecisionID })
+        let remaining = try await f.transitions.allProposals()
+        XCTAssertTrue(remaining.allSatisfy { $0.sourceMeetingID != f.doomedMeetingID })
+        let pending = try await f.transitions.pendingMeetingDeletionIntents()
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    /// Crash after the Project save, before the sidecar write — the window this whole change exists
+    /// to close.
+    func testRecoveryFinishesADeletionInterruptedAfterTheProjectSave() async throws {
+        let f = try await makeDeletionFixture()
+        let loadedProject = try await f.repository.project(id: TestFixtures.projectID)
+        var project = try XCTUnwrap(loadedProject)
+        let intent = MeetingDeletionIntent(
+            projectID: TestFixtures.projectID,
+            meetingID: f.doomedMeetingID,
+            removedWorkStateIDs: [f.approvedDecisionID],
+            requestedAt: TestFixtures.fixedDate
+        )
+        try await f.transitions.recordMeetingDeletionIntent(intent)
+        project.meetings.removeAll { $0.id == f.doomedMeetingID }
+        project.decisions.removeAll { $0.meetingID == f.doomedMeetingID }
+        try await f.repository.save(project)
+
+        await f.service.recoverInterruptedMeetingDeletions()
+
+        let remaining = try await f.transitions.allProposals()
+        XCTAssertTrue(remaining.allSatisfy { $0.sourceMeetingID != f.doomedMeetingID })
+        XCTAssertFalse(remaining.contains { $0.previousStateID == f.approvedDecisionID })
+        let pending = try await f.transitions.pendingMeetingDeletionIntents()
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    /// Interrupted twice must converge on the same store as interrupted once.
+    func testRepeatedRecoveryChangesNothingTheSecondTime() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+        let afterFirst = try await f.transitions.allProposals()
+
+        await f.service.recoverInterruptedMeetingDeletions()
+        await f.service.recoverInterruptedMeetingDeletions()
+
+        let afterRecovery = try await f.transitions.allProposals()
+        let stillPending = try await f.transitions.pendingMeetingDeletionIntents()
+        XCTAssertEqual(afterRecovery, afterFirst)
+        XCTAssertTrue(stillPending.isEmpty)
+    }
+
+    /// A sidecar written before deletions existed must still decode, and must report no pending
+    /// deletions — which is exactly true of it.
+    func testASidecarWithoutTheDeletionIntentFieldStillDecodes() throws {
+        let legacy = """
+        {"schemaVersion":1,"proposals":[]}
+        """
+        let decoded = try JSONDecoder().decode(
+            WorkStateTransitionStoreFile.self,
+            from: Data(legacy.utf8)
+        )
+        XCTAssertTrue(decoded.meetingDeletionIntents.isEmpty)
+
+        var withIntent = decoded
+        withIntent.meetingDeletionIntents.append(
+            MeetingDeletionIntent(
+                projectID: TestFixtures.projectID,
+                meetingID: TestFixtures.meetingID,
+                removedWorkStateIDs: [],
+                requestedAt: TestFixtures.fixedDate
+            )
+        )
+        let roundTripped = try JSONDecoder().decode(
+            WorkStateTransitionStoreFile.self,
+            from: try JSONEncoder().encode(withIntent)
+        )
+        XCTAssertEqual(roundTripped, withIntent)
+    }
 }

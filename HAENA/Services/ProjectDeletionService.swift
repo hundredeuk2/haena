@@ -27,15 +27,20 @@ struct ProjectDeletionService: Sendable {
     /// Nil in contexts that never import audio (and in tests that do not exercise it); stored
     /// audio is then simply not touched.
     let assetStore: AudioAssetStore?
+    /// Nil where continuity is not configured, exactly like `assetStore`. The sidecar is then not
+    /// touched — which is correct, because without continuity there is nothing in it to orphan.
+    let transitions: (any WorkStateTransitionRepository)?
     let now: @Sendable () -> Date
 
     init(
         repository: any ProjectRepository,
         assetStore: AudioAssetStore? = nil,
+        transitions: (any WorkStateTransitionRepository)? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.repository = repository
         self.assetStore = assetStore
+        self.transitions = transitions
         self.now = now
     }
 
@@ -59,6 +64,19 @@ struct ProjectDeletionService: Sendable {
     /// it — no orphaned references to the deleted meeting are left behind. Their embedded
     /// `EvidenceReference` values go with them automatically, since evidence lives inside
     /// those objects rather than as a separate top-level collection.
+    ///
+    /// Since the transition sidecar became part of this, the deletion spans two stores and can be
+    /// interrupted between them. The order below exists so that every interruption leaves a state a
+    /// relaunch can finish rather than one it has to guess at:
+    ///
+    /// 1. write the intent — the only step that must survive to make the rest recoverable
+    /// 2. save the Project without the meeting (one atomic write, as before)
+    /// 3. clean the sidecar (one atomic write)
+    /// 4. drop the intent
+    /// 5. unlink audio
+    ///
+    /// Audio stays last for the reason it always has: an orphaned file is a better outcome than a
+    /// stored meeting pointing at audio that is already gone.
     @discardableResult
     func deleteMeeting(meetingID: UUID, fromProjectID projectID: UUID) async throws -> Project {
         guard var project = try await existingProject(id: projectID) else {
@@ -66,6 +84,24 @@ struct ProjectDeletionService: Sendable {
         }
         guard let meeting = project.meetings.first(where: { $0.id == meetingID }) else {
             throw ProjectDeletionError.meetingNotFound
+        }
+
+        // Captured before the removal: once the Project is saved it can no longer say which objects
+        // belonged to this meeting, and the sidecar closure hangs off exactly these ids.
+        let intent = MeetingDeletionIntent(
+            projectID: projectID,
+            meetingID: meetingID,
+            removedWorkStateIDs: Self.derivedWorkStateIDs(of: meetingID, in: project),
+            requestedAt: now()
+        )
+        if let transitions {
+            do {
+                try await transitions.recordMeetingDeletionIntent(intent)
+            } catch {
+                // Nothing has been removed yet, so failing here leaves the meeting intact rather
+                // than half-deleted. Reported as a failure the user can retry.
+                throw ProjectDeletionError.repositoryFailure
+            }
         }
 
         project.meetings.removeAll { $0.id == meetingID }
@@ -81,9 +117,61 @@ struct ProjectDeletionService: Sendable {
             throw ProjectDeletionError.repositoryFailure
         }
 
+        try await finishMeetingDeletion(intent)
+
         removeStoredAudio(for: [meeting])
 
         return project
+    }
+
+    /// Finishes deletions that were authorized but interrupted, at launch.
+    ///
+    /// Every step it runs is a no-op when it has already happened, so a deletion interrupted twice
+    /// converges on the same file as one that was never interrupted. Failures are left for the next
+    /// launch rather than thrown: a stuck recovery must not be able to stop the app from starting.
+    func recoverInterruptedMeetingDeletions() async {
+        guard let transitions,
+              let pending = try? await transitions.pendingMeetingDeletionIntents() else {
+            return
+        }
+        for intent in pending {
+            // Step 2 may not have happened. Re-running it is safe — `removeAll` over a meeting that
+            // is already gone removes nothing — and it is what makes a crash between the intent and
+            // the Project save recoverable at all.
+            if var project = try? await repository.project(id: intent.projectID),
+               project.meetings.contains(where: { $0.id == intent.meetingID }) {
+                project.meetings.removeAll { $0.id == intent.meetingID }
+                project.decisions.removeAll { $0.meetingID == intent.meetingID }
+                project.actionItems.removeAll { $0.meetingID == intent.meetingID }
+                project.openQuestions.removeAll { $0.meetingID == intent.meetingID }
+                project.nextAgenda.removeAll { $0.sourceMeetingID == intent.meetingID }
+                project.updatedAt = now()
+                guard (try? await repository.save(project)) != nil else { continue }
+            }
+            try? await finishMeetingDeletion(intent)
+        }
+    }
+
+    /// Steps 3 and 4, shared by the live path and recovery so they cannot drift apart.
+    private func finishMeetingDeletion(_ intent: MeetingDeletionIntent) async throws {
+        guard let transitions else { return }
+        do {
+            try await transitions.applyMeetingDeletion(intent)
+            try await transitions.clearMeetingDeletionIntent(intent)
+        } catch {
+            // The Project is already saved and is the authority. The intent stays on disk, so the
+            // next launch finishes the sidecar instead of leaving orphans there forever.
+            throw ProjectDeletionError.repositoryFailure
+        }
+    }
+
+    /// The Work State this meeting produced, by the same rules the removal below uses. Identity
+    /// only — no titles, no evidence — because these ids end up in a durable deletion receipt.
+    private static func derivedWorkStateIDs(of meetingID: UUID, in project: Project) -> [UUID] {
+        project.decisions.filter { $0.meetingID == meetingID }.map(\.id)
+            + project.actionItems.filter { $0.meetingID == meetingID }.map(\.id)
+            + project.openQuestions.filter { $0.meetingID == meetingID }.map(\.id)
+            + project.nextAgenda.filter { $0.sourceMeetingID == meetingID }.map(\.id)
     }
 
     private func removeStoredAudio(for meetings: [Meeting]) {
