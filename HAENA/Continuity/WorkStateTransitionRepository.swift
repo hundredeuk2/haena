@@ -737,6 +737,17 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
             // refusal for that operation. It must never become a silent empty recovery result.
             loaded.applyIntents[intent.storageKey] = intent
         }
+        // These two were persisted but never read back, which made every deletion intent invisible
+        // to the process that had to act on it: `pendingMeetingDeletionIntents()` reads this cache,
+        // so a fresh launch always saw an empty work list and finished nothing. The write half was
+        // correct the whole time, and the in-memory repository keeps intents in its own cache, so
+        // the unit tests could not see the gap — only a real relaunch could.
+        for intent in store.meetingDeletionIntents {
+            loaded.meetingDeletionIntents[intent.storageKey] = intent
+        }
+        for intent in store.projectDeletionIntents {
+            loaded.projectDeletionIntents[intent.storageKey] = intent
+        }
         cache = loaded
         return loaded
     }

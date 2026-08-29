@@ -8,6 +8,27 @@ enum ProjectDeletionError: Error, Equatable, Sendable {
     case repositoryFailure
 }
 
+/// Finite durability boundaries of a deletion, exposed only through dependency injection.
+///
+/// Production assembles a no-op observer, exactly as the transition-apply path does. A Debug-only
+/// process smoke harness can terminate the app at one of these boundaries without putting a crash
+/// switch anywhere near the persistence repositories.
+///
+/// The two "sidecar cleaned" cases sit at different places for a real reason: a meeting deletion
+/// clears its intent in a second write after the sweep, so there is an observable moment between
+/// them, while a project deletion retires its intent inside the sweep's own write, so the moment
+/// after it is already terminal for both stores and only the audio unlink remains.
+enum MeetingDeletionCheckpoint: String, Equatable, Sendable {
+    case meetingIntentStored = "meeting_after_intent"
+    case meetingProjectSaved = "meeting_after_project"
+    /// After the sidecar sweep, before the intent is cleared.
+    case meetingSidecarCleaned = "meeting_after_sidecar"
+    case projectIntentStored = "project_after_intent"
+    case projectAggregateDeleted = "project_after_aggregate"
+    /// After the sweep-and-retire write, before the audio unlink.
+    case projectSidecarCleaned = "project_after_sidecar"
+}
+
 /// Deletes a whole `Project` aggregate, or one `Meeting` (and everything derived from it) out
 /// of a project, keeping model mutation and repository access out of the View layer.
 ///
@@ -31,17 +52,21 @@ struct ProjectDeletionService: Sendable {
     /// touched — which is correct, because without continuity there is nothing in it to orphan.
     let transitions: (any WorkStateTransitionRepository)?
     let now: @Sendable () -> Date
+    /// No-op in production. See `MeetingDeletionCheckpoint`.
+    let didReachCheckpoint: @Sendable (MeetingDeletionCheckpoint) -> Void
 
     init(
         repository: any ProjectRepository,
         assetStore: AudioAssetStore? = nil,
         transitions: (any WorkStateTransitionRepository)? = nil,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        didReachCheckpoint: @escaping @Sendable (MeetingDeletionCheckpoint) -> Void = { _ in }
     ) {
         self.repository = repository
         self.assetStore = assetStore
         self.transitions = transitions
         self.now = now
+        self.didReachCheckpoint = didReachCheckpoint
     }
 
     /// Deletes an entire project — meetings, decisions, action items, open questions, and
@@ -62,6 +87,7 @@ struct ProjectDeletionService: Sendable {
                 // Nothing removed yet, so the project is still whole. A failure the user can retry.
                 throw ProjectDeletionError.repositoryFailure
             }
+            didReachCheckpoint(.projectIntentStored)
         }
 
         do {
@@ -69,8 +95,10 @@ struct ProjectDeletionService: Sendable {
         } catch {
             throw ProjectDeletionError.repositoryFailure
         }
+        didReachCheckpoint(.projectAggregateDeleted)
 
         try await finishProjectDeletion(intent)
+        didReachCheckpoint(.projectSidecarCleaned)
 
         removeStoredAudio(for: project.meetings)
     }
@@ -118,6 +146,7 @@ struct ProjectDeletionService: Sendable {
                 // than half-deleted. Reported as a failure the user can retry.
                 throw ProjectDeletionError.repositoryFailure
             }
+            didReachCheckpoint(.meetingIntentStored)
         }
 
         project.meetings.removeAll { $0.id == meetingID }
@@ -132,6 +161,7 @@ struct ProjectDeletionService: Sendable {
         } catch {
             throw ProjectDeletionError.repositoryFailure
         }
+        didReachCheckpoint(.meetingProjectSaved)
 
         try await finishMeetingDeletion(intent)
 
@@ -204,6 +234,7 @@ struct ProjectDeletionService: Sendable {
         guard let transitions else { return }
         do {
             try await transitions.applyMeetingDeletion(intent)
+            didReachCheckpoint(.meetingSidecarCleaned)
             try await transitions.clearMeetingDeletionIntent(intent)
         } catch {
             // The Project is already saved and is the authority. The intent stays on disk, so the

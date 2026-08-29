@@ -30,6 +30,15 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
         case rootMustBeAbsolute
         case rootOutsideSystemTemporaryDirectory
         case invalidCrashPoint
+        case invalidDeletionCrashPoint
+        case invalidDeletionRequest
+    }
+
+    /// Which deletion the seeded launch should perform. Absent means none — the relaunch processes
+    /// in a smoke run pass no request and only let launch recovery do its work.
+    enum DeletionRequest: String, Equatable {
+        case meeting
+        case project
     }
 
     static let projectID = UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!
@@ -37,10 +46,29 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
     static let segmentID = UUID(uuidString: "D0000000-0000-0000-0000-000000000102")!
     static let decisionID = UUID(uuidString: "D0000000-0000-0000-0000-000000000002")!
 
+    // The deletion smoke's own synthetic graph. Separate ids from the apply-path seed above so a
+    // run of one can never be mistaken for a run of the other, and obviously synthetic in shape.
+    static let deletionProjectID = UUID(uuidString: "D0000000-0000-0000-0000-000000000200")!
+    static let deletionMeetingID = UUID(uuidString: "D0000000-0000-0000-0000-000000000201")!
+    static let deletionSegmentID = UUID(uuidString: "D0000000-0000-0000-0000-000000000202")!
+    static let deletionDecisionID = UUID(uuidString: "D0000000-0000-0000-0000-000000000203")!
+    /// A second meeting in the same project that no deletion targets.
+    static let deletionKeptMeetingID = UUID(uuidString: "D0000000-0000-0000-0000-000000000204")!
+    static let deletionKeptDecisionID = UUID(uuidString: "D0000000-0000-0000-0000-000000000205")!
+    /// A second project that no deletion targets.
+    static let deletionOtherProjectID = UUID(uuidString: "D0000000-0000-0000-0000-000000000300")!
+    static let deletionOtherMeetingID = UUID(uuidString: "D0000000-0000-0000-0000-000000000301")!
+
     let rootURL: URL
     let shouldSeed: Bool
     let shouldApprove: Bool
     let crashCheckpoint: WorkStateTransitionApplyCheckpoint?
+    let shouldSeedDeletion: Bool
+    let deletionRequest: DeletionRequest?
+    let deletionCrashCheckpoint: MeetingDeletionCheckpoint?
+    /// Ends the process after launch recovery has run, so a relaunch in a smoke run terminates on
+    /// its own instead of the driver having to guess when it is finished.
+    let shouldExitAfterRecovery: Bool
 
     var projectsURL: URL { rootURL.appendingPathComponent("projects.json") }
     var transitionsURL: URL { rootURL.appendingPathComponent("continuity-transitions.json") }
@@ -72,11 +100,36 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
         } else {
             crashCheckpoint = nil
         }
+        let deletionCrashCheckpoint: MeetingDeletionCheckpoint?
+        if let raw = environment["HAENA_RECOVERY_PROCESS_TEST_DELETION_CRASH_POINT"], !raw.isEmpty {
+            guard let parsed = MeetingDeletionCheckpoint(rawValue: raw) else {
+                throw ConfigurationError.invalidDeletionCrashPoint
+            }
+            deletionCrashCheckpoint = parsed
+        } else {
+            deletionCrashCheckpoint = nil
+        }
+
+        let deletionRequest: DeletionRequest?
+        if let raw = environment["HAENA_RECOVERY_PROCESS_TEST_DELETE"], !raw.isEmpty {
+            guard let parsed = DeletionRequest(rawValue: raw) else {
+                throw ConfigurationError.invalidDeletionRequest
+            }
+            deletionRequest = parsed
+        } else {
+            deletionRequest = nil
+        }
+
         return Self(
             rootURL: root,
             shouldSeed: environment["HAENA_RECOVERY_PROCESS_TEST_SEED"] == "1",
             shouldApprove: environment["HAENA_RECOVERY_PROCESS_TEST_AUTO_APPROVE"] == "1",
-            crashCheckpoint: crashCheckpoint
+            crashCheckpoint: crashCheckpoint,
+            shouldSeedDeletion: environment["HAENA_RECOVERY_PROCESS_TEST_DELETION_SEED"] == "1",
+            deletionRequest: deletionRequest,
+            deletionCrashCheckpoint: deletionCrashCheckpoint,
+            shouldExitAfterRecovery:
+                environment["HAENA_RECOVERY_PROCESS_TEST_EXIT_AFTER_RECOVERY"] == "1"
         )
     }
 
@@ -177,6 +230,167 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
         _ = try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: transitionsURL.path)
     }
 
+    /// The deletion smoke's synthetic graph: one project holding a doomed meeting and a kept one,
+    /// plus a second project that nothing targets. Every row carries the ids the deletion closure
+    /// resolves by, so a leak across either boundary shows up as a surviving or missing row rather
+    /// than as a judgement call.
+    func seedDeletionIfRequested(fileManager: FileManager = .default) throws {
+        guard shouldSeedDeletion else { return }
+        guard !fileManager.fileExists(atPath: projectsURL.path),
+              !fileManager.fileExists(atPath: transitionsURL.path)
+        else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: audioDirectoryURL, withIntermediateDirectories: true)
+
+        let createdAt = Date(timeIntervalSince1970: 1_788_000_000)
+        let quote = "Synthetic deletion evidence"
+
+        func meeting(id: UUID, projectID: UUID, segmentID: UUID, audio: AudioAsset?) -> Meeting {
+            Meeting(
+                id: id,
+                projectID: projectID,
+                title: "Synthetic deletion meeting",
+                occurredAt: createdAt,
+                sourceType: .pastedText,
+                participants: [],
+                transcriptSegments: [TranscriptSegment(
+                    id: segmentID,
+                    meetingID: id,
+                    speakerID: nil,
+                    sourceSpeakerLabel: "synthetic",
+                    text: quote,
+                    startTime: nil,
+                    endTime: nil
+                )],
+                createdAt: createdAt,
+                audioAsset: audio
+            )
+        }
+        func decision(id: UUID, projectID: UUID, meetingID: UUID, segmentID: UUID) -> Decision {
+            Decision(
+                id: id,
+                projectID: projectID,
+                meetingID: meetingID,
+                statement: "Synthetic decision",
+                rationale: nil,
+                status: .confirmed,
+                evidence: EvidenceReference(
+                    meetingID: meetingID, transcriptSegmentID: segmentID, quote: quote
+                ),
+                confidence: .maximum,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )
+        }
+        func proposal(
+            projectID: UUID, sourceMeetingID: UUID, currentObjectID: UUID, suffix: String
+        ) -> WorkStateTransitionProposal {
+            let key = "haena.synthetic-deletion.\(suffix)"
+            return WorkStateTransitionProposal(
+                id: WorkStateTransitionProposal.deterministicID(forDedupKey: key),
+                projectID: projectID,
+                workStateKind: .decision,
+                transitionKind: .new,
+                previousStateID: nil,
+                currentObjectID: currentObjectID,
+                sourceMeetingID: sourceMeetingID,
+                evidence: TransitionEvidencePointer(
+                    meetingID: sourceMeetingID, transcriptSegmentID: Self.deletionSegmentID
+                ),
+                basis: .noPriorCandidate,
+                requiresConfirmation: true,
+                dedupKey: key,
+                createdAt: createdAt
+            )
+        }
+
+        let audio = AudioAsset(
+            id: UUID(uuidString: "D0000000-0000-0000-0000-000000000210")!,
+            storedFileName: "synthetic-deletion.m4a",
+            originalFileName: "synthetic-deletion.m4a",
+            byteSize: 4,
+            importedAt: createdAt
+        )
+        try Data([0, 1, 2, 3]).write(
+            to: audioDirectoryURL.appendingPathComponent(audio.storedFileName), options: .atomic
+        )
+
+        let target = Project(
+            id: Self.deletionProjectID,
+            name: "Synthetic Deletion Target",
+            summary: "",
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            meetings: [
+                meeting(
+                    id: Self.deletionMeetingID, projectID: Self.deletionProjectID,
+                    segmentID: Self.deletionSegmentID, audio: audio
+                ),
+                meeting(
+                    id: Self.deletionKeptMeetingID, projectID: Self.deletionProjectID,
+                    segmentID: UUID(uuidString: "D0000000-0000-0000-0000-000000000206")!, audio: nil
+                )
+            ],
+            decisions: [
+                decision(
+                    id: Self.deletionDecisionID, projectID: Self.deletionProjectID,
+                    meetingID: Self.deletionMeetingID, segmentID: Self.deletionSegmentID
+                ),
+                decision(
+                    id: Self.deletionKeptDecisionID, projectID: Self.deletionProjectID,
+                    meetingID: Self.deletionKeptMeetingID,
+                    segmentID: UUID(uuidString: "D0000000-0000-0000-0000-000000000206")!
+                )
+            ],
+            actionItems: [], openQuestions: [], nextAgenda: []
+        )
+        let other = Project(
+            id: Self.deletionOtherProjectID,
+            name: "Synthetic Deletion Bystander",
+            summary: "",
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            meetings: [
+                meeting(
+                    id: Self.deletionOtherMeetingID, projectID: Self.deletionOtherProjectID,
+                    segmentID: UUID(uuidString: "D0000000-0000-0000-0000-000000000302")!, audio: nil
+                )
+            ],
+            decisions: [], actionItems: [], openQuestions: [], nextAgenda: []
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(ProjectStoreFile(projects: [target, other]))
+            .write(to: projectsURL, options: .atomic)
+        try encoder.encode(WorkStateTransitionStoreFile(proposals: [
+            // From the doomed meeting.
+            proposal(
+                projectID: Self.deletionProjectID, sourceMeetingID: Self.deletionMeetingID,
+                currentObjectID: Self.deletionDecisionID, suffix: "doomed"
+            ),
+            // From the kept meeting but about the doomed meeting's object: the cross-meeting edge.
+            proposal(
+                projectID: Self.deletionProjectID, sourceMeetingID: Self.deletionKeptMeetingID,
+                currentObjectID: Self.deletionDecisionID, suffix: "dependent"
+            ),
+            // Names nothing being removed.
+            proposal(
+                projectID: Self.deletionProjectID, sourceMeetingID: Self.deletionKeptMeetingID,
+                currentObjectID: Self.deletionKeptDecisionID, suffix: "kept"
+            ),
+            // Another project, same object id: survives on the project guard alone.
+            proposal(
+                projectID: Self.deletionOtherProjectID, sourceMeetingID: Self.deletionOtherMeetingID,
+                currentObjectID: Self.deletionDecisionID, suffix: "bystander"
+            )
+        ])).write(to: transitionsURL, options: .atomic)
+        _ = try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: projectsURL.path)
+        _ = try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: transitionsURL.path)
+    }
+
     var checkpointObserver: @Sendable (WorkStateTransitionApplyCheckpoint) -> Void {
         let requested = crashCheckpoint
         return { reached in
@@ -184,6 +398,16 @@ struct TransitionApplyRecoveryProcessTestConfiguration: Equatable {
             _exit(86)
         }
     }
+
+    var deletionCheckpointObserver: @Sendable (MeetingDeletionCheckpoint) -> Void {
+        let requested = deletionCrashCheckpoint
+        return { reached in
+            guard reached == requested else { return }
+            _exit(86)
+        }
+    }
+
+    var audioDirectoryURL: URL { rootURL.appendingPathComponent("audio", isDirectory: true) }
 }
 #endif
 
@@ -243,6 +467,7 @@ struct HAENAApp: App {
         do {
             let configuration = try TransitionApplyRecoveryProcessTestConfiguration.load()
             try configuration?.seedIfRequested()
+            try configuration?.seedDeletionIfRequested()
             recoveryProcessAssembly = configuration.map { configuration in
                 AppComponentAssembly(
                     repository: JSONProjectRepository(fileURL: configuration.projectsURL),

@@ -236,9 +236,49 @@ struct ContentView: View {
                 assetStore: audioAssetStore,
                 transitions: transitionRepository
             ).recoverInterruptedProjectDeletions()
+            #if DEBUG
+            // Runs after launch recovery, so a relaunch in the deletion smoke finishes recovering
+            // before it is asked to end. A first process performs the seeded deletion instead and
+            // is terminated inside it by the checkpoint observer.
+            if let configuration = try? TransitionApplyRecoveryProcessTestConfiguration.load() {
+                await performProcessTestDeletion(configuration)
+                if configuration.shouldExitAfterRecovery {
+                    _exit(0)
+                }
+            }
+            #endif
             await reminderService.reconcile()
         }
     }
+
+    #if DEBUG
+    /// Debug-only. Drives one deletion for the process smoke harness, with the crash observer the
+    /// configuration supplies. Absent a request this does nothing at all.
+    private func performProcessTestDeletion(
+        _ configuration: TransitionApplyRecoveryProcessTestConfiguration
+    ) async {
+        guard let request = configuration.deletionRequest else {
+            return
+        }
+        let service = ProjectDeletionService(
+            repository: repository,
+            assetStore: audioAssetStore,
+            transitions: transitionRepository,
+            didReachCheckpoint: configuration.deletionCheckpointObserver
+        )
+        switch request {
+        case .meeting:
+            _ = try? await service.deleteMeeting(
+                meetingID: TransitionApplyRecoveryProcessTestConfiguration.deletionMeetingID,
+                fromProjectID: TransitionApplyRecoveryProcessTestConfiguration.deletionProjectID
+            )
+        case .project:
+            try? await service.deleteProject(
+                id: TransitionApplyRecoveryProcessTestConfiguration.deletionProjectID
+            )
+        }
+    }
+    #endif
 
     /// Records where a finished capture wants to go. The capture sheet closes itself right after
     /// calling this; opening the browser is left to `openPendingDestination`, once that dismissal

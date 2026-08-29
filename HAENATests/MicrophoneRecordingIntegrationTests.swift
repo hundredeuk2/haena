@@ -288,6 +288,66 @@ final class MicrophoneConfigurationTests: XCTestCase {
         )
     }
 
+    /// The deletion harness rides the same configuration, so it inherits the same fail-closed root
+    /// check — and its own two inputs must be finite in the same way. An unparseable value is an
+    /// error, never a silent fall-through to a default that would run against the real store.
+    func testDeletionProcessHarnessParsesFiniteInputsAndFailsClosed() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENA-deletion-contract-test", isDirectory: true)
+        let accepted = try XCTUnwrap(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": temporaryRoot.path,
+                "HAENA_RECOVERY_PROCESS_TEST_DELETION_SEED": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_DELETE": "project",
+                "HAENA_RECOVERY_PROCESS_TEST_DELETION_CRASH_POINT": "project_after_sidecar",
+                "HAENA_RECOVERY_PROCESS_TEST_EXIT_AFTER_RECOVERY": "1"
+            ]
+        ))
+        XCTAssertTrue(accepted.shouldSeedDeletion)
+        XCTAssertEqual(accepted.deletionRequest, .project)
+        XCTAssertEqual(accepted.deletionCrashCheckpoint, .projectSidecarCleaned)
+        XCTAssertTrue(accepted.shouldExitAfterRecovery)
+
+        XCTAssertThrowsError(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": temporaryRoot.path,
+                "HAENA_RECOVERY_PROCESS_TEST_DELETION_CRASH_POINT": "after_everything"
+            ]
+        )) { error in
+            XCTAssertEqual(
+                error as? TransitionApplyRecoveryProcessTestConfiguration.ConfigurationError,
+                .invalidDeletionCrashPoint
+            )
+        }
+        XCTAssertThrowsError(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": temporaryRoot.path,
+                "HAENA_RECOVERY_PROCESS_TEST_DELETE": "everything"
+            ]
+        )) { error in
+            XCTAssertEqual(
+                error as? TransitionApplyRecoveryProcessTestConfiguration.ConfigurationError,
+                .invalidDeletionRequest
+            )
+        }
+        // The root check is shared, so a deletion run cannot opt out of it either.
+        XCTAssertThrowsError(try TransitionApplyRecoveryProcessTestConfiguration.load(
+            environment: [
+                "HAENA_RECOVERY_PROCESS_TESTING": "1",
+                "HAENA_RECOVERY_PROCESS_TEST_ROOT": NSHomeDirectory() + "/Library/Application Support",
+                "HAENA_RECOVERY_PROCESS_TEST_DELETE": "meeting"
+            ]
+        )) { error in
+            XCTAssertEqual(
+                error as? TransitionApplyRecoveryProcessTestConfiguration.ConfigurationError,
+                .rootOutsideSystemTemporaryDirectory
+            )
+        }
+    }
+
     func testRecoveryProcessAssemblyRequiresStrictSystemTemporaryRoot() throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("HAENA-recovery-contract-test", isDirectory: true)

@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import HAENA
 
@@ -1345,6 +1346,282 @@ final class ProjectDeletionServiceTests: XCTestCase {
         XCTAssertEqual(afterSecond.3, afterFirst.3)
         let targetAfterSecond = try await f.transitions.proposals(forProject: TestFixtures.projectID)
         XCTAssertTrue(targetAfterSecond.isEmpty)
+    }
+
+    // MARK: - Process crash and relaunch
+
+    /// Drives the Debug-only harness the way a real interruption happens: a first process is
+    /// terminated inside the deletion at a named boundary, and separate processes finish the work.
+    /// Everything lives under one synthetic root in the system temporary directory; nothing here
+    /// can reach Application Support, because the configuration refuses any root that is not a
+    /// strict descendant of that directory.
+    private struct DeletionProcessSmoke {
+        let root: URL
+        let executable: URL
+
+        static let targetProjectID = "D0000000-0000-0000-0000-000000000200"
+        static let bystanderProjectID = "D0000000-0000-0000-0000-000000000300"
+
+        @discardableResult
+        func launch(_ environment: [String: String]) throws -> Int32 {
+            let process = Process()
+            process.executableURL = executable
+            var merged = ProcessInfo.processInfo.environment
+            merged["HAENA_RECOVERY_PROCESS_TESTING"] = "1"
+            merged["HAENA_RECOVERY_PROCESS_TEST_ROOT"] = root.path
+            for (key, value) in environment { merged[key] = value }
+            process.environment = merged
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        }
+
+        func sha(_ name: String) throws -> String {
+            let data = try Data(contentsOf: root.appendingPathComponent(name))
+            return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
+
+        func projects() throws -> [[String: Any]] {
+            let data = try Data(contentsOf: root.appendingPathComponent("projects.json"))
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return object?["projects"] as? [[String: Any]] ?? []
+        }
+
+        func sidecar() throws -> [String: Any] {
+            let data = try Data(contentsOf: root.appendingPathComponent("continuity-transitions.json"))
+            return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        }
+
+        func rows(_ key: String) throws -> [[String: Any]] {
+            try sidecar()[key] as? [[String: Any]] ?? []
+        }
+    }
+
+    private func makeProcessSmoke() throws -> DeletionProcessSmoke {
+        // The unit-test bundle is hosted by HAENA.app, so the host executable is the app itself.
+        let executable = try XCTUnwrap(Bundle.main.executableURL)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENADeletionSmoke-\(UUID().uuidString)", isDirectory: true)
+        return DeletionProcessSmoke(root: root, executable: executable)
+    }
+
+    /// One crash point, end to end: terminate inside the deletion, finish it in a second process,
+    /// then prove a third process changes nothing.
+    private func runCrashPointSmoke(
+        request: String,
+        crashPoint: String,
+        expectProjectDeleted: Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let smoke = try makeProcessSmoke()
+        defer { try? FileManager.default.removeItem(at: smoke.root) }
+
+        let first = try smoke.launch([
+            "HAENA_RECOVERY_PROCESS_TEST_DELETION_SEED": "1",
+            "HAENA_RECOVERY_PROCESS_TEST_DELETE": request,
+            "HAENA_RECOVERY_PROCESS_TEST_DELETION_CRASH_POINT": crashPoint
+        ])
+        XCTAssertEqual(first, 86, "the first process must stop at \(crashPoint)", file: file, line: line)
+
+        let second = try smoke.launch(["HAENA_RECOVERY_PROCESS_TEST_EXIT_AFTER_RECOVERY": "1"])
+        XCTAssertEqual(second, 0, file: file, line: line)
+        let projectsAfterFirst = try smoke.sha("projects.json")
+        let sidecarAfterFirst = try smoke.sha("continuity-transitions.json")
+
+        let third = try smoke.launch(["HAENA_RECOVERY_PROCESS_TEST_EXIT_AFTER_RECOVERY": "1"])
+        XCTAssertEqual(third, 0, file: file, line: line)
+        XCTAssertEqual(
+            try smoke.sha("projects.json"), projectsAfterFirst,
+            "a second recovery must not mutate the Project store", file: file, line: line
+        )
+        XCTAssertEqual(
+            try smoke.sha("continuity-transitions.json"), sidecarAfterFirst,
+            "a second recovery must not mutate the sidecar", file: file, line: line
+        )
+
+        let projects = try smoke.projects()
+        let target = projects.first { $0["id"] as? String == DeletionProcessSmoke.targetProjectID }
+        if expectProjectDeleted {
+            XCTAssertNil(target, "the whole project was the subject", file: file, line: line)
+        } else {
+            let survived = try XCTUnwrap(target, file: file, line: line)
+            let meetings = survived["meetings"] as? [[String: Any]] ?? []
+            let decisions = survived["decisions"] as? [[String: Any]] ?? []
+            XCTAssertEqual(meetings.count, 1, "only the doomed meeting goes", file: file, line: line)
+            XCTAssertEqual(decisions.count, 1, file: file, line: line)
+        }
+
+        // The bystander project is untouched in every case, and keeps its proposal even though it
+        // names the same object id the deletion removed.
+        let bystander = projects.first { $0["id"] as? String == DeletionProcessSmoke.bystanderProjectID }
+        XCTAssertNotNil(bystander, file: file, line: line)
+        let proposals = try smoke.rows("proposals")
+        XCTAssertEqual(
+            proposals.filter { $0["projectID"] as? String == DeletionProcessSmoke.bystanderProjectID }.count,
+            1, "another project's row must survive", file: file, line: line
+        )
+        XCTAssertTrue(
+            try smoke.rows("meetingDeletionIntents").isEmpty,
+            "recovery must retire the intent it acted on", file: file, line: line
+        )
+        XCTAssertTrue(try smoke.rows("projectDeletionIntents").isEmpty, file: file, line: line)
+    }
+
+    func testMeetingDeletionRecoversFromACrashAfterTheIntent() throws {
+        try runCrashPointSmoke(
+            request: "meeting", crashPoint: "meeting_after_intent", expectProjectDeleted: false
+        )
+    }
+
+    func testMeetingDeletionRecoversFromACrashAfterTheProjectSave() throws {
+        try runCrashPointSmoke(
+            request: "meeting", crashPoint: "meeting_after_project", expectProjectDeleted: false
+        )
+    }
+
+    func testMeetingDeletionRecoversFromACrashAfterTheSidecarSweep() throws {
+        try runCrashPointSmoke(
+            request: "meeting", crashPoint: "meeting_after_sidecar", expectProjectDeleted: false
+        )
+    }
+
+    func testProjectDeletionRecoversFromACrashAfterTheIntent() throws {
+        try runCrashPointSmoke(
+            request: "project", crashPoint: "project_after_intent", expectProjectDeleted: true
+        )
+    }
+
+    func testProjectDeletionRecoversFromACrashAfterTheAggregateDelete() throws {
+        try runCrashPointSmoke(
+            request: "project", crashPoint: "project_after_aggregate", expectProjectDeleted: true
+        )
+    }
+
+    /// The last boundary, and the one with a limit worth stating rather than hiding: both stores
+    /// are terminal and the intent is gone, but the audio file the meeting pointed at is still on
+    /// disk. The receipt carries identifiers only — deliberately no audio path — so nothing left
+    /// behind can find it. This asserts the orphan rather than pretending recovery cleaned it.
+    func testProjectDeletionCrashAfterTheSidecarLeavesTerminalStoresAndAnOrphanAudioFile() throws {
+        let smoke = try makeProcessSmoke()
+        defer { try? FileManager.default.removeItem(at: smoke.root) }
+
+        XCTAssertEqual(try smoke.launch([
+            "HAENA_RECOVERY_PROCESS_TEST_DELETION_SEED": "1",
+            "HAENA_RECOVERY_PROCESS_TEST_DELETE": "project",
+            "HAENA_RECOVERY_PROCESS_TEST_DELETION_CRASH_POINT": "project_after_sidecar"
+        ]), 86)
+        XCTAssertEqual(try smoke.launch(["HAENA_RECOVERY_PROCESS_TEST_EXIT_AFTER_RECOVERY": "1"]), 0)
+
+        let projects = try smoke.projects()
+        XCTAssertNil(projects.first { $0["id"] as? String == DeletionProcessSmoke.targetProjectID })
+        XCTAssertTrue(try smoke.rows("projectDeletionIntents").isEmpty)
+        XCTAssertEqual(
+            try smoke.rows("proposals").count, 1, "only the bystander's row remains"
+        )
+
+        let audio = smoke.root.appendingPathComponent("audio", isDirectory: true)
+        let files = try FileManager.default.contentsOfDirectory(atPath: audio.path)
+        XCTAssertEqual(
+            files, ["synthetic-deletion.m4a"],
+            "audio is unlinked in-process after both stores, so a crash at this boundary orphans it"
+        )
+    }
+
+    // MARK: - Durable intents across a repository reopen
+
+    /// The gap TM 1.5 found. Both intents were written to disk correctly and then dropped when the
+    /// file was mapped into the repository's cache, so a fresh process always read an empty work
+    /// list and finished nothing. Every earlier test used the in-memory repository, which keeps
+    /// intents in its own cache and therefore could not see it.
+    func testAMeetingDeletionIntentSurvivesANewRepositoryInstance() async throws {
+        let url = try Self.temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let intent = MeetingDeletionIntent(
+            projectID: TestFixtures.projectID,
+            meetingID: TestFixtures.meetingID,
+            removedWorkStateIDs: [TestFixtures.segmentID],
+            requestedAt: TestFixtures.fixedDate
+        )
+        try await JSONWorkStateTransitionRepository(fileURL: url)
+            .recordMeetingDeletionIntent(intent)
+
+        let reopened = try await JSONWorkStateTransitionRepository(fileURL: url)
+            .pendingMeetingDeletionIntents()
+
+        XCTAssertEqual(reopened, [intent], "an intent a relaunch cannot see recovers nothing")
+    }
+
+    func testAProjectDeletionIntentSurvivesANewRepositoryInstance() async throws {
+        let url = try Self.temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let intent = ProjectDeletionIntent(
+            projectID: TestFixtures.projectID, requestedAt: TestFixtures.fixedDate
+        )
+        try await JSONWorkStateTransitionRepository(fileURL: url)
+            .recordProjectDeletionIntent(intent)
+
+        let reopened = try await JSONWorkStateTransitionRepository(fileURL: url)
+            .pendingProjectDeletionIntents()
+
+        XCTAssertEqual(reopened, [intent])
+    }
+
+    /// End to end over the real JSON stores, with no process involved: the half the in-memory
+    /// tests could not reach.
+    func testRecoveryFinishesAnInterruptedMeetingDeletionAcrossAStoreReopen() async throws {
+        let url = try Self.temporaryFileURL()
+        let directory = url.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let projectsURL = directory.appendingPathComponent("projects.json")
+
+        let meeting = makeMeeting(projectID: TestFixtures.projectID, title: "Doomed")
+        let decision = makeDecision(projectID: TestFixtures.projectID, meetingID: meeting.id)
+        try await JSONProjectRepository(fileURL: projectsURL).save(makeProject(
+            id: TestFixtures.projectID, meetings: [meeting], decisions: [decision]
+        ))
+        try await JSONWorkStateTransitionRepository(fileURL: url).upsert([
+            makeProposal(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: meeting.id,
+                currentObjectID: decision.id
+            )
+        ])
+        // Exactly what a crash between the intent and the Project save leaves behind.
+        try await JSONWorkStateTransitionRepository(fileURL: url).recordMeetingDeletionIntent(
+            MeetingDeletionIntent(
+                projectID: TestFixtures.projectID,
+                meetingID: meeting.id,
+                removedWorkStateIDs: [decision.id],
+                requestedAt: TestFixtures.fixedDate
+            )
+        )
+
+        let projects = JSONProjectRepository(fileURL: projectsURL)
+        let transitions = JSONWorkStateTransitionRepository(fileURL: url)
+        await ProjectDeletionService(
+            repository: projects, transitions: transitions, now: { TestFixtures.laterDate }
+        ).recoverInterruptedMeetingDeletions()
+
+        let reloaded = try await JSONProjectRepository(fileURL: projectsURL)
+            .project(id: TestFixtures.projectID)
+        let project = try XCTUnwrap(reloaded)
+        XCTAssertTrue(project.meetings.isEmpty)
+        XCTAssertTrue(project.decisions.isEmpty)
+        let reopened = JSONWorkStateTransitionRepository(fileURL: url)
+        let proposals = try await reopened.allProposals()
+        XCTAssertTrue(proposals.isEmpty)
+        let pending = try await reopened.pendingMeetingDeletionIntents()
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    private static func temporaryFileURL() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENADurable-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent("continuity-transitions.json")
     }
 
     func testASidecarWithoutTheProjectDeletionIntentFieldStillDecodes() throws {
