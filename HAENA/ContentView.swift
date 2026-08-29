@@ -214,6 +214,13 @@ struct ContentView: View {
             }
             #endif
             _ = await transitionReviewService.recoverPendingApplies()
+            // A meeting deletion spans the Project and the transition sidecar, so an interrupted one
+            // has to be finished here rather than waiting for the user to notice orphans.
+            await ProjectDeletionService(
+                repository: repository,
+                assetStore: audioAssetStore,
+                transitions: transitionRepository
+            ).recoverInterruptedMeetingDeletions()
             await reminderService.reconcile()
         }
     }

@@ -65,7 +65,11 @@ struct ProjectBrowserView: View {
     }
 
     private var deletionService: ProjectDeletionService {
-        ProjectDeletionService(repository: repository, assetStore: audioAssetStore)
+        ProjectDeletionService(
+            repository: repository,
+            assetStore: audioAssetStore,
+            transitions: transitionRepository
+        )
     }
 
     private var reviewService: WorkStateReviewService {

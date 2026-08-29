@@ -1,0 +1,110 @@
+import Foundation
+
+/// Everything in the transition sidecar that stops making sense once one meeting and its Work State
+/// are gone.
+///
+/// Deleting a meeting is an explicit user verdict: the meeting, the Work State it produced, and the
+/// approved and rejected verdicts about that Work State all go. `meetingID` keeps meaning "the
+/// meeting this came from", so nothing is rehomed to the project and no tombstone is left behind.
+///
+/// Split out as a pure value so the rule can be read and tested without a repository, a file, or a
+/// clock — the closure is the part that is easy to get subtly wrong, and it is the part that decides
+/// whether an unrelated meeting's verdict survives byte-for-byte.
+struct MeetingDeletionClosure: Equatable, Sendable {
+    /// `dedupKey`s, because that is what the store keys proposals and reviews by.
+    let proposalKeys: Set<String>
+    let ambiguousMatchGroupKeys: Set<String>
+    let refusalKeys: Set<String>
+    let ambiguityGroupIDs: Set<UUID>
+    let applyIntentKeys: Set<String>
+
+    var isEmpty: Bool {
+        proposalKeys.isEmpty
+            && ambiguousMatchGroupKeys.isEmpty
+            && refusalKeys.isEmpty
+            && ambiguityGroupIDs.isEmpty
+            && applyIntentKeys.isEmpty
+    }
+
+    /// Resolves the closure by typed UUID reference only.
+    ///
+    /// Two ways in, and both are exact identity comparisons — never a title, never a heuristic:
+    ///
+    /// 1. **From the meeting.** Proposals, ambiguity groups and refusals whose `sourceMeetingID` is
+    ///    the deleted one. These are the orphans the bug report describes.
+    /// 2. **From the Work State.** Transitions belonging to *other* meetings that point at an object
+    ///    this deletion removes — through `currentObjectID`, `previousStateID`, or a typed
+    ///    `relations` entry. Without this, a later meeting keeps a transition whose subject no
+    ///    longer exists, which is the same orphan wearing a different hat.
+    ///
+    /// One pass is enough, and that is a property of the rule rather than a shortcut: reaching a
+    /// transition through a removed object does not remove any further objects, so there is nothing
+    /// for a second pass to discover.
+    ///
+    /// Reviews and apply intents follow whatever they were about. A verdict on a proposal that is
+    /// going cannot be kept — there would be nothing left for it to be a verdict on.
+    static func resolve(
+        meetingID: UUID,
+        projectID: UUID,
+        removedWorkStateIDs: Set<UUID>,
+        proposals: [WorkStateTransitionProposal],
+        ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup],
+        refusals: [WorkStateTransitionRefusalRecord],
+        applyIntents: [WorkStateTransitionApplyIntent]
+    ) -> MeetingDeletionClosure {
+        // Scoped to the project throughout. A UUID collision across projects is not expected, but
+        // "not expected" is not a reason to let a deletion reach into another project's sidecar.
+        let scopedProposals = proposals.filter { $0.projectID == projectID }
+
+        func touchesRemovedObject(_ proposal: WorkStateTransitionProposal) -> Bool {
+            if let current = proposal.currentObjectID, removedWorkStateIDs.contains(current) {
+                return true
+            }
+            if let previous = proposal.previousStateID, removedWorkStateIDs.contains(previous) {
+                return true
+            }
+            return proposal.relations.contains { removedWorkStateIDs.contains($0.relatedObjectID) }
+        }
+
+        let doomedProposals = scopedProposals.filter {
+            $0.sourceMeetingID == meetingID || touchesRemovedObject($0)
+        }
+        let proposalKeys = Set(doomedProposals.map(\.dedupKey))
+        let proposalIDs = Set(doomedProposals.map(\.id))
+
+        let doomedGroups = ambiguousMatchGroups.filter {
+            $0.projectID == projectID && $0.sourceMeetingID == meetingID
+        }
+        let groupKeys = Set(doomedGroups.map(\.dedupKey))
+        let groupIDs = Set(doomedGroups.map(\.id))
+
+        let doomedRefusals = refusals.filter {
+            $0.projectID == projectID && $0.sourceMeetingID == meetingID
+        }
+
+        // An intent is identified by the operation it would finish. It goes if that operation's
+        // subject is going — either because the intent names the proposal or group directly, or
+        // because one of the terminal verdicts it carries is about a doomed proposal. Leaving one
+        // behind would let recovery try to apply a verdict to something that no longer exists.
+        let doomedIntents = applyIntents.filter { intent in
+            guard intent.projectID == projectID else { return false }
+            if intent.terminalReviews.contains(where: { proposalIDs.contains($0.proposalID) }) {
+                return true
+            }
+            switch intent.operationKind {
+            case .proposal:
+                return proposalIDs.contains(intent.operationID)
+            case .ambiguity:
+                return groupIDs.contains(intent.operationID)
+            }
+        }
+
+        return MeetingDeletionClosure(
+            proposalKeys: proposalKeys,
+            ambiguousMatchGroupKeys: groupKeys,
+            refusalKeys: Set(doomedRefusals.map(\.dedupKey)),
+            ambiguityGroupIDs: groupIDs,
+            applyIntentKeys: Set(doomedIntents.map(\.storageKey))
+        )
+    }
+}
