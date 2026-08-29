@@ -28,6 +28,13 @@ xcuserdata/
 /dist/
 /.build/
 
+# Project-local Task Master CLI dependency. The pinned manifest and lockfile
+# are reviewed; downloaded packages stay local to each developer machine.
+/tools/task-master/node_modules/
+
+# Task Master renders these Markdown files from the tracked tasks.json graph.
+/.taskmaster/tasks/task_*.md
+
 # Local credentials. Never committed in any form — a key in history stays in
 # history even after the file is deleted.
 .env

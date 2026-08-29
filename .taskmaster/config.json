@@ -1,0 +1,43 @@
+{
+  "models": {
+    "main": {
+      "provider": "ollama",
+      "modelId": "disabled-offline-pilot",
+      "maxTokens": 1,
+      "temperature": 0.2
+    },
+    "research": {
+      "provider": "ollama",
+      "modelId": "disabled-offline-pilot",
+      "maxTokens": 1,
+      "temperature": 0.1
+    },
+    "fallback": {
+      "provider": "ollama",
+      "modelId": "disabled-offline-pilot",
+      "maxTokens": 1,
+      "temperature": 0.2
+    }
+  },
+  "global": {
+    "logLevel": "info",
+    "debug": false,
+    "defaultNumTasks": 10,
+    "defaultSubtasks": 5,
+    "defaultPriority": "medium",
+    "projectName": "HAE.NA — Meeting deletion lifecycle",
+    "ollamaBaseURL": "http://127.0.0.1:9/api",
+    "bedrockBaseURL": "http://127.0.0.1:9",
+    "responseLanguage": "Korean",
+    "enableCodebaseAnalysis": false,
+    "enableProxy": false,
+    "anonymousTelemetry": false
+  },
+  "claudeCode": {},
+  "codexCli": {},
+  "grokCli": {
+    "timeout": 120000,
+    "workingDirectory": null,
+    "defaultModel": "grok-4-latest"
+  }
+}

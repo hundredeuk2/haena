@@ -1,0 +1,110 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Complete meeting deletion lifecycle edges",
+        "description": "Finish the typed continuity cleanup edges intentionally excluded from Private Preview 0.2.3 while preserving unrelated meetings, projects, and terminal verdicts.",
+        "details": "Notion page 3c5f6cd22fd58151a2e3e2780052cae5 is the authority. Start from main@2246509 on codex/meeting-deletion-lifecycle-completion. Use e60c85de only as reviewed source evidence; do not blind cherry-pick. No fuzzy matching, transcript inference, direct JSON edits, user-project deletion smoke, external AI, MCP, or provider keys.",
+        "testStrategy": "Focused unit regression and Debug build per coherent slice; Release isolation at the final engineering checkpoint. Defer broad suites and any destructive smoke until explicitly approved.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Baseline main and selectively port e60c85de",
+            "description": "Compare main@2246509 with the excluded lifecycle checkpoint and recover only the still-required 60 percent implementation.",
+            "dependencies": [],
+            "details": "Audit current deletion entry points, repository protocols, launch recovery wiring, project generation state, and tests before editing. Separate code already present on main from missing files and changes. Preserve unrelated dirty and untracked files. Commit and push the coherent baseline-port checkpoint after focused verification.",
+            "status": "pending",
+            "testStrategy": "Compile directly related targets, run the existing meeting deletion and transition repository tests, and run git diff --check.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Close refusal object-reference orphans",
+            "description": "Remove cross-meeting refusal records whose currentObjectID or previousStateID points to canonical objects deleted with the meeting.",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Use exact UUID identity only. Preserve unrelated refusal records and their ordering/value semantics. Extend the pure deletion closure rather than hiding dangling cards in a read model.",
+            "status": "pending",
+            "testStrategy": "Add focused regressions for currentObjectID, previousStateID, and unrelated refusal preservation.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Close ambiguity group and review object-reference orphans",
+            "description": "Remove cross-meeting ambiguity groups whose incomingObjectID or priorCandidateIDs points to deleted canonical objects, including their ambiguity reviews.",
+            "dependencies": [
+              "1.2"
+            ],
+            "details": "Use typed UUID references. Remove the dependent group and its reviews atomically with the sidecar closure; preserve unrelated groups and reviews.",
+            "status": "pending",
+            "testStrategy": "Cover incomingObjectID, each priorCandidateIDs path, dependent ambiguityReviews, and unrelated value preservation.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Connect deleteProject to continuity sidecar lifecycle",
+            "description": "Apply the established lifecycle contract when an entire project is deleted so its transition records and deletion intents do not remain orphaned.",
+            "dependencies": [
+              "1.3"
+            ],
+            "details": "Reuse the existing typed closure and repository boundary. This is not a redesign of project deletion UX, cloud sync, tombstones, or audit storage. Other projects must remain untouched.",
+            "status": "pending",
+            "testStrategy": "Test project-scoped cleanup, other-project byte/value preservation, no-sidecar configuration, and repeated deletion.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Prove durable deletion recovery and idempotency",
+            "description": "Finish crash and relaunch recovery across deletion intent, Project persistence, sidecar cleanup, intent clearing, and audio unlink ordering.",
+            "dependencies": [
+              "1.4"
+            ],
+            "details": "Validate intent-after-write, Project-after-save, and sidecar-after-cleanup boundaries. Recovery must be finite, repeatable, and must not duplicate mutations. Keep intent payload privacy-safe: identifiers and timestamps only.",
+            "status": "pending",
+            "testStrategy": "Process or repository-level crash-point tests plus repeated recovery assertions and legacy sidecar decoding.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Run focused verification and Release isolation",
+            "description": "Verify the completed lifecycle slice proportionally without reopening deferred broad validation.",
+            "dependencies": [
+              "1.5"
+            ],
+            "details": "Run directly related suites, core regression assertions, Debug build, Release universal isolation, XcodeGen idempotency if project generation changed, and git diff --check. Record broad unit, Benchmark, full XCUITest, soak, and real deletion smoke as deferred unless separately approved.",
+            "status": "pending",
+            "testStrategy": "Produce exact pass, failure, skip, environment, and privacy counts; do not infer unrun gates.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 7,
+            "title": "Synchronize Notion, Git, and review handoff",
+            "description": "Reconcile the Task Master graph with actual commits and evidence, then prepare the user approval boundary and next product agenda.",
+            "dependencies": [
+              "1.6"
+            ],
+            "details": "Update the Notion Task with implementation result, issue briefing, deferred verification, branch commits and push state. Keep the Notion Task in progress until explicit user approval. Do not open or merge a PR, tag, release, or publish without separate approval.",
+            "status": "pending",
+            "testStrategy": "Re-fetch Notion, validate Task Master dependencies, verify clean tracked/staged Git state, and confirm unrelated untracked files remain preserved.",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-08-29T12:19:35.879Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-08-29T12:19:35.879Z",
+      "taskCount": 1,
+      "completedCount": 0,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}
