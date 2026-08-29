@@ -56,10 +56,10 @@
               "1.3"
             ],
             "details": "Reuse the existing typed closure and repository boundary. This is not a redesign of project deletion UX, cloud sync, tombstones, or audit storage. Other projects must remain untouched.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Test project-scoped cleanup, other-project byte/value preservation, no-sidecar configuration, and repeated deletion.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-29T14:13:02.973Z"
+            "updatedAt": "2026-08-29T14:25:04.053Z"
           },
           {
             "id": 5,
@@ -98,12 +98,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T14:13:02.973Z"
+        "updatedAt": "2026-08-29T14:25:04.053Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T14:13:02.975Z",
+      "lastModified": "2026-08-29T14:25:04.055Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [
