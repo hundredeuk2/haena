@@ -29,8 +29,10 @@ struct HomeView: View {
     /// Which list the work area is showing. Session-only on purpose: this is a glance, not a saved
     /// filter, and persisting it would be one more piece of state to explain.
     @State private var showingAllWork = false
+    #if DEBUG
     @State private var isCreatingReminderSample = false
     @State private var reminderSampleError: String?
+    #endif
 
     private enum LoadState: Equatable {
         case loading
@@ -185,7 +187,9 @@ struct HomeView: View {
                 Text("회의를 녹음하거나 음성 파일을 불러오면 여기에 확인할 내용이 모입니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                #if DEBUG
                 reminderSampleButton
+                #endif
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -194,9 +198,11 @@ struct HomeView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    #if DEBUG
                     if !hasEligibleReminderTask {
                         reminderSampleCallout
                     }
+                    #endif
                     nextActionCard(summary, reminders: reminders)
                     pendingSection(summary)
                     workSection(summary, reminders: reminders)
@@ -208,6 +214,11 @@ struct HomeView: View {
         }
     }
 
+    // Debug-only surface. See `ActionItemReminderSampleService`: this writes fixed-UUID sample
+    // objects into whatever store the app is running against, which a Developer Preview must not
+    // offer. Guarded at compile time so the button text and the service both leave the Release
+    // binary, rather than being hidden behind a runtime check that still ships the strings.
+    #if DEBUG
     private var reminderSampleCallout: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("알림을 검증할 확정된 내 업무가 없습니다.")
@@ -239,6 +250,7 @@ struct HomeView: View {
                 .accessibilityIdentifier("reminder-sample-error")
         }
     }
+    #endif
 
     // MARK: - 지금 할 일
 
@@ -592,6 +604,7 @@ struct HomeView: View {
         }
     }
 
+    #if DEBUG
     private func createReminderSample() async {
         guard !isCreatingReminderSample else { return }
         isCreatingReminderSample = true
@@ -616,6 +629,7 @@ struct HomeView: View {
             reminderSampleError = "알림 검증 샘플을 만들지 못했습니다."
         }
     }
+    #endif
 }
 
 /// A titled area with its own total, so every area reads the same way.
