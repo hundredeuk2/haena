@@ -17,10 +17,10 @@
             "description": "Compare main@2246509 with the excluded lifecycle checkpoint and recover only the still-required 60 percent implementation.",
             "dependencies": [],
             "details": "Audit current deletion entry points, repository protocols, launch recovery wiring, project generation state, and tests before editing. Separate code already present on main from missing files and changes. Preserve unrelated dirty and untracked files. Commit and push the coherent baseline-port checkpoint after focused verification.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Compile directly related targets, run the existing meeting deletion and transition repository tests, and run git diff --check.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-29T12:33:09.189Z"
+            "updatedAt": "2026-08-29T12:36:01.851Z"
           },
           {
             "id": 2,
@@ -95,12 +95,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T12:33:09.189Z"
+        "updatedAt": "2026-08-29T12:36:01.851Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T12:33:09.192Z",
+      "lastModified": "2026-08-29T12:36:01.853Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [
