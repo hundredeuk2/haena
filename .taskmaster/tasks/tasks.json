@@ -30,9 +30,10 @@
               "1.1"
             ],
             "details": "Use exact UUID identity only. Preserve unrelated refusal records and their ordering/value semantics. Extend the pure deletion closure rather than hiding dangling cards in a read model.",
-            "status": "pending",
+            "status": "review",
             "testStrategy": "Add focused regressions for currentObjectID, previousStateID, and unrelated refusal preservation.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-08-29T12:43:00.460Z"
           },
           {
             "id": 3,
@@ -95,12 +96,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T12:36:01.851Z"
+        "updatedAt": "2026-08-29T12:43:00.460Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T12:36:01.853Z",
+      "lastModified": "2026-08-29T12:43:00.462Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [

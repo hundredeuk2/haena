@@ -32,10 +32,10 @@ struct MeetingDeletionClosure: Equatable, Sendable {
     ///
     /// 1. **From the meeting.** Proposals, ambiguity groups and refusals whose `sourceMeetingID` is
     ///    the deleted one. These are the orphans the bug report describes.
-    /// 2. **From the Work State.** Transitions belonging to *other* meetings that point at an object
-    ///    this deletion removes — through `currentObjectID`, `previousStateID`, or a typed
-    ///    `relations` entry. Without this, a later meeting keeps a transition whose subject no
-    ///    longer exists, which is the same orphan wearing a different hat.
+    /// 2. **From the Work State.** Proposals and refusals belonging to *other* meetings that point
+    ///    at an object this deletion removes — through `currentObjectID`, `previousStateID`, or (on
+    ///    a proposal) a typed `relations` entry. Without this, a later meeting keeps a record whose
+    ///    subject no longer exists, which is the same orphan wearing a different hat.
     ///
     /// One pass is enough, and that is a property of the rule rather than a shortcut: reaching a
     /// transition through a removed object does not remove any further objects, so there is nothing
@@ -66,6 +66,19 @@ struct MeetingDeletionClosure: Equatable, Sendable {
             return proposal.relations.contains { removedWorkStateIDs.contains($0.relatedObjectID) }
         }
 
+        /// Same question for a refusal, which carries the same two typed object references but no
+        /// `relations` — a refusal records that a transition was *not* made, so there is no accepted
+        /// link hanging off it. Two paths here is the whole shape, not an abbreviation of three.
+        func touchesRemovedObject(_ refusal: WorkStateTransitionRefusalRecord) -> Bool {
+            if let current = refusal.currentObjectID, removedWorkStateIDs.contains(current) {
+                return true
+            }
+            if let previous = refusal.previousStateID, removedWorkStateIDs.contains(previous) {
+                return true
+            }
+            return false
+        }
+
         let doomedProposals = scopedProposals.filter {
             $0.sourceMeetingID == meetingID || touchesRemovedObject($0)
         }
@@ -78,8 +91,16 @@ struct MeetingDeletionClosure: Equatable, Sendable {
         let groupKeys = Set(doomedGroups.map(\.dedupKey))
         let groupIDs = Set(doomedGroups.map(\.id))
 
-        let doomedRefusals = refusals.filter {
-            $0.projectID == projectID && $0.sourceMeetingID == meetingID
+        // A refusal explains why one object could not be carried forward, so it is only meaningful
+        // while that object exists. One left pointing at a deleted object is not an audit record —
+        // it is an explanation of a decision about something nobody can look at any more.
+        //
+        // `projectID` is checked first and separately: the object-reference test below compares
+        // bare UUIDs, and scoping afterwards would let a collision reach into another project's
+        // sidecar before the guard ever ran.
+        let doomedRefusals = refusals.filter { refusal in
+            guard refusal.projectID == projectID else { return false }
+            return refusal.sourceMeetingID == meetingID || touchesRemovedObject(refusal)
         }
 
         // An intent is identified by the operation it would finish. It goes if that operation's

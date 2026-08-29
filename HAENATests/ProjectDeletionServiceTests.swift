@@ -442,6 +442,9 @@ final class ProjectDeletionServiceTests: XCTestCase {
 
     // MARK: - Continuity sidecar lifecycle
 
+    /// A second project that no deletion in this file ever targets.
+    private static let otherProjectID = UUID(uuidString: "C0000000-0000-4000-8000-000000000001")!
+
     /// A meeting deletion is an explicit user verdict that the meeting's Work State goes too, so the
     /// sidecar has to lose everything that was about it. These build the smallest sidecar that can
     /// tell a correct cleanup from an over-eager one: something to remove, and something next to it
@@ -481,13 +484,40 @@ final class ProjectDeletionServiceTests: XCTestCase {
         )
     }
 
+    /// Refusals carry the same two typed object references a proposal does, and no `relations`.
+    /// `reason` is what keeps each fixture row's `dedupKey` distinct, so the assertions below can
+    /// name a specific record instead of counting anonymous rows.
+    private func makeRefusal(
+        projectID: UUID,
+        sourceMeetingID: UUID,
+        currentObjectID: UUID? = nil,
+        previousStateID: UUID? = nil,
+        reason: WorkStateTransitionReason
+    ) -> WorkStateTransitionRefusalRecord {
+        WorkStateTransitionRefusalRecord(
+            run: WorkStateContinuityRunIdentity(
+                projectID: projectID,
+                sourceMeetingID: sourceMeetingID
+            ),
+            refusal: WorkStateTransitionRefusal(
+                workStateKind: .decision,
+                attemptedTransition: nil,
+                previousStateID: previousStateID,
+                currentObjectID: currentObjectID,
+                reason: reason
+            ),
+            createdAt: TestFixtures.fixedDate
+        )
+    }
+
     private func makeDeletionFixture() async throws -> (
         repository: InMemoryProjectRepository,
         transitions: InMemoryWorkStateTransitionRepository,
         service: ProjectDeletionService,
         doomedMeetingID: UUID,
         keptMeetingID: UUID,
-        approvedDecisionID: UUID
+        approvedDecisionID: UUID,
+        keptDecisionID: UUID
     ) {
         let repository = InMemoryProjectRepository()
         let doomed = makeMeeting(projectID: TestFixtures.projectID, title: "Doomed")
@@ -527,6 +557,47 @@ final class ProjectDeletionServiceTests: XCTestCase {
                     kind: .openQuestion,
                     reviewStatus: .approved
                 )
+            ],
+            // Removal targets and preservation targets sit in the same sidecar on purpose: a
+            // cleanup that is too eager and one that is too timid both fail here, and neither
+            // would show up in a fixture that only contained rows expected to disappear.
+            refusals: [
+                // From the doomed meeting. Removed by the original `sourceMeetingID` rule.
+                makeRefusal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: doomed.id,
+                    reason: .missingEvidence
+                ),
+                // From the *kept* meeting, explaining a refusal about the object being deleted.
+                makeRefusal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: kept.id,
+                    currentObjectID: approved.id,
+                    reason: .similarityOnly
+                ),
+                makeRefusal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: kept.id,
+                    previousStateID: approved.id,
+                    reason: .priorItemNotApproved
+                ),
+                // From the kept meeting and about an object that survives. Must come through
+                // unchanged.
+                makeRefusal(
+                    projectID: TestFixtures.projectID,
+                    sourceMeetingID: kept.id,
+                    currentObjectID: keptDecision.id,
+                    reason: .stateChangeRequiresApproval
+                ),
+                // Another project, pointing at the *same* object UUID this deletion removes. It is
+                // the sharpest form of the scoping question: nothing but the project guard keeps
+                // this row alive.
+                makeRefusal(
+                    projectID: Self.otherProjectID,
+                    sourceMeetingID: kept.id,
+                    currentObjectID: approved.id,
+                    reason: .crossProjectCandidate
+                )
             ]
         )
         let service = ProjectDeletionService(
@@ -534,7 +605,7 @@ final class ProjectDeletionServiceTests: XCTestCase {
             transitions: transitions,
             now: { TestFixtures.laterDate }
         )
-        return (repository, transitions, service, doomed.id, kept.id, approved.id)
+        return (repository, transitions, service, doomed.id, kept.id, approved.id, keptDecision.id)
     }
 
     func testDeletingAMeetingRemovesItsUnreviewedProposal() async throws {
@@ -591,6 +662,69 @@ final class ProjectDeletionServiceTests: XCTestCase {
             .filter { $0.sourceMeetingID == f.keptMeetingID && $0.previousStateID == nil }
         XCTAssertEqual(after, before, "an unrelated meeting's rows must come through unchanged")
         XCTAssertFalse(after.isEmpty)
+    }
+
+    // MARK: - Refusal object-reference orphans
+
+    /// A refusal explains why one object could not be carried forward. Once that object is gone the
+    /// explanation has no subject left, so it goes with it — even though the refusal itself came
+    /// from a meeting nobody deleted.
+    func testDeletingAMeetingRemovesAnotherMeetingsRefusalPointingAtItByCurrentObjectID() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+        XCTAssertFalse(
+            remaining.contains { $0.currentObjectID == f.approvedDecisionID },
+            "a refusal about a deleted object is not an audit record, it is a dangling reference"
+        )
+    }
+
+    func testDeletingAMeetingRemovesAnotherMeetingsRefusalPointingAtItByPreviousStateID() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+        XCTAssertFalse(remaining.contains { $0.previousStateID == f.approvedDecisionID })
+    }
+
+    /// The over-deletion guard: a refusal in the same project, from the same surviving meeting, is
+    /// kept whole — same record, not merely the same count.
+    func testDeletingAMeetingKeepsSameProjectRefusalsAboutSurvivingObjects() async throws {
+        let f = try await makeDeletionFixture()
+        let before = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+            .filter { $0.currentObjectID == f.keptDecisionID }
+        XCTAssertFalse(before.isEmpty)
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let after = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+            .filter { $0.currentObjectID == f.keptDecisionID }
+        XCTAssertEqual(after, before)
+    }
+
+    /// The scoping guard. This row points at the very object being deleted, by the same UUID, and
+    /// survives for one reason only: it belongs to another project.
+    func testDeletingAMeetingNeverReachesAnotherProjectsRefusals() async throws {
+        let f = try await makeDeletionFixture()
+        let before = try await f.transitions.refusals(forProject: Self.otherProjectID)
+        XCTAssertEqual(before.count, 1)
+        XCTAssertEqual(before.first?.currentObjectID, f.approvedDecisionID)
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let after = try await f.transitions.refusals(forProject: Self.otherProjectID)
+        XCTAssertEqual(after, before, "deletion must not cross a project boundary on a bare UUID")
+    }
+
+    /// The rule that was already there stays there: the object-reference paths are an addition to
+    /// `sourceMeetingID`, not a replacement for it.
+    func testDeletingAMeetingStillRemovesItsOwnRefusalsBySourceMeeting() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.allRefusals()
+        XCTAssertFalse(remaining.contains { $0.sourceMeetingID == f.doomedMeetingID })
     }
 
     /// Crash right after the intent, before the Project save. Recovery has to finish both halves.
