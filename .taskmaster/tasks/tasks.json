@@ -69,10 +69,10 @@
               "1.4"
             ],
             "details": "Validate intent-after-write, Project-after-save, and sidecar-after-cleanup boundaries. Recovery must be finite, repeatable, and must not duplicate mutations. Keep intent payload privacy-safe: identifiers and timestamps only.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Process or repository-level crash-point tests plus repeated recovery assertions and legacy sidecar decoding.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-29T14:42:57.389Z"
+            "updatedAt": "2026-08-29T14:46:56.863Z"
           },
           {
             "id": 6,
@@ -99,12 +99,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T14:42:57.389Z"
+        "updatedAt": "2026-08-29T14:46:56.863Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T14:42:57.390Z",
+      "lastModified": "2026-08-29T14:46:56.865Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [
