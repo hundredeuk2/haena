@@ -82,10 +82,10 @@
               "1.5"
             ],
             "details": "Run directly related suites, core regression assertions, Debug build, Release universal isolation, XcodeGen idempotency if project generation changed, and git diff --check. Record broad unit, Benchmark, full XCUITest, soak, and real deletion smoke as deferred unless separately approved.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Produce exact pass, failure, skip, environment, and privacy counts; do not infer unrun gates.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-29T14:56:15.763Z"
+            "updatedAt": "2026-08-29T15:07:47.007Z"
           },
           {
             "id": 7,
@@ -100,12 +100,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T14:56:15.763Z"
+        "updatedAt": "2026-08-29T15:07:47.007Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T14:56:15.764Z",
+      "lastModified": "2026-08-29T15:07:47.007Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [
