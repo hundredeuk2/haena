@@ -36,6 +36,15 @@ settings:
       # usernames and checkout locations out of the distributable Mach-O while preserving useful
       # relative paths in its separate dSYM.
       OTHER_SWIFT_FLAGS: "$(inherited) -debug-prefix-map $(SRCROOT)=."
+      # The prefix map above only reaches paths the *compiler* writes. The debug map the linker
+      # writes — one N_OSO stab per object file — still carries the absolute path of the build
+      # machine's DerivedData directory, and with it whichever account did the build. That is not
+      # user data, but it is a local absolute path in a binary handed to other people, so the
+      # symbol table is stripped out of the shipped executable. Debug information itself is not
+      # lost: `dwarf-with-dsym` above has already written it to a separate dSYM that stays here.
+      DEPLOYMENT_POSTPROCESSING: YES
+      STRIP_INSTALLED_PRODUCT: YES
+      STRIP_STYLE: all
 
 targets:
   HAENA:
