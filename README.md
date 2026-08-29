@@ -98,7 +98,7 @@ xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
 설치 전에 반드시 **출처와 SHA-256 체크섬을 확인하세요.**
 
 ```bash
-shasum -a 256 HAE.NA-0.2.3-6-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.3-7-unsigned.app.zip
 ```
 
 출력값이 릴리스에 공개된 값과 **한 글자도 다르지 않아야** 합니다.
