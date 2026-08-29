@@ -93,6 +93,8 @@ struct MeetingDetailView: View {
 
                 Spacer(minLength: 12)
 
+                reanalysisControl
+
                 Button("회의 삭제", role: .destructive) {
                     isConfirmingDeletion = true
                 }
@@ -125,7 +127,7 @@ struct MeetingDetailView: View {
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
 
-            reanalysisRow
+            reanalysisNotice
 
             // Above the picker on purpose: listening back is how a user checks either half, and
             // having the player disappear when they switch tabs would stop the recording mid-word.
@@ -212,44 +214,46 @@ struct MeetingDetailView: View {
     /// Shown only when the meeting has no results at all. A meeting with results — proposed,
     /// approved, or closed out — has a review path already, and re-running over it is a different
     /// feature than this one.
+    ///
+    /// **It sits in the title row, and that placement is load-bearing.** This header does not
+    /// scroll, and the sheet it lives in does not grow to fill the window — it is 545pt whatever
+    /// the window is. A first attempt put this in its own row with an explanatory caption below
+    /// it, which added about fifty points to the header, and that was enough: the split view asked
+    /// for more height than the sheet could give, and every pane's top — this meeting's title, the
+    /// project's title, and the button itself — was centred off the top edge. The button existed
+    /// and could not be reached, on exactly the meetings it exists for. Inline in the title row it
+    /// costs no vertical space at all, and what the caption used to say is on the button's tooltip.
     @ViewBuilder
-    private var reanalysisRow: some View {
-        if reanalysis != nil, reanalysisEligibility == .eligible || reanalysisMessage != nil {
-            VStack(alignment: .leading, spacing: 6) {
-                if reanalysisEligibility == .eligible {
-                    HStack(spacing: 8) {
-                        Button(MeetingReanalysisCopy.button) {
-                            Task { await reanalyse() }
-                        }
-                        .disabled(isReanalysing)
-                        .accessibilityIdentifier("retry-meeting-analysis-button")
-
-                        if isReanalysing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .accessibilityIdentifier("retry-meeting-analysis-progress")
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    Text(MeetingReanalysisCopy.availability)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("retry-meeting-analysis-availability")
+    private var reanalysisControl: some View {
+        if reanalysis != nil, reanalysisEligibility == .eligible {
+            HStack(spacing: 6) {
+                Button(MeetingReanalysisCopy.button) {
+                    Task { await reanalyse() }
                 }
+                .disabled(isReanalysing)
+                .help(MeetingReanalysisCopy.availability)
+                .accessibilityIdentifier("retry-meeting-analysis-button")
 
-                if let reanalysisMessage {
-                    Text(reanalysisMessage)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("retry-meeting-analysis-message")
+                if isReanalysing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityIdentifier("retry-meeting-analysis-progress")
                 }
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("retry-meeting-analysis-row")
+        }
+    }
+
+    /// Why the last attempt produced nothing. Bounded to two lines for the same reason the title
+    /// is: every line this header grows is a line the whole browser grows with it.
+    @ViewBuilder
+    private var reanalysisNotice: some View {
+        if let reanalysisMessage {
+            Text(reanalysisMessage)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("retry-meeting-analysis-message")
         }
     }
 
