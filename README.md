@@ -88,6 +88,9 @@ xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
 
 ## unsigned 빌드 설치
 
+현재 배포 후보는 **0.2.3 (6) Private Developer Preview**입니다. 이 빌드의 체크섬, 외부 전송
+범위, 알려진 제한은 [릴리스 노트](docs/private-preview-0.2.3.md)에 있습니다.
+
 이 앱은 **Apple Developer ID로 서명되지 않았고 공증(Notarization)도 받지 않았습니다.**
 그래서 macOS가 "확인되지 않은 개발자" 또는 "손상되었기 때문에 열 수 없습니다"라고 경고합니다.
 이는 앱이 위험하다는 뜻이 아니라, **Apple이 이 빌드를 확인한 적이 없다는 뜻**입니다.
@@ -95,7 +98,7 @@ xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
 설치 전에 반드시 **출처와 SHA-256 체크섬을 확인하세요.**
 
 ```bash
-shasum -a 256 HAE.NA-0.1.0-1-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.3-6-unsigned.app.zip
 ```
 
 출력값이 릴리스에 공개된 값과 **한 글자도 다르지 않아야** 합니다.
