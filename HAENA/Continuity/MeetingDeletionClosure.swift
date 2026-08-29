@@ -32,10 +32,11 @@ struct MeetingDeletionClosure: Equatable, Sendable {
     ///
     /// 1. **From the meeting.** Proposals, ambiguity groups and refusals whose `sourceMeetingID` is
     ///    the deleted one. These are the orphans the bug report describes.
-    /// 2. **From the Work State.** Proposals and refusals belonging to *other* meetings that point
-    ///    at an object this deletion removes — through `currentObjectID`, `previousStateID`, or (on
-    ///    a proposal) a typed `relations` entry. Without this, a later meeting keeps a record whose
-    ///    subject no longer exists, which is the same orphan wearing a different hat.
+    /// 2. **From the Work State.** Proposals, refusals and ambiguity groups belonging to *other*
+    ///    meetings that point at an object this deletion removes — through `currentObjectID`,
+    ///    `previousStateID`, a proposal's typed `relations`, or a group's `incomingObjectID` and
+    ///    `priorCandidateIDs`. Without this, a later meeting keeps a record whose subject no longer
+    ///    exists, which is the same orphan wearing a different hat.
     ///
     /// One pass is enough, and that is a property of the rule rather than a shortcut: reaching a
     /// transition through a removed object does not remove any further objects, so there is nothing
@@ -66,6 +67,20 @@ struct MeetingDeletionClosure: Equatable, Sendable {
             return proposal.relations.contains { removedWorkStateIDs.contains($0.relatedObjectID) }
         }
 
+        /// Same question for an ambiguity group. A group is a question — "is this incoming object
+        /// one of these prior ones, or new?" — so it needs every object it names to still exist.
+        /// Lose the incoming one and there is nothing to ask about; lose a candidate and the answer
+        /// set silently changes under a user who has not answered yet.
+        ///
+        /// `incomingObjectID` is non-optional here, unlike the two references on a proposal: a
+        /// group without something incoming would not be a question at all.
+        func touchesRemovedObject(_ group: WorkStateAmbiguousMatchGroup) -> Bool {
+            if removedWorkStateIDs.contains(group.incomingObjectID) {
+                return true
+            }
+            return group.priorCandidateIDs.contains { removedWorkStateIDs.contains($0) }
+        }
+
         /// Same question for a refusal, which carries the same two typed object references but no
         /// `relations` — a refusal records that a transition was *not* made, so there is no accepted
         /// link hanging off it. Two paths here is the whole shape, not an abbreviation of three.
@@ -85,8 +100,12 @@ struct MeetingDeletionClosure: Equatable, Sendable {
         let proposalKeys = Set(doomedProposals.map(\.dedupKey))
         let proposalIDs = Set(doomedProposals.map(\.id))
 
-        let doomedGroups = ambiguousMatchGroups.filter {
-            $0.projectID == projectID && $0.sourceMeetingID == meetingID
+        // `projectID` first and on its own, for the same reason as the refusals below: the object
+        // test compares bare UUIDs, and scoping after it would let a collision reach into another
+        // project's sidecar before the guard ever ran.
+        let doomedGroups = ambiguousMatchGroups.filter { group in
+            guard group.projectID == projectID else { return false }
+            return group.sourceMeetingID == meetingID || touchesRemovedObject(group)
         }
         let groupKeys = Set(doomedGroups.map(\.dedupKey))
         let groupIDs = Set(doomedGroups.map(\.id))
@@ -107,6 +126,9 @@ struct MeetingDeletionClosure: Equatable, Sendable {
         // subject is going — either because the intent names the proposal or group directly, or
         // because one of the terminal verdicts it carries is about a doomed proposal. Leaving one
         // behind would let recovery try to apply a verdict to something that no longer exists.
+        //
+        // `groupIDs` is derived from `doomedGroups` above, so widening how a group is condemned
+        // widens this with it. That is the reason the group test belongs there and not here.
         let doomedIntents = applyIntents.filter { intent in
             guard intent.projectID == projectID else { return false }
             if intent.terminalReviews.contains(where: { proposalIDs.contains($0.proposalID) }) {

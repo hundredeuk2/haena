@@ -445,6 +445,19 @@ final class ProjectDeletionServiceTests: XCTestCase {
     /// A second project that no deletion in this file ever targets.
     private static let otherProjectID = UUID(uuidString: "C0000000-0000-4000-8000-000000000001")!
 
+    /// The ambiguity rows the fixture plants, named so a test can say which one it means instead of
+    /// re-deriving a dedupKey.
+    private struct DeletionFixtureGroups {
+        let bySourceMeeting: WorkStateAmbiguousMatchGroup
+        let byIncomingObject: WorkStateAmbiguousMatchGroup
+        /// The removed object sorts *first* among this group's candidates.
+        let byFirstCandidate: WorkStateAmbiguousMatchGroup
+        /// The removed object sorts *last* among this group's candidates.
+        let byLastCandidate: WorkStateAmbiguousMatchGroup
+        let unrelated: WorkStateAmbiguousMatchGroup
+        let otherProject: WorkStateAmbiguousMatchGroup
+    }
+
     /// A meeting deletion is an explicit user verdict that the meeting's Work State goes too, so the
     /// sidecar has to lose everything that was about it. These build the smallest sidecar that can
     /// tell a correct cleanup from an over-eager one: something to remove, and something next to it
@@ -510,6 +523,38 @@ final class ProjectDeletionServiceTests: XCTestCase {
         )
     }
 
+    /// A group is a question about identity, so it names one incoming object and every prior
+    /// candidate it could be. `priorCandidateIDs` is de-duplicated and sorted by lowercased UUID
+    /// string inside the initialiser, so the tests below read the position they mean back off the
+    /// constructed value rather than assuming the order they passed in survived.
+    private func makeAmbiguityGroup(
+        projectID: UUID,
+        sourceMeetingID: UUID,
+        incomingObjectID: UUID,
+        priorCandidateIDs: [UUID],
+        kind: WorkStateKind = .actionItem
+    ) -> WorkStateAmbiguousMatchGroup {
+        WorkStateAmbiguousMatchGroup(
+            projectID: projectID,
+            sourceMeetingID: sourceMeetingID,
+            workStateKind: kind,
+            incomingObjectID: incomingObjectID,
+            priorCandidateIDs: priorCandidateIDs
+        )
+    }
+
+    private func makeAmbiguityReview(
+        group: WorkStateAmbiguousMatchGroup
+    ) -> WorkStateAmbiguityReviewState {
+        WorkStateAmbiguityReviewState(
+            groupID: group.id,
+            projectID: group.projectID,
+            selectionKind: .new,
+            selectedPriorStateID: nil,
+            reviewedAt: TestFixtures.fixedDate
+        )
+    }
+
     private func makeDeletionFixture() async throws -> (
         repository: InMemoryProjectRepository,
         transitions: InMemoryWorkStateTransitionRepository,
@@ -517,7 +562,8 @@ final class ProjectDeletionServiceTests: XCTestCase {
         doomedMeetingID: UUID,
         keptMeetingID: UUID,
         approvedDecisionID: UUID,
-        keptDecisionID: UUID
+        keptDecisionID: UUID,
+        groups: DeletionFixtureGroups
     ) {
         let repository = InMemoryProjectRepository()
         let doomed = makeMeeting(projectID: TestFixtures.projectID, title: "Doomed")
@@ -530,6 +576,55 @@ final class ProjectDeletionServiceTests: XCTestCase {
             meetings: [doomed, kept],
             decisions: [approved, keptDecision]
         ))
+
+        // Candidate ids chosen so the removed object lands at a known position once the group
+        // sorts them: `low` < approved < `high` by lowercased UUID string.
+        let low = UUID(uuidString: "00000000-0000-4000-8000-0000000000AA")!
+        let high = UUID(uuidString: "FFFFFFFF-0000-4000-8000-0000000000BB")!
+        let groups = DeletionFixtureGroups(
+            // From the doomed meeting. Removed by the original `sourceMeetingID` rule.
+            bySourceMeeting: makeAmbiguityGroup(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: doomed.id,
+                incomingObjectID: keptDecision.id,
+                priorCandidateIDs: [low]
+            ),
+            // From the *kept* meeting, asking about the object this deletion removes.
+            byIncomingObject: makeAmbiguityGroup(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: kept.id,
+                incomingObjectID: approved.id,
+                priorCandidateIDs: [low, high]
+            ),
+            byFirstCandidate: makeAmbiguityGroup(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: kept.id,
+                incomingObjectID: keptDecision.id,
+                priorCandidateIDs: [approved.id, high],
+                kind: .decision
+            ),
+            byLastCandidate: makeAmbiguityGroup(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: kept.id,
+                incomingObjectID: keptDecision.id,
+                priorCandidateIDs: [low, approved.id],
+                kind: .openQuestion
+            ),
+            // Names nothing being removed. Must come through unchanged.
+            unrelated: makeAmbiguityGroup(
+                projectID: TestFixtures.projectID,
+                sourceMeetingID: kept.id,
+                incomingObjectID: keptDecision.id,
+                priorCandidateIDs: [low, high]
+            ),
+            // Another project naming the very object being deleted. Survives on the guard alone.
+            otherProject: makeAmbiguityGroup(
+                projectID: Self.otherProjectID,
+                sourceMeetingID: kept.id,
+                incomingObjectID: approved.id,
+                priorCandidateIDs: [approved.id, low]
+            )
+        )
 
         let transitions = InMemoryWorkStateTransitionRepository(
             proposals: [
@@ -557,6 +652,15 @@ final class ProjectDeletionServiceTests: XCTestCase {
                     kind: .openQuestion,
                     reviewStatus: .approved
                 )
+            ],
+            ambiguousMatchGroups: [
+                groups.bySourceMeeting, groups.byIncomingObject, groups.byFirstCandidate,
+                groups.byLastCandidate, groups.unrelated, groups.otherProject
+            ],
+            ambiguityReviews: [
+                makeAmbiguityReview(group: groups.byIncomingObject),
+                makeAmbiguityReview(group: groups.unrelated),
+                makeAmbiguityReview(group: groups.otherProject)
             ],
             // Removal targets and preservation targets sit in the same sidecar on purpose: a
             // cleanup that is too eager and one that is too timid both fail here, and neither
@@ -605,7 +709,30 @@ final class ProjectDeletionServiceTests: XCTestCase {
             transitions: transitions,
             now: { TestFixtures.laterDate }
         )
-        return (repository, transitions, service, doomed.id, kept.id, approved.id, keptDecision.id)
+        // A durable apply intent for a doomed group, so the intent path is exercised through the
+        // same closure rather than only in principle.
+        _ = try await transitions.prepareApplyIntent(
+            WorkStateTransitionApplyIntent.ambiguity(
+                projectID: TestFixtures.projectID,
+                groupID: groups.byIncomingObject.id,
+                selection: .new,
+                reviewedAt: TestFixtures.fixedDate
+            )
+        )
+        // And one for a group that survives, which must still be there afterwards.
+        _ = try await transitions.prepareApplyIntent(
+            WorkStateTransitionApplyIntent.ambiguity(
+                projectID: TestFixtures.projectID,
+                groupID: groups.unrelated.id,
+                selection: .new,
+                reviewedAt: TestFixtures.fixedDate
+            )
+        )
+
+        return (
+            repository, transitions, service,
+            doomed.id, kept.id, approved.id, keptDecision.id, groups
+        )
     }
 
     func testDeletingAMeetingRemovesItsUnreviewedProposal() async throws {
@@ -724,6 +851,117 @@ final class ProjectDeletionServiceTests: XCTestCase {
         try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
 
         let remaining = try await f.transitions.allRefusals()
+        XCTAssertFalse(remaining.contains { $0.sourceMeetingID == f.doomedMeetingID })
+    }
+
+    // MARK: - Ambiguity group object-reference orphans
+
+    /// A group asks "is this incoming object one of these prior ones, or new?". Delete the incoming
+    /// object and the question has no subject left, even though the group came from a meeting
+    /// nobody deleted.
+    func testDeletingAMeetingRemovesAnotherMeetingsGroupByIncomingObjectID() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.ambiguousMatchGroups(forProject: TestFixtures.projectID)
+        XCTAssertFalse(remaining.contains { $0.id == f.groups.byIncomingObject.id })
+    }
+
+    /// Delete a candidate and the answer set changes under a user who has not answered yet, so the
+    /// group goes rather than quietly offering fewer choices. First position in the sorted order.
+    func testDeletingAMeetingRemovesAGroupWhoseFirstPriorCandidateIsDeleted() async throws {
+        let f = try await makeDeletionFixture()
+        XCTAssertEqual(
+            f.groups.byFirstCandidate.priorCandidateIDs.first, f.approvedDecisionID,
+            "fixture must actually place the removed object first once the group sorts candidates"
+        )
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.ambiguousMatchGroups(forProject: TestFixtures.projectID)
+        XCTAssertFalse(remaining.contains { $0.id == f.groups.byFirstCandidate.id })
+    }
+
+    /// Same rule at the other end of the array — the closure must not be scanning only position 0.
+    func testDeletingAMeetingRemovesAGroupWhoseLastPriorCandidateIsDeleted() async throws {
+        let f = try await makeDeletionFixture()
+        XCTAssertEqual(
+            f.groups.byLastCandidate.priorCandidateIDs.last, f.approvedDecisionID,
+            "fixture must actually place the removed object last once the group sorts candidates"
+        )
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.ambiguousMatchGroups(forProject: TestFixtures.projectID)
+        XCTAssertFalse(remaining.contains { $0.id == f.groups.byLastCandidate.id })
+    }
+
+    /// A selection recorded against a group that is going has nothing left to select from.
+    func testDeletingAMeetingRemovesTheReviewOfADependentGroup() async throws {
+        let f = try await makeDeletionFixture()
+        let before = try await f.transitions.ambiguityReview(groupID: f.groups.byIncomingObject.id)
+        XCTAssertNotNil(before)
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let after = try await f.transitions.ambiguityReview(groupID: f.groups.byIncomingObject.id)
+        XCTAssertNil(after, "a selection outliving its question is unreachable, not preserved")
+    }
+
+    /// Left behind, recovery would try to finish an operation whose group no longer exists.
+    func testDeletingAMeetingRemovesAnApplyIntentForADependentGroup() async throws {
+        let f = try await makeDeletionFixture()
+        let before = try await f.transitions.pendingApplyIntents()
+        XCTAssertTrue(before.contains { $0.operationID == f.groups.byIncomingObject.id })
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let after = try await f.transitions.pendingApplyIntents()
+        XCTAssertFalse(after.contains { $0.operationID == f.groups.byIncomingObject.id })
+        XCTAssertTrue(
+            after.contains { $0.operationID == f.groups.unrelated.id },
+            "an intent for a surviving group must not be swept up with it"
+        )
+    }
+
+    /// The over-deletion guard: a group naming nothing that was removed comes through whole, and so
+    /// does the selection recorded against it.
+    func testDeletingAMeetingKeepsUnrelatedGroupsAndTheirReviews() async throws {
+        let f = try await makeDeletionFixture()
+        let reviewBefore = try await f.transitions.ambiguityReview(groupID: f.groups.unrelated.id)
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.ambiguousMatchGroups(forProject: TestFixtures.projectID)
+        let kept = remaining.first { $0.id == f.groups.unrelated.id }
+        XCTAssertEqual(kept, f.groups.unrelated)
+        let reviewAfter = try await f.transitions.ambiguityReview(groupID: f.groups.unrelated.id)
+        XCTAssertEqual(reviewAfter, reviewBefore)
+        XCTAssertNotNil(reviewAfter)
+    }
+
+    /// The scoping guard. This group names the deleted object twice — as its incoming object and as
+    /// a candidate — and survives for one reason only: it belongs to another project.
+    func testDeletingAMeetingNeverReachesAnotherProjectsGroupsOrReviews() async throws {
+        let f = try await makeDeletionFixture()
+        let reviewBefore = try await f.transitions.ambiguityReview(groupID: f.groups.otherProject.id)
+        XCTAssertNotNil(reviewBefore)
+        XCTAssertEqual(f.groups.otherProject.incomingObjectID, f.approvedDecisionID)
+
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.ambiguousMatchGroups(forProject: Self.otherProjectID)
+        XCTAssertEqual(remaining, [f.groups.otherProject])
+        let reviewAfter = try await f.transitions.ambiguityReview(groupID: f.groups.otherProject.id)
+        XCTAssertEqual(reviewAfter, reviewBefore)
+    }
+
+    /// The object-reference paths are an addition to `sourceMeetingID`, not a replacement.
+    func testDeletingAMeetingStillRemovesItsOwnGroupsBySourceMeeting() async throws {
+        let f = try await makeDeletionFixture()
+        try await f.service.deleteMeeting(meetingID: f.doomedMeetingID, fromProjectID: TestFixtures.projectID)
+
+        let remaining = try await f.transitions.allAmbiguousMatchGroups()
         XCTAssertFalse(remaining.contains { $0.sourceMeetingID == f.doomedMeetingID })
     }
 
