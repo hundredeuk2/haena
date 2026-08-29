@@ -14,7 +14,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-DIST_DIR="${REPO_ROOT}/dist"
+# A task-scoped override lets CI and release verification prove the package boundary without
+# overwriting an existing artifact in the repository's default dist directory.
+DIST_DIR="${HAENA_UNSIGNED_DIST_DIR:-${REPO_ROOT}/dist}"
 
 log() { printf '==> %s\n' "$1" >&2; }
 fail() { printf 'error: %s\n' "$1" >&2; exit 1; }
@@ -45,12 +47,36 @@ log "Checking the app bundle for user data and credentials"
 LEAKS="$(find "${APP_PATH}" -type f \( \
     -name "*.m4a" -o -name "*.wav" -o -name "*.mp3" -o -name "*.webm" -o \
     -name "projects.json" -o -name "profile.json" -o -name "agent-jobs.json" -o \
-    -name "agent-ledger.json" -o -name ".env*" \) 2>/dev/null || true)"
+    -name "agent-ledger.json" -o -name "beta-metrics.json" -o \
+    -name "continuity-transitions.json" -o -name ".env*" \) 2>/dev/null || true)"
 [ -z "${LEAKS}" ] || fail "the app bundle contains files that must not ship:"$'\n'"${LEAKS}"
 
 if grep -rlqE "sk-(proj|svcacct|admin)?-?[A-Za-z0-9_-]{20,}" "${APP_PATH}" 2>/dev/null; then
     fail "something inside the app bundle looks like an API key"
 fi
+
+# Benchmark tooling is a development product, never application content. This guards the package
+# boundary independently of target configuration, before an archive can be produced.
+BENCHMARK_FILES="$(find "${APP_PATH}" -type f \( \
+    -iname "*benchmark*" -o -name "source-index.jsonl" -o -name "manifest.jsonl" -o \
+    -name "*.xctest" -o -name "*.xctestrun" \) 2>/dev/null || true)"
+[ -z "${BENCHMARK_FILES}" ] || fail "the app bundle contains development Benchmark files:"$'\n'"${BENCHMARK_FILES}"
+
+APP_BINARY="${APP_PATH}/Contents/MacOS/HAENA"
+BENCHMARK_MARKERS="$(LC_ALL=C strings "${APP_BINARY}" 2>/dev/null | \
+    grep -E 'AudioBenchmark|BenchmarkCLI|haena-audio-stt-metrics|haena-audio-benchmark-run|source-index\.jsonl' || true)"
+[ -z "${BENCHMARK_MARKERS}" ] || fail "the app binary contains development Benchmark markers:"$'\n'"${BENCHMARK_MARKERS}"
+
+# Release-only UI fixtures and compiler checkout paths are also development data. A Swift Release
+# binary can retain source paths unless project.yml remaps them, so enforce the distributable
+# boundary here as well instead of relying on a build-setting comment.
+DEVELOPMENT_MARKERS="$(LC_ALL=C strings "${APP_BINARY}" 2>/dev/null | \
+    grep -E 'ManualContinuityBriefUITestSeed|Continuity UI Seed|HAENA_UI_TESTING|prediction-v0\.2' || true)"
+[ -z "${DEVELOPMENT_MARKERS}" ] || fail "the app binary contains development UI/test markers:"$'\n'"${DEVELOPMENT_MARKERS}"
+
+LOCAL_PATHS="$(LC_ALL=C strings "${APP_BINARY}" 2>/dev/null | \
+    grep -E '/Users/[^/]+/|/home/[^/]+/' || true)"
+[ -z "${LOCAL_PATHS}" ] || fail "the app binary contains a user-specific absolute path:"$'\n'"${LOCAL_PATHS}"
 
 # --- package ------------------------------------------------------------------------------------
 # Built in a temp directory and moved into place only on success, so a failure never leaves a

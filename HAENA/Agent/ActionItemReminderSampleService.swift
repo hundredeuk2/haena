@@ -1,6 +1,12 @@
 import Foundation
 
+#if DEBUG
 /// Creates the smallest complete local dataset needed to exercise the reminder Agent Flow.
+///
+/// **Debug-only.** A Developer Preview is installed against a person's real store, and a button
+/// that writes fixed-UUID sample objects into it is a fixture generator however carefully it is
+/// labelled. Compiled out of Release entirely — type, fixed identifiers and Korean sample titles
+/// alike — rather than merely hidden, so nothing about it survives in the shipped binary.
 ///
 /// This is an explicit Private-beta validation aid, never an automatic seed. Existing projects
 /// and profile choices are preserved; only the stable sample project is created or reset so the
@@ -135,3 +141,4 @@ struct ActionItemReminderSampleService: Sendable {
         }
     }
 }
+#endif

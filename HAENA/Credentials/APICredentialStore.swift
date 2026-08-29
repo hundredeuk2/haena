@@ -9,6 +9,11 @@ enum CredentialStoreError: Error, Equatable, Sendable {
     /// while the machine is locked. Distinct from a broken Keychain: nothing is wrong, the user
     /// simply said no.
     case accessDenied
+    /// A credential is stored, but reading it would require the user to answer a system prompt.
+    /// Distinct from `accessDenied`: nobody has said no yet, and distinct from "not configured":
+    /// the item is there. The only honest thing a background caller can do with this is stop and
+    /// tell the user where to go.
+    case interactionRequired
     /// The Keychain itself failed. `status` is an OSStatus code, which describes the failure and
     /// never the item's contents.
     case unavailable(status: Int32)
@@ -24,7 +29,15 @@ enum CredentialStoreError: Error, Equatable, Sendable {
 /// no notion of accounts or multiple providers.
 protocol APICredentialStore: Sendable {
     /// The stored credential, or nil when nothing has been saved. Nil is a normal state.
+    ///
+    /// **May block on a system prompt.** Only call this from a path the user just asked for, where
+    /// a prompt is an expected part of what they started — in this app, the settings screen.
     func credential() throws -> String?
+    /// The stored credential without ever putting a prompt on screen.
+    ///
+    /// Throws `.interactionRequired` when an item exists but reading it needs the user, so a
+    /// background caller can end finitely instead of waiting on a window it did not ask for.
+    func credentialWithoutInteraction() throws -> String?
     /// Saves or replaces. Callers do not need to know which — an existing item is updated in place
     /// rather than duplicated.
     func save(_ credential: String) throws
@@ -51,15 +64,45 @@ final class InMemoryAPICredentialStore: APICredentialStore, @unchecked Sendable 
     private var stored: String?
     /// Set by a test to make every operation fail, for exercising the error paths.
     private var failure: CredentialStoreError?
+    /// Set by a test to make only the non-interactive read fail, so the split between the settings
+    /// path and the extraction path can be exercised the way the real Keychain splits it.
+    private var nonInteractiveFailure: CredentialStoreError?
+    /// How long the reads block, so a test can drive the resolver's finite wait without a Keychain.
+    private var readDelay: TimeInterval
 
-    init(credential: String? = nil, failure: CredentialStoreError? = nil) {
+    init(
+        credential: String? = nil,
+        failure: CredentialStoreError? = nil,
+        nonInteractiveFailure: CredentialStoreError? = nil,
+        readDelay: TimeInterval = 0
+    ) {
         stored = credential
         self.failure = failure
+        self.nonInteractiveFailure = nonInteractiveFailure
+        self.readDelay = readDelay
     }
 
     func credential() throws -> String? {
+        if readDelay > 0 {
+            Thread.sleep(forTimeInterval: readDelay)
+        }
         lock.lock()
         defer { lock.unlock() }
+        if let failure {
+            throw failure
+        }
+        return stored
+    }
+
+    func credentialWithoutInteraction() throws -> String? {
+        if readDelay > 0 {
+            Thread.sleep(forTimeInterval: readDelay)
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        if let nonInteractiveFailure {
+            throw nonInteractiveFailure
+        }
         if let failure {
             throw failure
         }

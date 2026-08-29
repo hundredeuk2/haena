@@ -25,6 +25,38 @@ struct StubWorkStateExtractor: WorkStateExtractor {
     }
 }
 
+/// A `StubWorkStateExtractor` that counts its calls and keeps what it was handed.
+///
+/// An `actor` because re-analysis tests deliberately overlap two runs, and "how many times did the
+/// provider get called" is the whole assertion. `delay` holds a run open long enough for a second
+/// one to arrive while the first is still in flight — the only way to test a mutual exclusion is
+/// to actually contend for it.
+actor CountingWorkStateExtractor: WorkStateExtractor {
+    private let outcome: StubWorkStateExtractor.Outcome
+    private let delay: Duration
+    private(set) var callCount = 0
+    private(set) var receivedInputs: [WorkStateExtractionInput] = []
+
+    init(_ outcome: StubWorkStateExtractor.Outcome, delay: Duration = .zero) {
+        self.outcome = outcome
+        self.delay = delay
+    }
+
+    func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult {
+        callCount += 1
+        receivedInputs.append(input)
+        if delay > .zero {
+            try? await Task.sleep(for: delay)
+        }
+        switch outcome {
+        case .success(let result):
+            return result
+        case .failure(let error):
+            throw error
+        }
+    }
+}
+
 /// Feeds pre-baked HTTP outcomes to the OpenAI adapter and records what it sent, so retry counts
 /// and request construction can be asserted without a real request ever leaving the machine.
 ///
@@ -99,6 +131,7 @@ enum ExtractionFixtures {
                     id: segmentID,
                     meetingID: id,
                     speakerID: participants.first?.id,
+                    sourceSpeakerLabel: participants.first?.speakerLabel,
                     text: text,
                     startTime: nil,
                     endTime: nil
@@ -140,12 +173,17 @@ enum ExtractionFixtures {
     static func fullResult(
         confidence: Double = 0.8,
         evidence: ProposedEvidence = ExtractionFixtures.evidence(),
-        assigneeName: String? = nil,
+        assigneeAttribution: ProposedAssigneeAttribution = ProposedAssigneeAttribution(
+            basis: .unspecified,
+            reference: nil,
+            speakerLabel: nil
+        ),
         dueDate: Date? = nil
     ) -> WorkStateExtractionResult {
         WorkStateExtractionResult(
             decisions: [
                 ProposedDecision(
+                    providerLocalKey: "decision_1",
                     statement: "2월 출시로 진행한다",
                     rationale: nil,
                     confidence: confidence,
@@ -154,9 +192,10 @@ enum ExtractionFixtures {
             ],
             actionItems: [
                 ProposedActionItem(
+                    providerLocalKey: "action_1",
                     title: "지표 정의 초안 작성",
                     details: nil,
-                    assigneeName: assigneeName,
+                    assigneeAttribution: assigneeAttribution,
                     dueDate: dueDate,
                     confidence: confidence,
                     evidence: evidence
@@ -164,6 +203,7 @@ enum ExtractionFixtures {
             ],
             openQuestions: [
                 ProposedOpenQuestion(
+                    providerLocalKey: "question_1",
                     question: "지표 정의는 누가 확정하는가?",
                     confidence: confidence,
                     evidence: evidence
@@ -171,6 +211,7 @@ enum ExtractionFixtures {
             ],
             nextAgendaItems: [
                 ProposedAgendaItem(
+                    providerLocalKey: "agenda_1",
                     title: "지표 정의 확정",
                     reason: "이번 회의에서 결론이 나지 않음",
                     confidence: confidence,

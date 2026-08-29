@@ -22,6 +22,11 @@ struct ActionItem: Identifiable, Codable, Equatable, Sendable {
     var status: ActionItemStatus
     var evidence: EvidenceReference?
     var confidence: Confidence
+    /// Original AI assignee provenance. Nil for legacy and hand-entered items.
+    ///
+    /// This is intentionally independent of mutable `assigneeID`: a reviewer may correct the
+    /// assignee without erasing what the model proposed or how that proposal was resolved.
+    var proposedAssigneeAttribution: AssigneeAttribution? = nil
     let createdAt: Date
     var updatedAt: Date
 }

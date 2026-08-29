@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ContentView: View {
     let repository: any ProjectRepository
+    let transitionRepository: any WorkStateTransitionRepository
+    let manualBriefService: ManualContinuityBriefService
+    let transitionReviewService: WorkStateTransitionReviewService
     let extractor: any WorkStateExtractor
     let transcriptionProvider: any TranscriptionProvider
     let audioAssetStore: AudioAssetStore
@@ -13,8 +16,13 @@ struct ContentView: View {
     let profileRepository: any LocalUserProfileRepository
     let reminderRepository: any ActionItemReminderRepository
     let ledgerRepository: any AgentLedgerRepository
+    let metricsRepository: any BetaMetricsRepository
     let notificationScheduler: any LocalNotificationScheduler
     let credentialResolver: OpenAICredentialResolver
+    /// Assembled by `HAENAApp` and passed down whole, like the credential resolver: re-analysis
+    /// has to be able to tell "already running" from "not started", which a per-render value could
+    /// not do.
+    let reanalysisService: MeetingReanalysisService
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -40,9 +48,17 @@ struct ContentView: View {
     @State private var showingProfile = false
     @State private var showingAISettings = false
     @State private var showingAgentLedger = false
+    @State private var showingBetaMetrics = false
 
     private var ledgerService: AgentLedgerService {
         AgentLedgerService(repository: ledgerRepository)
+    }
+
+    /// One recorder shared by every flow that can produce a measurement, so the same run cannot be
+    /// counted under two different measurement periods. The ledger is handed over so the report can
+    /// tally feedback the user already gave — this path only ever reads it.
+    private var metricsService: BetaMetricsService {
+        BetaMetricsService(repository: metricsRepository, ledgerRepository: ledgerRepository)
     }
 
     private var reminderService: ActionItemReminderService {
@@ -55,6 +71,20 @@ struct ContentView: View {
         )
     }
 
+    /// The continuity repository is assembled once with the project repository. Extraction owns
+    /// the ordering: project content is committed first, then transition proposals are attempted
+    /// as a non-rolling-back sidecar write.
+    private var extractionService: WorkStateExtractionService {
+        WorkStateExtractionService(
+            repository: repository,
+            extractor: extractor,
+            continuity: WorkStateContinuityService(
+                projects: repository,
+                transitions: transitionRepository
+            )
+        )
+    }
+
     var body: some View {
         HomeView(
             repository: repository,
@@ -64,6 +94,7 @@ struct ContentView: View {
             onOpenProfile: { showingProfile = true },
             onOpenAISettings: { showingAISettings = true },
             onOpenAgentLedger: { showingAgentLedger = true },
+            onOpenBetaMetrics: { showingBetaMetrics = true },
             onRecord: { showingRecordAudio = true },
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
@@ -106,6 +137,12 @@ struct ContentView: View {
                 onClose: { showingAgentLedger = false }
             )
         }
+        .sheet(isPresented: $showingBetaMetrics) {
+            BetaMetricsView(
+                service: metricsService,
+                onClose: { showingBetaMetrics = false }
+            )
+        }
         .sheet(isPresented: $showingProfile) {
             ProfileSettingsView(
                 service: LocalUserProfileService(
@@ -117,8 +154,10 @@ struct ContentView: View {
         .sheet(isPresented: $showingPasteTranscript) {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                extractionService: extractionService,
+                onOpenResults: requestResults,
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingRecordAudio) {
@@ -130,8 +169,10 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                extractionService: extractionService,
+                onOpenResults: requestResults,
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -141,19 +182,28 @@ struct ContentView: View {
                     provider: transcriptionProvider,
                     assetStore: audioAssetStore
                 ),
-                extractionService: WorkStateExtractionService(repository: repository, extractor: extractor),
-                onOpenResults: requestResults
+                extractionService: extractionService,
+                onOpenResults: requestResults,
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingProjectBrowser) {
             ProjectBrowserView(
                 repository: repository,
+                transitionRepository: transitionRepository,
+                manualBriefService: manualBriefService,
+                transitionReviewService: transitionReviewService,
                 extractor: extractor,
                 audioAssetStore: audioAssetStore,
                 makeAudioPlayer: makeAudioPlayer,
                 profileRepository: profileRepository,
                 reminderRepository: reminderRepository,
                 reminderService: reminderService,
+                // Without this the review screen builds an uninstrumented service and no verdict is
+                // ever counted: this view is the only place `WorkStateReviewService` is constructed.
+                metrics: metricsService,
+                reanalysisService: reanalysisService,
                 initialProjectID: browserDestination?.projectID,
                 initialMeetingID: browserDestination?.meetingID,
                 initialActionItemID: browserDestination?.actionItemID,
@@ -161,6 +211,17 @@ struct ContentView: View {
             )
         }
         .task {
+            #if DEBUG
+            if let configuration = try? TransitionApplyRecoveryProcessTestConfiguration.load(),
+               configuration.shouldApprove {
+                _ = await transitionReviewService.review(
+                    projectID: TransitionApplyRecoveryProcessTestConfiguration.projectID,
+                    proposalID: configuration.proposalID,
+                    action: .approve
+                )
+            }
+            #endif
+            _ = await transitionReviewService.recoverPendingApplies()
             await reminderService.reconcile()
         }
     }
@@ -208,6 +269,16 @@ struct ContentView: View {
 #Preview {
     ContentView(
         repository: InMemoryProjectRepository(),
+        transitionRepository: InMemoryWorkStateTransitionRepository(),
+        manualBriefService: ManualContinuityBriefService(
+            projects: InMemoryProjectRepository(),
+            transitions: InMemoryWorkStateTransitionRepository(),
+            profiles: InMemoryLocalUserProfileRepository()
+        ),
+        transitionReviewService: WorkStateTransitionReviewService(
+            projectRepository: InMemoryProjectRepository(),
+            transitionRepository: InMemoryWorkStateTransitionRepository()
+        ),
         extractor: DeterministicWorkStateExtractor(),
         transcriptionProvider: DeterministicTranscriptionProvider(),
         audioAssetStore: AudioAssetStore(
@@ -223,8 +294,19 @@ struct ContentView: View {
         profileRepository: InMemoryLocalUserProfileRepository(),
         reminderRepository: InMemoryActionItemReminderRepository(),
         ledgerRepository: InMemoryAgentLedgerRepository(),
+        metricsRepository: InMemoryBetaMetricsRepository(),
         notificationScheduler: InMemoryLocalNotificationScheduler(),
         credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
+        reanalysisService: {
+            let repository = InMemoryProjectRepository()
+            return MeetingReanalysisService(
+                repository: repository,
+                extraction: WorkStateExtractionService(
+                    repository: repository,
+                    extractor: DeterministicWorkStateExtractor()
+                )
+            )
+        }(),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
         showingImportAudio: .constant(false),

@@ -8,11 +8,17 @@ enum TextMeetingCaptureError: Error, Equatable, Sendable {
     case meetingTitleMissing
     case transcriptMissing
     case projectNotFound
+    case participantNameMissing
+    case transcriptTurnMissing
+    case sourceSpeakerLabelMissing
+    case unknownParticipantDraft
+    case duplicateParticipantDraftID
+    case inconsistentSpeakerLink
 }
 
-/// Turns a pasted meeting transcript into a `Meeting` + single `TranscriptSegment`, attaches it
-/// to the selected `Project`, and persists the result. Keeps model construction, validation, and
-/// repository access out of the View layer so this flow is unit-testable without SwiftUI.
+/// Turns either a legacy free-form body or an explicitly structured pasted transcript into one
+/// canonical `Meeting`, attaches it to the selected `Project`, and persists the result. No text
+/// parser or name matcher participates in this service.
 ///
 /// `now`/`makeID` are injected (defaulting to `Date.init`/`UUID.init`) so tests can supply fixed
 /// values instead of depending on wall-clock time or random UUIDs.
@@ -33,6 +39,29 @@ struct TextMeetingCaptureService: Sendable {
 
     func allProjects() async throws -> [Project] {
         try await repository.allProjects()
+    }
+
+    /// Returns every prior roster occurrence in the selected project. Duplicate names remain
+    /// separate candidates so the UI cannot silently choose one, and selecting one later copies
+    /// only its display name into a meeting-scoped draft.
+    func participantNameCandidates(projectID: UUID?) async throws -> [PastedParticipantNameCandidate] {
+        guard let projectID else {
+            return []
+        }
+        guard let project = try await repository.project(id: projectID) else {
+            throw TextMeetingCaptureError.projectNotFound
+        }
+
+        return project.meetings.flatMap { meeting in
+            meeting.participants.map { participant in
+                PastedParticipantNameCandidate(
+                    id: .init(meetingID: meeting.id, participantID: participant.id),
+                    displayName: participant.displayName,
+                    meetingTitle: meeting.title,
+                    sourceSpeakerLabel: participant.speakerLabel
+                )
+            }
+        }
     }
 
     /// Creates and persists a new project. Project names are not required to be unique —
@@ -65,6 +94,47 @@ struct TextMeetingCaptureService: Sendable {
     /// holding the full pasted body, appends it to the selected project, and saves the project.
     @discardableResult
     func saveTextMeeting(projectID: UUID?, title: String, transcript: String) async throws -> Meeting {
+        let draft = PastedTranscriptDraft(
+            participants: [],
+            turns: [
+                PastedTranscriptTurnDraft(
+                    id: UUID(),
+                    text: transcript,
+                    sourceSpeakerLabel: "",
+                    selectedParticipantDraftID: nil
+                )
+            ]
+        )
+        return try await save(
+            projectID: projectID,
+            title: title,
+            draft: draft,
+            allowsUnlabeledSingleTurn: true
+        )
+    }
+
+    /// Saves only user-authored blocks and explicit roster links. Repeated source labels must have
+    /// one consistent link (including consistently unlinked) across the entire draft.
+    @discardableResult
+    func saveTextMeeting(
+        projectID: UUID?,
+        title: String,
+        draft: PastedTranscriptDraft
+    ) async throws -> Meeting {
+        try await save(
+            projectID: projectID,
+            title: title,
+            draft: draft,
+            allowsUnlabeledSingleTurn: false
+        )
+    }
+
+    private func save(
+        projectID: UUID?,
+        title: String,
+        draft: PastedTranscriptDraft,
+        allowsUnlabeledSingleTurn: Bool
+    ) async throws -> Meeting {
         guard let projectID else {
             throw TextMeetingCaptureError.noProjectSelected
         }
@@ -74,9 +144,76 @@ struct TextMeetingCaptureService: Sendable {
             throw TextMeetingCaptureError.meetingTitleMissing
         }
 
-        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTranscript.isEmpty else {
+        guard !draft.turns.isEmpty else {
             throw TextMeetingCaptureError.transcriptMissing
+        }
+
+        let participantIDs = draft.participants.map(\.id)
+        guard Set(participantIDs).count == participantIDs.count else {
+            throw TextMeetingCaptureError.duplicateParticipantDraftID
+        }
+
+        var participantNames: [UUID: String] = [:]
+        for participant in draft.participants {
+            let name = participant.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                throw TextMeetingCaptureError.participantNameMissing
+            }
+            participantNames[participant.id] = name
+        }
+
+        struct ValidatedTurn {
+            let text: String
+            let sourceSpeakerLabel: String?
+            let participantDraftID: UUID?
+        }
+
+        var validatedTurns: [ValidatedTurn] = []
+        var linkBySourceLabel: [String: UUID?] = [:]
+        for turn in draft.turns {
+            let trimmedText = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedText.isEmpty {
+                throw allowsUnlabeledSingleTurn
+                    ? TextMeetingCaptureError.transcriptMissing
+                    : TextMeetingCaptureError.transcriptTurnMissing
+            }
+
+            let trimmedLabel = turn.sourceSpeakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let sourceLabel: String?
+            if allowsUnlabeledSingleTurn && draft.turns.count == 1 && trimmedLabel.isEmpty {
+                sourceLabel = nil
+            } else {
+                guard !trimmedLabel.isEmpty else {
+                    throw TextMeetingCaptureError.sourceSpeakerLabelMissing
+                }
+                sourceLabel = turn.sourceSpeakerLabel
+            }
+
+            if let selectedID = turn.selectedParticipantDraftID,
+               participantNames[selectedID] == nil {
+                throw TextMeetingCaptureError.unknownParticipantDraft
+            }
+
+            if let sourceLabel {
+                if let existing = linkBySourceLabel[sourceLabel] {
+                    guard existing == turn.selectedParticipantDraftID else {
+                        throw TextMeetingCaptureError.inconsistentSpeakerLink
+                    }
+                } else {
+                    linkBySourceLabel.updateValue(
+                        turn.selectedParticipantDraftID,
+                        forKey: sourceLabel
+                    )
+                }
+            }
+
+            validatedTurns.append(
+                ValidatedTurn(
+                    text: allowsUnlabeledSingleTurn ? trimmedText : turn.text,
+                    sourceSpeakerLabel: sourceLabel,
+                    participantDraftID: turn.selectedParticipantDraftID
+                )
+            )
         }
 
         guard var project = try await repository.project(id: projectID) else {
@@ -85,22 +222,36 @@ struct TextMeetingCaptureService: Sendable {
 
         let timestamp = now()
         let meetingID = makeID()
-        let segment = TranscriptSegment(
-            id: makeID(),
-            meetingID: meetingID,
-            speakerID: nil,
-            text: trimmedTranscript,
-            startTime: nil,
-            endTime: nil
-        )
+        var storedParticipantIDByDraftID: [UUID: UUID] = [:]
+        let participants = draft.participants.map { participantDraft in
+            let participantID = makeID()
+            storedParticipantIDByDraftID[participantDraft.id] = participantID
+            return Participant(
+                id: participantID,
+                displayName: participantNames[participantDraft.id]!,
+                linkedUserID: nil,
+                speakerLabel: nil
+            )
+        }
+        let segments = validatedTurns.map { turn in
+            TranscriptSegment(
+                id: makeID(),
+                meetingID: meetingID,
+                speakerID: turn.participantDraftID.flatMap { storedParticipantIDByDraftID[$0] },
+                sourceSpeakerLabel: turn.sourceSpeakerLabel,
+                text: turn.text,
+                startTime: nil,
+                endTime: nil
+            )
+        }
         let meeting = Meeting(
             id: meetingID,
             projectID: projectID,
             title: trimmedTitle,
             occurredAt: timestamp,
             sourceType: .pastedText,
-            participants: [],
-            transcriptSegments: [segment],
+            participants: participants,
+            transcriptSegments: segments,
             createdAt: timestamp
         )
 

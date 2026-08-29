@@ -196,6 +196,7 @@ struct AudioMeetingCaptureService: Sendable {
                 id: makeID(),
                 meetingID: meetingID,
                 speakerID: mapping.participantID(forLabel: segment.speakerLabel),
+                sourceSpeakerLabel: segment.speakerLabel,
                 text: segment.text,
                 startTime: segment.startTime,
                 endTime: segment.endTime

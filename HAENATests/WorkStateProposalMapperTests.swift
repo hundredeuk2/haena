@@ -8,16 +8,11 @@ final class WorkStateProposalMapperTests: XCTestCase {
         _ result: WorkStateExtractionResult,
         meeting: Meeting? = nil
     ) -> ValidatedWorkState {
-        var counter = 0
         return WorkStateProposalMapper.map(
             result,
             meeting: meeting ?? self.meeting,
-            now: TestFixtures.fixedDate,
-            makeID: {
-                counter += 1
-                return UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", counter))!
-            }
-        )
+            now: TestFixtures.fixedDate
+        ).workState
     }
 
     // MARK: - Happy path
@@ -169,12 +164,14 @@ final class WorkStateProposalMapperTests: XCTestCase {
         let result = WorkStateExtractionResult(
             decisions: [
                 ProposedDecision(
+                    providerLocalKey: "decision_1",
                     statement: "검증되는 결정",
                     rationale: nil,
                     confidence: 0.6,
                     evidence: ExtractionFixtures.evidence()
                 ),
                 ProposedDecision(
+                    providerLocalKey: "decision_2",
                     statement: "지어낸 결정",
                     rationale: nil,
                     confidence: 0.6,
@@ -183,9 +180,10 @@ final class WorkStateProposalMapperTests: XCTestCase {
             ],
             actionItems: [
                 ProposedActionItem(
+                    providerLocalKey: "action_1",
                     title: "검증되는 업무",
                     details: nil,
-                    assigneeName: nil,
+                    assigneeAttribution: attribution(.unspecified),
                     dueDate: nil,
                     confidence: 2.0,
                     evidence: ExtractionFixtures.evidence()
@@ -207,7 +205,13 @@ final class WorkStateProposalMapperTests: XCTestCase {
     func testRejectsItemWithEmptyContent() {
         let result = WorkStateExtractionResult(
             decisions: [
-                ProposedDecision(statement: "   ", rationale: nil, confidence: 0.5, evidence: ExtractionFixtures.evidence())
+                ProposedDecision(
+                    providerLocalKey: "decision_1",
+                    statement: "   ",
+                    rationale: nil,
+                    confidence: 0.5,
+                    evidence: ExtractionFixtures.evidence()
+                )
             ],
             metadata: ExtractionFixtures.metadata
         )
@@ -218,33 +222,250 @@ final class WorkStateProposalMapperTests: XCTestCase {
         XCTAssertEqual(state.rejected, [RejectedProposal(kind: .decision, reason: .emptyContent)])
     }
 
-    // MARK: - No guessing
+    // MARK: - Evidence-first assignee attribution
 
-    func testLeavesAssigneeUnsetWhenNoParticipantMatches() {
-        let result = ExtractionFixtures.fullResult(assigneeName: "이헌득")
-
-        let state = map(result)
-
-        XCTAssertNil(state.actionItems[0].assigneeID, "an unmatched name must not invent an assignee")
-    }
-
-    func testResolvesAssigneeOnlyOnAnUnambiguousParticipantMatch() {
-        let participant = Participant(id: UUID(), displayName: "Heondeuk", linkedUserID: nil, speakerLabel: nil)
+    func testExplicitNameResolvesOnlyOneNormalizedExactDisplayName() throws {
+        let participant = Participant(id: UUID(), displayName: "  Jose\u{301}  ", linkedUserID: nil, speakerLabel: "A")
         let meeting = ExtractionFixtures.meeting(participants: [participant])
 
-        let state = map(ExtractionFixtures.fullResult(assigneeName: "heondeuk"), meeting: meeting)
+        let state = map(
+            actionResult(attribution: attribution(.explicitName, reference: "JOSÉ")),
+            meeting: meeting
+        )
 
-        XCTAssertEqual(state.actionItems[0].assigneeID, participant.id)
+        let item = try XCTUnwrap(state.actionItems.first)
+        XCTAssertEqual(item.assigneeID, participant.id)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
     }
 
-    func testLeavesAssigneeUnsetWhenTwoParticipantsShareTheName() {
-        let first = Participant(id: UUID(), displayName: "Jamie", linkedUserID: nil, speakerLabel: nil)
-        let second = Participant(id: UUID(), displayName: "Jamie", linkedUserID: nil, speakerLabel: nil)
+    func testExplicitNameMayResolveAnExactSpeakerLabel() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(actionResult(attribution: attribution(.explicitName, reference: "b")), meeting: meeting)
+                .actionItems.first
+        )
+
+        XCTAssertEqual(item.assigneeID, participant.id)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+    }
+
+    func testExplicitNameDoesNotUseSubstringOrFuzzyMatching() throws {
+        let participant = Participant(id: UUID(), displayName: "Jamie Kim", linkedUserID: nil, speakerLabel: "A")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(actionResult(attribution: attribution(.explicitName, reference: "Jamie")), meeting: meeting)
+                .actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .noParticipantMatch)
+    }
+
+    func testExplicitNameKeepsItemUnassignedWhenMatchIsAmbiguous() throws {
+        let first = Participant(id: UUID(), displayName: "Jamie", linkedUserID: nil, speakerLabel: "A")
+        let second = Participant(id: UUID(), displayName: "다른 이름", linkedUserID: nil, speakerLabel: "Jamie")
         let meeting = ExtractionFixtures.meeting(participants: [first, second])
 
-        let state = map(ExtractionFixtures.fullResult(assigneeName: "Jamie"), meeting: meeting)
+        let item = try XCTUnwrap(
+            map(actionResult(attribution: attribution(.explicitName, reference: "Jamie")), meeting: meeting)
+                .actionItems.first
+        )
 
-        XCTAssertNil(state.actionItems[0].assigneeID)
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .ambiguousParticipantMatch)
+    }
+
+    func testMissingExplicitNameKeepsItemWithInvalidAttribution() throws {
+        let item = try XCTUnwrap(
+            map(actionResult(attribution: attribution(.explicitName, reference: "  "))).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .invalidAttribution)
+        XCTAssertTrue(map(actionResult(attribution: attribution(.explicitName, reference: nil))).rejected.isEmpty)
+    }
+
+    func testSelfReferenceResolvesOnlyTheValidatedEvidenceSpeaker() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.selfReference, reference: "제가", speakerLabel: "B")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertEqual(item.assigneeID, participant.id)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+    }
+
+    func testSpeakerCommitmentResolvesTheValidatedEvidenceSpeaker() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.speakerCommitment, speakerLabel: "B")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertEqual(item.assigneeID, participant.id)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+    }
+
+    func testSpeakerCommitmentRequiresCharacterForCharacterSourceLabelMatch() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = meeting(
+            participants: [participant],
+            evidenceSpeakerID: participant.id,
+            sourceSpeakerLabel: "Speaker B"
+        )
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.speakerCommitment, speakerLabel: "speaker b")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .speakerLabelMismatch)
+    }
+
+    func testSelfReferenceWithoutEvidenceSpeakerKeepsItemUnassigned() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = meeting(participants: [participant], evidenceSpeakerID: nil)
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.selfReference, reference: "제가", speakerLabel: "B")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .missingEvidenceSpeaker)
+    }
+
+    func testSelfReferenceToSpeakerOutsideParticipantRosterKeepsItemUnassigned() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = meeting(participants: [participant], evidenceSpeakerID: UUID())
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.selfReference, reference: "제가", speakerLabel: "B")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .evidenceSpeakerNotParticipant)
+    }
+
+    func testSelfReferenceCannotClaimADifferentSpeakerLabel() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "A")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.selfReference, reference: "제가", speakerLabel: "B")),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .speakerLabelMismatch)
+    }
+
+    func testSelfReferenceWithoutProposedSpeakerLabelIsInvalidButKeepsItem() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let item = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.selfReference, reference: "제가", speakerLabel: nil)),
+                meeting: meeting
+            ).actionItems.first
+        )
+
+        XCTAssertNil(item.assigneeID)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .invalidAttribution)
+    }
+
+    func testTeamOrRoleAndUnspecifiedNeverResolveAnIndividual() throws {
+        let participant = Participant(id: UUID(), displayName: "플랫폼 팀", linkedUserID: nil, speakerLabel: "A")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+
+        let team = try XCTUnwrap(
+            map(
+                actionResult(attribution: attribution(.teamOrRole, reference: "플랫폼 팀")),
+                meeting: meeting
+            ).actionItems.first
+        )
+        let unspecified = try XCTUnwrap(
+            map(actionResult(attribution: attribution(.unspecified)), meeting: meeting).actionItems.first
+        )
+
+        XCTAssertNil(team.assigneeID)
+        XCTAssertEqual(team.proposedAssigneeAttribution?.resolution, .nonIndividual)
+        XCTAssertNil(unspecified.assigneeID)
+        XCTAssertEqual(unspecified.proposedAssigneeAttribution?.resolution, .unspecified)
+    }
+
+    func testRawAttributionProvenanceIsPreservedWithoutNormalization() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+        let proposed = attribution(.explicitName, reference: "  민수  ")
+
+        let item = try XCTUnwrap(map(actionResult(attribution: proposed), meeting: meeting).actionItems.first)
+
+        XCTAssertEqual(item.proposedAssigneeAttribution?.basis, .explicitName)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.reference, "  민수  ")
+        XCTAssertNil(item.proposedAssigneeAttribution?.speakerLabel)
+        XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .resolved)
+    }
+
+    func testInvalidBasisFieldCombinationsKeepItemUnassignedWithFiniteResolution() throws {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+        let invalid: [ProposedAssigneeAttribution] = [
+            attribution(.explicitName, reference: "민수", speakerLabel: "B"),
+            attribution(.selfReference, reference: nil, speakerLabel: "B"),
+            attribution(.selfReference, reference: "   ", speakerLabel: "B"),
+            attribution(.speakerCommitment, reference: "   ", speakerLabel: "B"),
+            attribution(.speakerCommitment, reference: nil, speakerLabel: nil),
+            attribution(.teamOrRole, reference: nil),
+            attribution(.teamOrRole, reference: "플랫폼 팀", speakerLabel: "B"),
+            attribution(.unspecified, reference: "민수"),
+            attribution(.unspecified, speakerLabel: "B")
+        ]
+
+        for proposed in invalid {
+            let state = map(actionResult(attribution: proposed), meeting: meeting)
+            let item = try XCTUnwrap(state.actionItems.first)
+            XCTAssertNil(item.assigneeID, "invalid shape must not select a participant: \(proposed)")
+            XCTAssertEqual(item.proposedAssigneeAttribution?.resolution, .invalidAttribution)
+            XCTAssertTrue(state.rejected.isEmpty, "attribution failure must keep the action item")
+        }
+    }
+
+    func testInvalidEvidenceRejectsActionBeforeOtherwiseResolvableAttribution() {
+        let participant = Participant(id: UUID(), displayName: "민수", linkedUserID: nil, speakerLabel: "B")
+        let meeting = ExtractionFixtures.meeting(participants: [participant])
+        let result = actionResult(
+            attribution: attribution(.selfReference, reference: "제가", speakerLabel: "B"),
+            evidence: ProposedEvidence(segmentID: "not-a-uuid", quote: "2월 출시로 가기로 했습니다")
+        )
+
+        let state = map(result, meeting: meeting)
+
+        XCTAssertTrue(state.actionItems.isEmpty)
+        XCTAssertEqual(state.rejected, [RejectedProposal(kind: .actionItem, reason: .unknownSegment)])
     }
 
     func testLeavesDueDateNilWhenTheProposalHasNone() {
@@ -259,5 +480,64 @@ final class WorkStateProposalMapperTests: XCTestCase {
         let state = map(ExtractionFixtures.fullResult(dueDate: due))
 
         XCTAssertEqual(state.actionItems[0].dueDate, due)
+    }
+
+    // MARK: - Attribution fixtures
+
+    private func attribution(
+        _ basis: AssigneeAttributionBasis,
+        reference: String? = nil,
+        speakerLabel: String? = nil
+    ) -> ProposedAssigneeAttribution {
+        ProposedAssigneeAttribution(basis: basis, reference: reference, speakerLabel: speakerLabel)
+    }
+
+    private func actionResult(
+        attribution: ProposedAssigneeAttribution,
+        evidence: ProposedEvidence = ExtractionFixtures.evidence(),
+        confidence: Double = 0.8,
+        dueDate: Date? = nil
+    ) -> WorkStateExtractionResult {
+        WorkStateExtractionResult(
+            actionItems: [
+                ProposedActionItem(
+                    providerLocalKey: "action_1",
+                    title: "지표 정의 초안 작성",
+                    details: nil,
+                    assigneeAttribution: attribution,
+                    dueDate: dueDate,
+                    confidence: confidence,
+                    evidence: evidence
+                )
+            ],
+            metadata: ExtractionFixtures.metadata
+        )
+    }
+
+    private func meeting(
+        participants: [Participant],
+        evidenceSpeakerID: UUID?,
+        sourceSpeakerLabel: String? = "B"
+    ) -> Meeting {
+        Meeting(
+            id: TestFixtures.meetingID,
+            projectID: TestFixtures.projectID,
+            title: "Kickoff",
+            occurredAt: TestFixtures.fixedDate,
+            sourceType: .pastedText,
+            participants: participants,
+            transcriptSegments: [
+                TranscriptSegment(
+                    id: TestFixtures.segmentID,
+                    meetingID: TestFixtures.meetingID,
+                    speakerID: evidenceSpeakerID,
+                    sourceSpeakerLabel: sourceSpeakerLabel,
+                    text: ExtractionFixtures.transcript,
+                    startTime: nil,
+                    endTime: nil
+                )
+            ],
+            createdAt: TestFixtures.fixedDate
+        )
     }
 }

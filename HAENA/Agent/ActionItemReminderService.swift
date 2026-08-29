@@ -149,6 +149,9 @@ struct ActionItemReminderService: Sendable {
             projectID: projectID,
             actionItemID: actionItemID,
             fireAt: fireAt,
+            // Recorded at the moment of approval, so a later reconcile can tell that the deadline
+            // moved rather than having to infer it from the fire time.
+            approvedDueDate: actionItem.dueDate,
             status: .scheduled,
             createdAt: activePrevious?.createdAt ?? timestamp,
             updatedAt: timestamp,
@@ -317,6 +320,15 @@ struct ActionItemReminderService: Sendable {
                     continue
                 }
                 _ = try? await cancel(actionItemID: item.id, reason: reason)
+                continue
+            }
+
+            // The deadline moved after the user approved a time for it. Following it automatically
+            // would rewrite a time the user chose, so the job is retired and they are asked to
+            // approve a new one. A nil `approvedDueDate` is a row written before this was recorded:
+            // unknown, not mismatched, so it is left alone rather than cancelled on a guess.
+            if let approvedDueDate = reminder.approvedDueDate, item.dueDate != approvedDueDate {
+                _ = try? await cancel(actionItemID: item.id, reason: .dueDateChanged)
                 continue
             }
 

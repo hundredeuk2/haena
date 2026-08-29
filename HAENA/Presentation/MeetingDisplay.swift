@@ -24,22 +24,24 @@ enum MeetingCountDisplay {
     }
 }
 
-/// Resolves a transcript segment's speaker to display text, or nil when there is nothing to
-/// show — no speaker ID, or no matching participant. Callers must omit the speaker header
-/// entirely in that case rather than showing an empty one.
+/// Resolves a transcript segment's speaker to display text. A linked current-meeting participant
+/// wins; an unlinked segment still shows its preserved source label.
 enum TranscriptSpeakerDisplay {
     static func label(for segment: TranscriptSegment, in meeting: Meeting) -> String? {
-        guard let speakerID = segment.speakerID else {
-            return nil
+        if let speakerID = segment.speakerID,
+           let participant = meeting.participants.first(where: { $0.id == speakerID }) {
+            // Once the user has confirmed whose voice this is, that name wins over the provider's
+            // own label. Until then the current-meeting participant remains the local display.
+            if let confirmed = meeting.confirmedParticipant(for: speakerID), confirmed.id != speakerID {
+                return confirmed.displayName
+            }
+            return participant.speakerLabel ?? participant.displayName
         }
-        guard let participant = meeting.participants.first(where: { $0.id == speakerID }) else {
-            return nil
-        }
-        // Once the user has confirmed whose voice this is, that name wins over the provider's own
-        // label. Until then the behaviour is unchanged.
-        if let confirmed = meeting.confirmedParticipant(for: speakerID), confirmed.id != speakerID {
-            return confirmed.displayName
-        }
-        return participant.speakerLabel ?? participant.displayName
+        return segment.sourceSpeakerLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

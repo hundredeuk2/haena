@@ -11,9 +11,11 @@
 | 내용 | 위치 |
 | --- | --- |
 | 프로젝트, 회의, 전사 원문, 참석자, 결정·업무·질문·아젠다 | `~/Library/Application Support/com.haena.HAENA/projects.json` |
+| 회의 간 상태 전이 제안·유한 progress detail·검토/ambiguity 상태(원문·인용문·제목·이름 없음) | `~/Library/Application Support/com.haena.HAENA/continuity-transitions.json` |
 | 로컬 사용자 프로필(표시 이름, 나로 연결한 참석자 ID) | `~/Library/Application Support/com.haena.HAENA/profile.json` |
 | ActionItem 로컬 알림 예약·상태·취소 이유 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
 | 알림 사건 시각·업무 참조 ID·선택적 유용성 피드백 | `~/Library/Application Support/com.haena.HAENA/agent-ledger.json` |
+| Beta 측정 이벤트(이벤트 ID·종류·발생 시각·처리 소요 시간·참조 ID·중복 방지 키) | `~/Library/Application Support/com.haena.HAENA/beta-metrics.json` |
 | 앱이 만든 오디오 사본 | `~/Library/Application Support/com.haena.HAENA/Audio/` |
 | 녹음 중 임시 파일 | 시스템 임시 폴더. 저장되면 삭제되고, 앱 시작 시 이전 잔여물도 정리됩니다 |
 
@@ -23,6 +25,17 @@
 - Agent 기록에는 전사 원문, 근거 인용, 업무 제목, 프로젝트 이름, API 키를 복제하지 않습니다. 화면의
   이름은 현재 `projects.json`에서 그때그때 조회합니다.
 - Agent 기록과 피드백은 외부 분석 서비스로 전송되지 않으며 앱에서 전체 삭제할 수 있습니다.
+- `다음 회의 준비` 화면은 위 로컬 Project·전이·프로필 파일을 읽기만 합니다. 화면을 여는 행위는
+  모델 호출, 전사 재분석, 상태 변경, Next Agenda 생성, Reminder·Calendar 실행을 하지 않으며 별도
+  Brief 파일도 만들지 않습니다. 근거 인용은 `projects.json`에서 렌더링할 때 조회하고 전이 파일에
+  복제하지 않습니다.
+- Beta 측정은 이벤트마다 **UUID, 발생 시각, 처리 소요 시간(밀리초), 미리 정해진 값 중 하나인
+  이벤트 종류, 개수, 같은 사건을 두 번 세지 않기 위한 중복 방지 키**만 저장합니다. **회의 제목,
+  전사 원문, 근거 인용, 업무 제목, 프로젝트 이름, 참석자 이름, 알림 문구, API 키, 그리고 수정
+  전후의 값은 저장하지 않습니다.** 화면에는 개수와 비율만 표시하며 개별 회의를 되짚지 않습니다.
+- Beta 측정은 이 Mac 안에서만 집계하며 네트워크로 전송하지 않습니다. 앱의 `베타 측정` 화면에서
+  `측정 초기화`를 누르면 측정 이벤트와 측정 시작 시점만 지워지고, 프로젝트·회의·Agent 기록·예약된
+  알림은 그대로 남습니다.
 - FileVault를 켜두시면 디스크 수준에서 함께 보호됩니다.
 
 ## 2. API 키
@@ -32,7 +45,7 @@ OpenAI API 키는 **macOS Keychain에만** 저장됩니다.
 - 항목: `com.haena.HAENA` / `openai-api-key`
 - 접근성: `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` — **백업으로 다른 기기에 넘어가지
   않습니다**
-- `projects.json`·`profile.json`·`agent-jobs.json`·`agent-ledger.json`·UserDefaults·설정 파일·소스코드에는 **저장하지 않습니다**
+- `projects.json`·`profile.json`·`agent-jobs.json`·`agent-ledger.json`·`beta-metrics.json`·UserDefaults·설정 파일·소스코드에는 **저장하지 않습니다**
 - 저장한 뒤에는 화면에 다시 표시하지 않습니다. 마스킹된 형태로도 보여주지 않고, 상태로 "설정됨"만
   표시합니다
 - 오류 메시지·로그·상태 값 어디에도 키가 포함되지 않도록 하고 있으며, 이를 자동 테스트로 확인합니다
@@ -48,11 +61,14 @@ OpenAI API 키는 **macOS Keychain에만** 저장됩니다.
 | 동작 | 전송되는 내용 | 엔드포인트 |
 | --- | --- | --- |
 | 전사 | **오디오 파일 전체** | `api.openai.com/v1/audio/transcriptions` |
-| 업무 상태 추출 | **회의 전사 텍스트** | `api.openai.com/v1/responses` |
+| 업무 상태 추출 | **회의 전사 텍스트**, 당시 승인 상태의 종류·최소 표시 문구·현재 상태·요청 범위 opaque reference | `api.openai.com/v1/responses` |
 | 연결 확인(선택) | API 키만(인증 헤더). 회의 데이터 없음 | `api.openai.com/v1/models` |
 
 - 요청에는 사용자의 API 키가 인증 헤더로 함께 전송됩니다.
 - **회의 오디오와 전사 원문이 OpenAI 서버로 나갑니다.** 민감한 회의라면 이 점을 먼저 고려해주세요.
+- 회의 간 상태를 연결할 때 실제 프로젝트·회의·업무 상태·참석자 UUID와 기존 근거 인용문은 보내지
+  않습니다. 승인 상태는 `prior_action_1` 같은 요청 범위 reference로 바꾸며, 실제 UUID 매핑은 이
+  Mac 안에만 유지합니다.
 - 연결 확인은 모델을 실행하지 않으므로 사용료가 발생하지 않습니다.
 
 전송된 데이터를 OpenAI가 어떻게 처리·보관하는지는 **OpenAI의 정책이 적용되며 HAE.NA의 통제
@@ -86,6 +102,7 @@ OpenAI API 키는 **macOS Keychain에만** 저장됩니다.
 | 회의 하나 | 앱 → `프로젝트 보기` → 회의 → `회의 삭제`. 연결된 오디오 사본도 삭제됩니다 |
 | 프로젝트 전체 | 앱 → `프로젝트 보기` → `프로젝트 삭제` |
 | API 키 | 앱 → `AI 설정` → `삭제`. **키를 지워도 프로젝트·녹음·전사는 남습니다** |
+| Beta 측정 기록 | 앱 → `베타 측정` → `측정 초기화`. **측정 이벤트와 측정 시작 시점만 지워지고 프로젝트·회의·Agent 기록·예약된 알림은 남습니다** |
 | 로컬 데이터 전부 | 앱 종료 후 `~/Library/Application Support/com.haena.HAENA/` 폴더 삭제 |
 | Keychain 항목 | *키체인 접근* 앱에서 `com.haena.HAENA` 검색 후 삭제 |
 

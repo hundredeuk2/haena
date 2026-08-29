@@ -20,6 +20,12 @@ struct ImportAudioView: View {
     /// Asked for by the completion screen. The caller records where to go and this sheet closes
     /// itself; nothing here presents the browser.
     var onOpenResults: ((CaptureDestination) -> Void)?
+    /// Optional and nil by default, so previews and existing call sites are unaffected. Nothing on
+    /// this screen changes when it is absent.
+    var metrics: BetaMetricsService?
+    /// Lets the completion screen offer another attempt when extraction failed after the save.
+    /// Nil hides that button and leaves this screen exactly as it was.
+    var reanalysisService: MeetingReanalysisService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -50,6 +56,7 @@ struct ImportAudioView: View {
     @State private var selectedFile: ValidatedAudioFile?
     @State private var validationMessage: String?
     @State private var phase: Phase = .idle
+    @State private var isRetryingAnalysis = false
 
     var body: some View {
         if case .completed(let outcome) = phase {
@@ -60,7 +67,9 @@ struct ImportAudioView: View {
                     onOpenResults?(outcome.destination)
                     dismiss()
                 },
-                onClose: { dismiss() }
+                onClose: { dismiss() },
+                onRetryAnalysis: retryAnalysisAction(for: outcome),
+                isRetryingAnalysis: isRetryingAnalysis
             )
         } else {
             captureForm
@@ -266,6 +275,9 @@ struct ImportAudioView: View {
         }
         validationMessage = nil
         phase = .transcribing
+        // The flow starts the moment 전사 시작 puts the screen into its first busy phase, so the
+        // upload and the transcription the user is waiting through are both inside the measure.
+        let run = CaptureRun(source: metricSource, metrics: metrics)
 
         Task {
             let meeting: Meeting
@@ -278,9 +290,11 @@ struct ImportAudioView: View {
                 )
             } catch let error as AudioMeetingCaptureError {
                 phase = .failed(message(for: error))
+                await run.recordFailure()
                 return
             } catch {
                 phase = .failed("전사에 실패했습니다.")
+                await run.recordFailure()
                 return
             }
 
@@ -292,7 +306,7 @@ struct ImportAudioView: View {
             // even if extraction goes on to fail.
             onTranscribed?()
             phase = .saving
-            await runExtraction(for: meeting)
+            await runExtraction(for: meeting, run: run)
         }
     }
 
@@ -301,7 +315,7 @@ struct ImportAudioView: View {
     /// A failure here is carried onto the completion screen as a notice rather than replacing it:
     /// the audio, the transcript and the meeting are all safely stored by this point, and hiding
     /// them behind an error would be a lie about what happened.
-    private func runExtraction(for meeting: Meeting) async {
+    private func runExtraction(for meeting: Meeting, run: CaptureRun) async {
         var notice: String?
         do {
             try await extractionService.extractAndApply(
@@ -312,9 +326,87 @@ struct ImportAudioView: View {
             notice = CaptureFailureCopy.extraction(error)
         }
 
-        phase = .completed(
-            await CaptureOutcome.make(for: meeting, notice: notice, repository: service.repository)
+        let completed = await CaptureOutcome.make(
+            for: meeting,
+            notice: notice,
+            repository: service.repository
         )
+        // The screen is handed the result first; measuring waits its turn behind it.
+        phase = .completed(completed)
+        await run.recordSuccess(completed)
+    }
+
+    // MARK: - Retry
+
+    /// The completion screen's second chance, or nil where there is nothing to offer.
+    ///
+    /// The audio, the transcript and the meeting are all stored by the time this screen exists, so
+    /// retrying re-runs over the same meeting — the user never has to find the original file
+    /// again, and no second meeting is created.
+    private func retryAnalysisAction(for outcome: CaptureOutcome) -> (() async -> Void)? {
+        guard let reanalysisService, outcome.notice != nil else {
+            return nil
+        }
+        return {
+            await retryAnalysis(using: reanalysisService, after: outcome)
+        }
+    }
+
+    @MainActor
+    private func retryAnalysis(
+        using reanalysisService: MeetingReanalysisService,
+        after previous: CaptureOutcome
+    ) async {
+        guard !isRetryingAnalysis else {
+            return
+        }
+        isRetryingAnalysis = true
+        defer { isRetryingAnalysis = false }
+
+        var notice: String?
+        do {
+            _ = try await reanalysisService.reanalyse(
+                meetingID: previous.meetingID,
+                projectID: previous.projectID
+            )
+        } catch let refusal as MeetingReanalysisRefused {
+            notice = MeetingReanalysisCopy.refusal(refusal.reason)
+        } catch {
+            notice = CaptureFailureCopy.extraction(error)
+        }
+
+        // Re-read rather than patching the counts held on screen: the numbers this screen shows
+        // have to be what storage actually holds, whichever way the retry went.
+        guard let meeting = try? await service.repository.project(id: previous.projectID)?
+            .meetings.first(where: { $0.id == previous.meetingID })
+        else {
+            phase = .completed(
+                CaptureOutcome(
+                    destination: previous.destination,
+                    meetingTitle: previous.meetingTitle,
+                    counts: nil,
+                    notice: notice
+                )
+            )
+            return
+        }
+        phase = .completed(
+            await CaptureOutcome.make(
+                for: meeting,
+                notice: notice,
+                repository: service.repository
+            )
+        )
+    }
+
+    // MARK: - Measurement
+
+    /// Which of the three capture paths this screen is currently serving. A microphone recording
+    /// arrives here as an ordinary local file, so the source it is counted under is the only thing
+    /// that still distinguishes it — and the mapping is the metric enum's own, not a second one
+    /// written here.
+    private var metricSource: BetaMetricCaptureSource {
+        BetaMetricCaptureSource(sourceType)
     }
 
     // MARK: - Copy

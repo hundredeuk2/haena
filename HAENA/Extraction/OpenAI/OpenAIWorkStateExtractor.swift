@@ -9,30 +9,54 @@ import Foundation
 /// added as a sibling type without the rest of the app knowing.
 struct OpenAIWorkStateExtractor: WorkStateExtractor {
     private let configuration: OpenAIConfiguration
-    private let apiKeyProvider: @Sendable () -> String?
+    private let credentialProvider: @Sendable () async -> CredentialResolution
     private let transport: any HTTPTransport
     private let now: @Sendable () -> Date
 
     init(
         configuration: OpenAIConfiguration = .fromEnvironment(),
-        apiKeyProvider: @escaping @Sendable () -> String? = { OpenAICredentialResolver.shared.apiKey() },
+        credentialProvider: @escaping @Sendable () async -> CredentialResolution = {
+            await OpenAICredentialResolver.shared.resolveWithoutInteraction()
+        },
         transport: (any HTTPTransport)? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.configuration = configuration
-        self.apiKeyProvider = apiKeyProvider
+        self.credentialProvider = credentialProvider
         self.transport = transport ?? URLSessionHTTPTransport(requestTimeout: configuration.requestTimeout)
         self.now = now
     }
 
     func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult {
+        try await extract(from: input, phases: nil)
+    }
+
+    func extract(
+        from input: WorkStateExtractionInput,
+        phases: WorkStateExtractionPhaseSink?
+    ) async throws -> WorkStateExtractionResult {
         // Resolved per call, not at init: the app must launch, and meetings must keep saving,
         // when no key is configured.
-        guard let apiKey = apiKeyProvider() else {
+        //
+        // Non-interactive on purpose. Extraction is started by saving a meeting, not by a user
+        // asking for their Keychain, so a credential prompt here is a window nobody requested in
+        // front of a screen that can only show a spinner. Every outcome below is finite.
+        phases?(.credentialResolutionStarted)
+        let apiKey: String
+        switch await credentialProvider() {
+        case let .resolved(key):
+            apiKey = key
+        case .notConfigured:
             throw WorkStateExtractionError.missingCredential
+        case .interactionRequired:
+            throw WorkStateExtractionError.credentialInteractionRequired
+        case .unavailable:
+            throw WorkStateExtractionError.credentialUnavailable
         }
+        phases?(.credentialResolved)
 
         let request = try makeRequest(for: input, apiKey: apiKey)
+        phases?(.requestDispatched)
         let (data, response) = try await send(request)
         try Self.validate(statusCode: response.statusCode)
 
@@ -88,7 +112,8 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
                     strict: true,
                     schema: OpenAIExtractionSchema.schema()
                 )
-            )
+            ),
+            store: false
         )
 
         var request = URLRequest(url: configuration.endpoint)
@@ -109,7 +134,14 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
     /// Segment ids are labelled inline so the model can cite them, and so a returned id can be
     /// checked against this meeting's segments rather than trusted.
     private static func userContent(for input: WorkStateExtractionInput) -> String {
-        var lines = ["Meeting title: \(input.meetingTitle)", "", "Transcript segments:"]
+        var lines = ["Meeting title: \(input.meetingTitle)"]
+        if !input.priorWorkStates.isEmpty {
+            lines.append("")
+            lines.append("Approved prior work state (request-scoped opaque references only):")
+            lines.append(encodedPriorContext(input.priorWorkStates))
+        }
+        lines.append("")
+        lines.append("Transcript segments:")
         for excerpt in input.excerpts {
             lines.append("")
             lines.append("[segment_id: \(excerpt.segmentID.uuidString)]")
@@ -119,6 +151,25 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             lines.append(excerpt.text)
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Encodes only the provider-safe half of the prior-state map. Project, meeting, participant,
+    /// and work-state UUIDs are structurally absent from `PriorWorkStateProviderReference`, so this
+    /// boundary cannot accidentally serialize them while adding future request fields.
+    private static func encodedPriorContext(_ references: [PriorWorkStateProviderReference]) -> String {
+        let objects = references.map {
+            [
+                "opaque_reference": $0.opaqueReference,
+                "kind": $0.kind.rawValue,
+                "display_text": $0.displayText,
+                "state": $0.state.rawValue,
+            ]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: objects, options: [.sortedKeys]),
+              let value = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return value
     }
 
     // MARK: - Sending
@@ -196,6 +247,7 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
         WorkStateExtractionResult(
             decisions: payload.decisions.map {
                 ProposedDecision(
+                    providerLocalKey: $0.providerKey,
                     statement: $0.statement,
                     rationale: $0.rationale,
                     confidence: $0.confidence,
@@ -204,9 +256,14 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             actionItems: payload.actionItems.map {
                 ProposedActionItem(
+                    providerLocalKey: $0.providerKey,
                     title: $0.title,
                     details: $0.details,
-                    assigneeName: $0.assigneeName,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: $0.assigneeBasis,
+                        reference: $0.assigneeReference,
+                        speakerLabel: $0.assigneeSpeaker
+                    ),
                     dueDate: parseDueDate($0.dueDate),
                     confidence: $0.confidence,
                     evidence: mapped($0.evidence)
@@ -214,6 +271,7 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             openQuestions: payload.openQuestions.map {
                 ProposedOpenQuestion(
+                    providerLocalKey: $0.providerKey,
                     question: $0.question,
                     confidence: $0.confidence,
                     evidence: mapped($0.evidence)
@@ -221,9 +279,41 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
             },
             nextAgendaItems: payload.nextAgendaItems.map {
                 ProposedAgendaItem(
+                    providerLocalKey: $0.providerKey,
                     title: $0.title,
                     reason: $0.reason,
                     confidence: $0.confidence,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            progressSignals: payload.progressSignals.map {
+                ProposedProgressSignal(
+                    kind: $0.kind,
+                    targetType: $0.targetType,
+                    targetReference: $0.targetReference,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            openQuestionResolutionLinks: payload.openQuestionResolutionLinks.map {
+                ProposedOpenQuestionResolutionLink(
+                    priorOpenQuestionReference: $0.priorOpenQuestionReference,
+                    targetKind: $0.targetKind,
+                    targetProviderLocalKey: $0.targetKey,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            decisionDerivedActionItemLinks: payload.decisionDerivedActionItemLinks.map {
+                ProposedDecisionDerivedActionItemLink(
+                    sourceDecisionKey: $0.incomingDecisionKey,
+                    priorDecisionReference: $0.priorDecisionReference,
+                    actionItemKey: $0.actionItemKey,
+                    evidence: mapped($0.evidence)
+                )
+            },
+            decisionChangeLinks: payload.decisionChangeLinks.map {
+                ProposedDecisionChangeLink(
+                    priorDecisionReference: $0.priorDecisionReference,
+                    decisionKey: $0.decisionKey,
                     evidence: mapped($0.evidence)
                 )
             },
@@ -233,6 +323,10 @@ struct OpenAIWorkStateExtractor: WorkStateExtractor {
 
     private static func mapped(_ evidence: OpenAIExtractionPayload.EvidenceDTO) -> ProposedEvidence {
         ProposedEvidence(segmentID: evidence.segmentID, quote: evidence.quote)
+    }
+
+    private static func mapped(_ evidence: OpenAIExtractionPayload.EvidenceDTO?) -> ProposedEvidence? {
+        evidence.map { mapped($0) }
     }
 
     /// Accepts only a complete `yyyy-MM-dd` date in UTC. Anything else — a relative phrase, a

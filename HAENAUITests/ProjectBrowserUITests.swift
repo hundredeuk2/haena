@@ -63,13 +63,20 @@ final class ProjectBrowserUITests: XCTestCase {
         XCTAssertTrue(app.buttons["browse-projects-button"].waitForExistence(timeout: 5))
         app.buttons["browse-projects-button"].click()
 
-        let projectNameText = staticText(app, withValue: "Browser Test Project")
+        let projectList = app.descendants(matching: .any)["project-list"]
+        XCTAssertTrue(projectList.waitForExistence(timeout: 5))
+        let projectNameText = projectList.staticTexts.matching(
+            NSPredicate(format: "value == %@", "Browser Test Project")
+        ).firstMatch
         XCTAssertTrue(projectNameText.waitForExistence(timeout: 5))
 
         let meetingCountText = staticText(app, withValue: "회의 1개")
         XCTAssertTrue(meetingCountText.waitForExistence(timeout: 5))
 
         projectNameText.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["project-detail-screen"].waitForExistence(timeout: 5)
+        )
 
         // A project opens on 현재 상태, so the meeting list is one tab over.
         selectSegment("회의", inPickerWithIdentifier: "project-detail-pane-picker", of: app)

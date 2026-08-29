@@ -44,8 +44,19 @@ struct MeetingDetailView: View {
     var audioAssetStore: AudioAssetStore?
     /// A fresh player per meeting, chosen at the app's assembly point like every other boundary.
     var makeAudioPlayer: () -> any MeetingAudioPlayer = { AVFoundationMeetingAudioPlayer() }
+    /// Supplied where a meeting can be analysed again. Nil keeps this view what it was — the
+    /// re-analysis row simply never appears.
+    var reanalysis: MeetingReanalysisService?
 
     @State private var isConfirmingDeletion = false
+    /// Nil until asked. The answer comes from `MeetingReanalysisService` rather than from a local
+    /// predicate, so what this screen offers and what that service will accept are the same
+    /// decision made once.
+    @State private var reanalysisEligibility: MeetingReanalysisEligibility?
+    @State private var isReanalysing = false
+    /// Why the last attempt did not produce results. Held for this viewing only: nothing about a
+    /// failed run is stored, and the meeting's own state is what decides whether to offer another.
+    @State private var reanalysisMessage: String?
     @State private var isConfirmingSpeakers = false
     @State private var exportFeedback: ExportFeedback?
     @State private var pane: MeetingDetailPane = .initial
@@ -82,6 +93,8 @@ struct MeetingDetailView: View {
 
                 Spacer(minLength: 12)
 
+                reanalysisControl
+
                 Button("회의 삭제", role: .destructive) {
                     isConfirmingDeletion = true
                 }
@@ -113,6 +126,8 @@ struct MeetingDetailView: View {
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
+
+            reanalysisNotice
 
             // Above the picker on purpose: listening back is how a user checks either half, and
             // having the player disappear when they switch tabs would stop the recording mid-word.
@@ -153,6 +168,12 @@ struct MeetingDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-detail-screen")
+        // Keyed on the project's own timestamp: a verdict, a deletion, or a finished re-analysis
+        // all reload the project, and each of them can change whether this meeting still has
+        // nothing to show. Re-asking is a read of stored data — it starts no run.
+        .task(id: project.updatedAt) {
+            await refreshReanalysisEligibility()
+        }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
                 title: "“\(meeting.title)” 회의를 삭제할까요?",
@@ -180,6 +201,96 @@ struct MeetingDetailView: View {
                 )
             }
         }
+    }
+
+    // MARK: - Re-analysis
+
+    /// The way back from an extraction that failed after the meeting was already saved.
+    ///
+    /// This screen is the durable half of that path. The capture sheet offers the same action at
+    /// the moment the failure happens, but that sheet closes; a meeting whose analysis never ran
+    /// has to still be recoverable tomorrow, from the place the user goes to look at it.
+    ///
+    /// Shown only when the meeting has no results at all. A meeting with results — proposed,
+    /// approved, or closed out — has a review path already, and re-running over it is a different
+    /// feature than this one.
+    ///
+    /// **It sits in the title row, and that placement is load-bearing.** This header does not
+    /// scroll, and the sheet it lives in does not grow to fill the window — it is 545pt whatever
+    /// the window is. A first attempt put this in its own row with an explanatory caption below
+    /// it, which added about fifty points to the header, and that was enough: the split view asked
+    /// for more height than the sheet could give, and every pane's top — this meeting's title, the
+    /// project's title, and the button itself — was centred off the top edge. The button existed
+    /// and could not be reached, on exactly the meetings it exists for. Inline in the title row it
+    /// costs no vertical space at all, and what the caption used to say is on the button's tooltip.
+    @ViewBuilder
+    private var reanalysisControl: some View {
+        if reanalysis != nil, reanalysisEligibility == .eligible {
+            HStack(spacing: 6) {
+                Button(MeetingReanalysisCopy.button) {
+                    Task { await reanalyse() }
+                }
+                .disabled(isReanalysing)
+                .help(MeetingReanalysisCopy.availability)
+                .accessibilityIdentifier("retry-meeting-analysis-button")
+
+                if isReanalysing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityIdentifier("retry-meeting-analysis-progress")
+                }
+            }
+        }
+    }
+
+    /// Why the last attempt produced nothing. Bounded to two lines for the same reason the title
+    /// is: every line this header grows is a line the whole browser grows with it.
+    @ViewBuilder
+    private var reanalysisNotice: some View {
+        if let reanalysisMessage {
+            Text(reanalysisMessage)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("retry-meeting-analysis-message")
+        }
+    }
+
+    private func refreshReanalysisEligibility() async {
+        guard let reanalysis else {
+            return
+        }
+        reanalysisEligibility = await reanalysis.eligibility(
+            meetingID: meeting.id,
+            projectID: project.id
+        )
+    }
+
+    /// One press, one run. The flag is set before anything is awaited, so the button is already
+    /// disabled by the time this suspends — and the service refuses a second overlapping run on
+    /// its own, because a disabled button is a courtesy rather than a guarantee.
+    private func reanalyse() async {
+        guard let reanalysis, !isReanalysing else {
+            return
+        }
+        isReanalysing = true
+        reanalysisMessage = nil
+        defer { isReanalysing = false }
+
+        do {
+            _ = try await reanalysis.reanalyse(meetingID: meeting.id, projectID: project.id)
+            // Reload rather than mutating the local copy: what the four result areas show has to
+            // be what was actually persisted, exactly as after a verdict.
+            await onWorkStateChanged()
+        } catch let refusal as MeetingReanalysisRefused {
+            reanalysisMessage = MeetingReanalysisCopy.refusal(refusal.reason)
+        } catch {
+            // Same copy every other extraction failure uses, so a user does not meet two different
+            // descriptions of one problem. Nothing from the provider is interpolated.
+            reanalysisMessage = CaptureFailureCopy.extraction(error)
+        }
+        await refreshReanalysisEligibility()
     }
 
     // MARK: - Transcript pane

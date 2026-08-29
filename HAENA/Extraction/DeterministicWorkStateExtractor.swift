@@ -33,6 +33,7 @@ struct DeterministicWorkStateExtractor: WorkStateExtractor {
         return WorkStateExtractionResult(
             decisions: [
                 ProposedDecision(
+                    providerLocalKey: "decision_1",
                     statement: "회의록 기반 결정 제안",
                     rationale: nil,
                     confidence: 0.5,
@@ -41,9 +42,14 @@ struct DeterministicWorkStateExtractor: WorkStateExtractor {
             ],
             actionItems: [
                 ProposedActionItem(
+                    providerLocalKey: "action_1",
                     title: "회의록 기반 업무 제안",
                     details: nil,
-                    assigneeName: nil,
+                    assigneeAttribution: ProposedAssigneeAttribution(
+                        basis: .unspecified,
+                        reference: nil,
+                        speakerLabel: nil
+                    ),
                     dueDate: nil,
                     confidence: 0.5,
                     evidence: evidence
@@ -51,6 +57,7 @@ struct DeterministicWorkStateExtractor: WorkStateExtractor {
             ],
             openQuestions: [
                 ProposedOpenQuestion(
+                    providerLocalKey: "question_1",
                     question: "회의록 기반 미해결 질문 제안",
                     confidence: 0.5,
                     evidence: evidence
@@ -58,12 +65,16 @@ struct DeterministicWorkStateExtractor: WorkStateExtractor {
             ],
             nextAgendaItems: [
                 ProposedAgendaItem(
+                    providerLocalKey: "agenda_1",
                     title: "다음 회의 아젠다 제안",
                     reason: "이전 회의 내용 후속 확인",
                     confidence: 0.5,
                     evidence: evidence
                 )
             ],
+            progressSignals: [],
+            openQuestionResolutionLinks: [],
+            decisionDerivedActionItemLinks: [],
             metadata: metadata
         )
     }

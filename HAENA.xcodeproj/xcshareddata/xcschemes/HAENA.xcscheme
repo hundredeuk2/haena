@@ -29,6 +29,20 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B95EF9C1DB846DD08B850975"
+               BuildableName = "HAENABenchmarkTests.xctest"
+               BlueprintName = "HAENABenchmarkTests"
+               ReferencedContainer = "container:HAENA.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "D15CF6C28DB6C8C5690B5BF9"
                BuildableName = "HAENATests.xctest"
                BlueprintName = "HAENATests"
@@ -75,6 +89,17 @@
                BlueprintIdentifier = "D15CF6C28DB6C8C5690B5BF9"
                BuildableName = "HAENATests.xctest"
                BlueprintName = "HAENATests"
+               ReferencedContainer = "container:HAENA.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B95EF9C1DB846DD08B850975"
+               BuildableName = "HAENABenchmarkTests.xctest"
+               BlueprintName = "HAENABenchmarkTests"
                ReferencedContainer = "container:HAENA.xcodeproj">
             </BuildableReference>
          </TestableReference>
