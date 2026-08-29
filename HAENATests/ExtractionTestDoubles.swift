@@ -25,6 +25,38 @@ struct StubWorkStateExtractor: WorkStateExtractor {
     }
 }
 
+/// A `StubWorkStateExtractor` that counts its calls and keeps what it was handed.
+///
+/// An `actor` because re-analysis tests deliberately overlap two runs, and "how many times did the
+/// provider get called" is the whole assertion. `delay` holds a run open long enough for a second
+/// one to arrive while the first is still in flight — the only way to test a mutual exclusion is
+/// to actually contend for it.
+actor CountingWorkStateExtractor: WorkStateExtractor {
+    private let outcome: StubWorkStateExtractor.Outcome
+    private let delay: Duration
+    private(set) var callCount = 0
+    private(set) var receivedInputs: [WorkStateExtractionInput] = []
+
+    init(_ outcome: StubWorkStateExtractor.Outcome, delay: Duration = .zero) {
+        self.outcome = outcome
+        self.delay = delay
+    }
+
+    func extract(from input: WorkStateExtractionInput) async throws -> WorkStateExtractionResult {
+        callCount += 1
+        receivedInputs.append(input)
+        if delay > .zero {
+            try? await Task.sleep(for: delay)
+        }
+        switch outcome {
+        case .success(let result):
+            return result
+        case .failure(let error):
+            throw error
+        }
+    }
+}
+
 /// Feeds pre-baked HTTP outcomes to the OpenAI adapter and records what it sent, so retry counts
 /// and request construction can be asserted without a real request ever leaving the machine.
 ///

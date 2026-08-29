@@ -600,3 +600,399 @@ private struct PhaseFailingProjectRepository: ProjectRepository {
     func allProjects() async throws -> [Project] { [stored] }
     func delete(id: UUID) async throws {}
 }
+
+/// The recovery path for a meeting that was saved but never analysed.
+///
+/// Kept in this file rather than a new one because it is the same boundary from the other side:
+/// `WorkStateExtractionService` decides what a run does, and `MeetingReanalysisService` decides
+/// whether a run may happen at all.
+final class MeetingReanalysisServiceTests: XCTestCase {
+    private var meeting: Meeting!
+    private var repository: InMemoryProjectRepository!
+    private var transitions: InMemoryWorkStateTransitionRepository!
+
+    override func setUp() async throws {
+        meeting = ExtractionFixtures.meeting(
+            participants: [
+                Participant(
+                    id: TestFixtures.participantID,
+                    displayName: "Patrick",
+                    linkedUserID: nil,
+                    speakerLabel: "Patrick"
+                )
+            ]
+        )
+        repository = InMemoryProjectRepository()
+        transitions = InMemoryWorkStateTransitionRepository()
+        try await repository.save(ExtractionFixtures.project(with: [meeting]))
+    }
+
+    private func makeService(
+        extractor: CountingWorkStateExtractor,
+        repository: (any ProjectRepository)? = nil,
+        transitions: (any WorkStateTransitionRepository)? = nil
+    ) -> MeetingReanalysisService {
+        let projects = repository ?? self.repository!
+        let store = transitions ?? self.transitions!
+        return MeetingReanalysisService(
+            repository: projects,
+            extraction: WorkStateExtractionService(
+                repository: projects,
+                extractor: extractor,
+                continuity: WorkStateContinuityService(projects: projects, transitions: store),
+                now: { TestFixtures.laterDate }
+            ),
+            transitions: store
+        )
+    }
+
+    private func storedProject(
+        from repository: (any ProjectRepository)? = nil
+    ) async throws -> Project {
+        let repository = repository ?? self.repository!
+        let project = try await repository.project(id: TestFixtures.projectID)
+        return try XCTUnwrap(project)
+    }
+
+    // MARK: - Offering the retry
+
+    /// The case that made this feature necessary: extraction failed after the meeting was already
+    /// stored, and until now there was nowhere in the app to run it again.
+    func testMeetingWhoseExtractionFailedIsStillEligibleAfterwards() async throws {
+        let extractor = CountingWorkStateExtractor(.failure(.credentialInteractionRequired))
+        let service = makeService(extractor: extractor)
+
+        do {
+            _ = try await service.reanalyse(
+                meetingID: meeting.id,
+                projectID: meeting.projectID
+            )
+            XCTFail("a failing provider must not report success")
+        } catch let refusal as MeetingReanalysisRefused {
+            XCTFail("expected the provider error, not a refusal: \(refusal.reason)")
+        } catch {
+            XCTAssertEqual(error as? WorkStateExtractionError, .credentialInteractionRequired)
+        }
+
+        // The meeting is untouched and the offer stands, without anything having been written down
+        // to remember that the run failed.
+        let project = try await storedProject()
+        XCTAssertEqual(project.meetings.count, 1)
+        XCTAssertEqual(project.meetings.first?.id, meeting.id)
+        let eligibility = await service.eligibility(
+            meetingID: meeting.id,
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .eligible)
+    }
+
+    func testMeetingWithoutATranscriptIsNotOffered() async throws {
+        var emptyMeeting = meeting!
+        emptyMeeting.transcriptSegments = []
+        try await repository.save(ExtractionFixtures.project(with: [emptyMeeting]))
+
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        let eligibility = await service.eligibility(
+            meetingID: emptyMeeting.id,
+            projectID: emptyMeeting.projectID
+        )
+        XCTAssertEqual(eligibility, .transcriptMissing)
+
+        await XCTAssertThrowsRefusal(.transcriptMissing) {
+            try await service.reanalyse(meetingID: emptyMeeting.id, projectID: emptyMeeting.projectID)
+        }
+        let callCount = await extractor.callCount
+        XCTAssertEqual(callCount, 0)
+    }
+
+    func testDeletedMeetingIsNotOffered() async throws {
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        let eligibility = await service.eligibility(
+            meetingID: UUID(),
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .meetingNotFound)
+    }
+
+    // MARK: - What a retry reuses
+
+    func testRetryReusesTheStoredMeetingSegmentAndParticipants() async throws {
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        _ = try await service.reanalyse(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let sent = await extractor.receivedInputs
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertEqual(sent.first?.meetingID, meeting.id)
+        XCTAssertEqual(sent.first?.excerpts.map(\.segmentID), [TestFixtures.segmentID])
+        // The retry crosses the provider boundary on exactly the terms a first run does: the input
+        // type carries no participant identifier at all, so re-running cannot widen what is sent.
+        XCTAssertFalse(
+            sent.first?.excerpts.contains { $0.text.contains(TestFixtures.participantID.uuidString) } ?? true
+        )
+
+        // No second meeting, no second transcript, no re-typing: the counts are exactly what they
+        // were before the retry ran.
+        let project = try await storedProject()
+        XCTAssertEqual(project.meetings.count, 1)
+        let stored = try XCTUnwrap(project.meetings.first)
+        XCTAssertEqual(stored.id, meeting.id)
+        XCTAssertEqual(stored.transcriptSegments.map(\.id), [TestFixtures.segmentID])
+        XCTAssertEqual(stored.participants.map(\.id), [TestFixtures.participantID])
+    }
+
+    /// A successful retry produces suggestions, not decisions. Nothing it writes is approved, and
+    /// no project work state changes state on its own.
+    func testSuccessfulRetryLeavesEverythingWaitingOnAPerson() async throws {
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        _ = try await service.reanalyse(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let project = try await storedProject()
+        XCTAssertEqual(project.decisions.map(\.status), [.proposed])
+        XCTAssertEqual(project.actionItems.map(\.status), [.proposed])
+        XCTAssertTrue(project.openQuestions.allSatisfy { $0.reviewedAt == nil })
+        XCTAssertTrue(project.nextAgenda.allSatisfy { $0.reviewedAt == nil })
+
+        let proposals = try await transitions.proposals(forProject: meeting.projectID)
+        XCTAssertFalse(proposals.isEmpty)
+        XCTAssertTrue(proposals.allSatisfy { $0.reviewStatus == .pendingReview })
+        XCTAssertTrue(proposals.allSatisfy { $0.sourceMeetingID == self.meeting.id })
+    }
+
+    // MARK: - Not calling the provider twice
+
+    func testMeetingThatAlreadyHasResultsIsRefusedWithoutCallingTheProvider() async throws {
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        _ = try await service.reanalyse(meetingID: meeting.id, projectID: meeting.projectID)
+        let afterFirst = await extractor.callCount
+        XCTAssertEqual(afterFirst, 1)
+
+        let eligibility = await service.eligibility(
+            meetingID: meeting.id,
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .alreadyAnalysed)
+
+        await XCTAssertThrowsRefusal(.alreadyAnalysed) {
+            try await service.reanalyse(meetingID: self.meeting.id, projectID: self.meeting.projectID)
+        }
+        let afterSecond = await extractor.callCount
+        XCTAssertEqual(afterSecond, 1, "a meeting with results must not be sent again")
+    }
+
+    /// A run can leave continuity proposals without leaving any work state of its own — a meeting
+    /// whose only outcome was moving earlier work forward. That meeting has been analysed too.
+    func testMeetingWithOnlyTransitionProposalsIsRefused() async throws {
+        let dedupKey = "reanalysis-test-only-transition"
+        let proposal = WorkStateTransitionProposal(
+            id: WorkStateTransitionProposal.deterministicID(forDedupKey: dedupKey),
+            projectID: meeting.projectID,
+            workStateKind: .decision,
+            transitionKind: .new,
+            previousStateID: nil,
+            currentObjectID: UUID(),
+            sourceMeetingID: meeting.id,
+            evidence: nil,
+            basis: .noPriorCandidate,
+            requiresConfirmation: true,
+            dedupKey: dedupKey,
+            createdAt: TestFixtures.fixedDate
+        )
+        try await transitions.upsert([proposal])
+
+        let extractor = CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult()))
+        let service = makeService(extractor: extractor)
+
+        let eligibility = await service.eligibility(
+            meetingID: meeting.id,
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .alreadyAnalysed)
+        let callCount = await extractor.callCount
+        XCTAssertEqual(callCount, 0)
+    }
+
+    /// Two presses that overlap. The disabled button is a courtesy; this is the guarantee.
+    func testOverlappingRetriesReachTheProviderOnce() async throws {
+        let extractor = CountingWorkStateExtractor(
+            .success(ExtractionFixtures.fullResult()),
+            delay: .milliseconds(200)
+        )
+        let service = makeService(extractor: extractor)
+
+        let meetingID = meeting.id
+        let projectID = meeting.projectID
+        async let first: Void = {
+            _ = try? await service.reanalyse(meetingID: meetingID, projectID: projectID)
+        }()
+        async let second: Void = {
+            _ = try? await service.reanalyse(meetingID: meetingID, projectID: projectID)
+        }()
+        _ = await (first, second)
+
+        let callCount = await extractor.callCount
+        XCTAssertEqual(callCount, 1, "one meeting must not produce two overlapping provider calls")
+        let project = try await storedProject()
+        XCTAssertEqual(project.decisions.count, 1)
+        XCTAssertEqual(project.actionItems.count, 1)
+    }
+
+    // MARK: - Surviving a relaunch
+
+    /// The reason this lives on the meeting screen and not only on the capture sheet: nothing about
+    /// a failed run is stored, so the offer has to be recomputable from scratch by a new process.
+    func testRetryIsStillOfferedAfterTheStoreIsReopened() async throws {
+        let directory = try Self.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let writer = JSONProjectRepository(fileURL: directory.appendingPathComponent("projects.json"))
+        try await writer.save(ExtractionFixtures.project(with: [meeting]))
+
+        // A different repository instance over the same file is what a relaunch looks like from
+        // here: no cached state carries over.
+        let reader = JSONProjectRepository(fileURL: directory.appendingPathComponent("projects.json"))
+        let reopened = MeetingReanalysisService(
+            repository: reader,
+            extraction: WorkStateExtractionService(
+                repository: reader,
+                extractor: CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult())),
+                now: { TestFixtures.laterDate }
+            )
+        )
+
+        let eligibility = await reopened.eligibility(
+            meetingID: meeting.id,
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .eligible)
+    }
+
+    func testResultsOfARetrySurviveTheStoreBeingReopened() async throws {
+        let directory = try Self.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let projectsURL = directory.appendingPathComponent("projects.json")
+        let transitionsURL = directory.appendingPathComponent("continuity-transitions.json")
+        let writer = JSONProjectRepository(fileURL: projectsURL)
+        let transitionWriter = JSONWorkStateTransitionRepository(fileURL: transitionsURL)
+        try await writer.save(ExtractionFixtures.project(with: [meeting]))
+
+        let service = MeetingReanalysisService(
+            repository: writer,
+            extraction: WorkStateExtractionService(
+                repository: writer,
+                extractor: CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult())),
+                continuity: WorkStateContinuityService(
+                    projects: writer,
+                    transitions: transitionWriter
+                ),
+                now: { TestFixtures.laterDate }
+            ),
+            transitions: transitionWriter
+        )
+        _ = try await service.reanalyse(meetingID: meeting.id, projectID: meeting.projectID)
+
+        let beforeIDs = try await Self.proposalIdentity(projectsURL: projectsURL, transitionsURL: transitionsURL)
+
+        let reader = JSONProjectRepository(fileURL: projectsURL)
+        let transitionReader = JSONWorkStateTransitionRepository(fileURL: transitionsURL)
+        let afterIDs = try await Self.proposalIdentity(projectsURL: projectsURL, transitionsURL: transitionsURL)
+        XCTAssertEqual(beforeIDs, afterIDs)
+
+        let reloadedProject = try await reader.project(id: meeting.projectID)
+        let reloaded = try XCTUnwrap(reloadedProject)
+        XCTAssertEqual(reloaded.meetings.count, 1)
+        XCTAssertEqual(reloaded.decisions.map(\.status), [.proposed])
+        let proposals = try await transitionReader.proposals(forProject: meeting.projectID)
+        XCTAssertFalse(proposals.isEmpty)
+        XCTAssertTrue(proposals.allSatisfy { $0.reviewStatus == .pendingReview })
+
+        // And the offer is correctly gone: the meeting has results now, so the screen shows them
+        // rather than offering to fetch them again.
+        let reopened = MeetingReanalysisService(
+            repository: reader,
+            extraction: WorkStateExtractionService(
+                repository: reader,
+                extractor: CountingWorkStateExtractor(.success(ExtractionFixtures.fullResult())),
+                now: { TestFixtures.laterDate }
+            ),
+            transitions: transitionReader
+        )
+        let eligibility = await reopened.eligibility(
+            meetingID: meeting.id,
+            projectID: meeting.projectID
+        )
+        XCTAssertEqual(eligibility, .alreadyAnalysed)
+    }
+
+    // MARK: - What the screen is allowed to say
+
+    /// No transcript text, no meeting title, no provider text. Same rule as `CaptureFailureCopy`:
+    /// a message about a failure must not become a second place a user's meeting is written down.
+    func testRefusalCopyNeverCarriesMeetingContent() {
+        let reasons: [MeetingReanalysisEligibility] = [
+            .eligible, .meetingNotFound, .transcriptMissing,
+            .alreadyAnalysed, .alreadyRunning, .storeUnavailable
+        ]
+        for reason in reasons {
+            let text = MeetingReanalysisCopy.refusal(reason)
+            XCTAssertFalse(text.isEmpty)
+            XCTAssertFalse(text.contains(ExtractionFixtures.transcript))
+            XCTAssertFalse(text.contains("Kickoff"))
+            XCTAssertFalse(text.contains("Patrick"))
+        }
+        XCTAssertFalse(MeetingReanalysisCopy.availability.contains(ExtractionFixtures.transcript))
+    }
+
+    // MARK: - Helpers
+
+    private static func temporaryDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENAReanalysis-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private static func proposalIdentity(
+        projectsURL: URL,
+        transitionsURL: URL
+    ) async throws -> [String] {
+        let projects = JSONProjectRepository(fileURL: projectsURL)
+        let transitions = JSONWorkStateTransitionRepository(fileURL: transitionsURL)
+        let project = try await projects.project(id: TestFixtures.projectID)
+        let workStateIDs = (project?.decisions.map(\.id.uuidString) ?? [])
+            + (project?.actionItems.map(\.id.uuidString) ?? [])
+            + (project?.openQuestions.map(\.id.uuidString) ?? [])
+            + (project?.nextAgenda.map(\.id.uuidString) ?? [])
+        let transitionIDs = try await transitions
+            .proposals(forProject: TestFixtures.projectID)
+            .map(\.id.uuidString)
+        return (workStateIDs + transitionIDs).sorted()
+    }
+}
+
+/// Asserts that a re-analysis was refused for a specific reason rather than run or thrown from.
+private func XCTAssertThrowsRefusal(
+    _ expected: MeetingReanalysisEligibility,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ body: () async throws -> Void
+) async {
+    do {
+        try await body()
+        XCTFail("expected a refusal for \(expected)", file: file, line: line)
+    } catch let refusal as MeetingReanalysisRefused {
+        XCTAssertEqual(refusal.reason, expected, file: file, line: line)
+    } catch {
+        XCTFail("expected a refusal, got \(error)", file: file, line: line)
+    }
+}

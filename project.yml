@@ -110,13 +110,15 @@ targets:
     platform: macOS
     sources:
       - path: HAENA/Models
-      # `WorkStateExtractionService` is the one piece of Extraction left out, because it is the
-      # piece that writes to a `ProjectRepository`. Excluding it means no repository type is
+      # The two pieces of Extraction left out are the two that reach a `ProjectRepository`:
+      # `WorkStateExtractionService` writes to one, and `MeetingReanalysis` reads one to decide
+      # whether a stored meeting may be analysed again. Excluding both means no repository type is
       # compiled into the harness binary at all, so "the harness cannot touch a user's projects"
       # is enforced by the link step rather than by reviewer discipline.
       - path: HAENA/Extraction
         excludes:
           - WorkStateExtractionService.swift
+          - MeetingReanalysis.swift
       # Provider-neutral extraction now carries the Transition Engine's typed signal contract and
       # approved-state snapshot types. Include only those value definitions; the CLI still cannot
       # compile the engine, either repository, or either write service.

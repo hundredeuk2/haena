@@ -27,6 +27,11 @@ struct ProjectBrowserView: View {
     /// and tests want; the app supplies one, because this is the only place a review service is
     /// constructed and an uninstrumented one would silently count no verdicts at all.
     var metrics: BetaMetricsService?
+    /// Built once at the app's assembly point rather than here, because it is the one component on
+    /// this screen that must keep state between renders: it is what stops two presses of
+    /// `AI 분석 다시 시도` from becoming two provider requests, and a fresh instance per render
+    /// would have nothing to compare against.
+    var reanalysisService: MeetingReanalysisService?
     /// Where to land when the browser opens, for a caller that already knows — the home screen
     /// tapping a row, or a capture that just created a meeting. Nil opens on nothing selected,
     /// as before.
@@ -137,7 +142,8 @@ struct ProjectBrowserView: View {
                         await load()
                     },
                     audioAssetStore: audioAssetStore,
-                    makeAudioPlayer: makeAudioPlayer
+                    makeAudioPlayer: makeAudioPlayer,
+                    reanalysis: reanalysisService
                 )
                 // Identity per meeting, so selecting a different one builds a fresh pane instead of
                 // pouring new content into the old one. Without this the previous meeting's view
@@ -180,7 +186,8 @@ struct ProjectBrowserView: View {
             PasteTranscriptView(
                 service: TextMeetingCaptureService(repository: repository),
                 extractionService: extractionService,
-                metrics: metrics
+                metrics: metrics,
+                reanalysisService: reanalysisService
             )
         }
     }

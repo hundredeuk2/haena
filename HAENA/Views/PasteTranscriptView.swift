@@ -27,6 +27,9 @@ struct PasteTranscriptView: View {
     /// Optional and nil by default, so previews and existing call sites are unaffected. Nothing on
     /// this screen changes when it is absent.
     var metrics: BetaMetricsService?
+    /// Lets the completion screen offer another attempt when extraction failed after the save.
+    /// Nil hides that button and leaves this screen exactly as it was.
+    var reanalysisService: MeetingReanalysisService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -57,6 +60,7 @@ struct PasteTranscriptView: View {
     /// screen. Never set for a capture that failed before the save — there would be no meeting to
     /// report or to open.
     @State private var outcome: CaptureOutcome?
+    @State private var isRetryingAnalysis = false
 
     var body: some View {
         if let outcome {
@@ -67,7 +71,9 @@ struct PasteTranscriptView: View {
                     onOpenResults?(outcome.destination)
                     dismiss()
                 },
-                onClose: { dismiss() }
+                onClose: { dismiss() },
+                onRetryAnalysis: retryAnalysisAction(for: outcome),
+                isRetryingAnalysis: isRetryingAnalysis
             )
         } else {
             captureForm
@@ -475,6 +481,63 @@ struct PasteTranscriptView: View {
             phases.mark(.outcomeShown)
             await run.recordSuccess(completed)
         }
+    }
+
+    /// The completion screen's second chance, or nil where there is nothing to offer.
+    ///
+    /// The meeting is already stored by the time this screen exists, so retrying re-runs over that
+    /// same meeting rather than saving anything again — no second meeting, no second transcript,
+    /// and no request to type it in once more.
+    private func retryAnalysisAction(for outcome: CaptureOutcome) -> (() async -> Void)? {
+        guard let reanalysisService, outcome.notice != nil else {
+            return nil
+        }
+        return {
+            await retryAnalysis(using: reanalysisService, after: outcome)
+        }
+    }
+
+    @MainActor
+    private func retryAnalysis(
+        using reanalysisService: MeetingReanalysisService,
+        after previous: CaptureOutcome
+    ) async {
+        guard !isRetryingAnalysis else {
+            return
+        }
+        isRetryingAnalysis = true
+        defer { isRetryingAnalysis = false }
+
+        var notice: String?
+        do {
+            _ = try await reanalysisService.reanalyse(
+                meetingID: previous.meetingID,
+                projectID: previous.projectID
+            )
+        } catch let refusal as MeetingReanalysisRefused {
+            notice = MeetingReanalysisCopy.refusal(refusal.reason)
+        } catch {
+            notice = extractionFailureMessage(for: error)
+        }
+
+        // Re-read rather than patching the counts held on screen: the numbers this screen shows
+        // have to be what storage actually holds, whichever way the retry went.
+        guard let meeting = try? await service.repository.project(id: previous.projectID)?
+            .meetings.first(where: { $0.id == previous.meetingID })
+        else {
+            outcome = CaptureOutcome(
+                destination: previous.destination,
+                meetingTitle: previous.meetingTitle,
+                counts: nil,
+                notice: notice
+            )
+            return
+        }
+        outcome = await CaptureOutcome.make(
+            for: meeting,
+            notice: notice,
+            repository: service.repository
+        )
     }
 
     /// Returns the non-blocking notice to carry onto the completion screen, or nil when extraction

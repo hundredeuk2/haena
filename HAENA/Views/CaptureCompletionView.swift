@@ -30,6 +30,12 @@ struct CaptureCompletionView: View {
     var identifiers: CaptureCompletionIdentifiers
     let onOpenResults: () -> Void
     let onClose: () -> Void
+    /// Offered only where a caller can actually run extraction again. Nil leaves this screen
+    /// exactly what it was.
+    var onRetryAnalysis: (() async -> Void)?
+    /// Owned by the caller, because the run is. Disables the button rather than hiding it, so the
+    /// screen does not reshuffle while the user is looking at it.
+    var isRetryingAnalysis = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -55,6 +61,8 @@ struct CaptureCompletionView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("capture-completion-notice")
+
+                retryAnalysis
             }
 
             Spacer(minLength: 0)
@@ -74,6 +82,37 @@ struct CaptureCompletionView: View {
         .frame(minWidth: 420, minHeight: 300, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("capture-completion-screen")
+    }
+
+    // MARK: - Retry
+
+    /// Shown beside the notice, and only beside it: a capture whose extraction succeeded has
+    /// nothing to retry, and offering it anyway would invite a second provider request for results
+    /// the meeting already has.
+    ///
+    /// It sits here rather than only on the meeting screen because this is where the user is
+    /// standing when the failure is reported — but it is deliberately not the only place. This
+    /// sheet closes, and a retry that existed nowhere else would be gone for good the moment it
+    /// did.
+    @ViewBuilder
+    private var retryAnalysis: some View {
+        if let onRetryAnalysis {
+            HStack(spacing: 8) {
+                Button(MeetingReanalysisCopy.button) {
+                    Task { await onRetryAnalysis() }
+                }
+                .disabled(isRetryingAnalysis)
+                .accessibilityIdentifier("capture-retry-analysis-button")
+
+                if isRetryingAnalysis {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityIdentifier("capture-retry-analysis-progress")
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
     }
 
     // MARK: - Results

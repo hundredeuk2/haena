@@ -23,6 +23,9 @@ struct RecordAudioView: View {
     /// app processing it, and a two-hour recording is not a two-hour wait. The clock the beta
     /// cares about starts when the user hands the finished file over on the next screen.
     var metrics: BetaMetricsService?
+    /// Passed straight through: a finished recording continues in `ImportAudioView`, and its
+    /// completion screen is the one that can offer another attempt.
+    var reanalysisService: MeetingReanalysisService?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -78,7 +81,8 @@ struct RecordAudioView: View {
                         discardScratchFile()
                     },
                     onOpenResults: onOpenResults,
-                    metrics: metrics
+                    metrics: metrics,
+                    reanalysisService: reanalysisService
                 )
             } else {
                 recordingScreen

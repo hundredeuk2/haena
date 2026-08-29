@@ -223,6 +223,10 @@ struct HAENAApp: App {
     private let notificationScheduler: any LocalNotificationScheduler
     /// One resolver, shared by transcription and extraction, so the app cannot use two keys.
     private let credentialResolver: OpenAICredentialResolver
+    /// One re-analysis service for the whole app. It is the only component here that has to keep
+    /// state between screens — which meetings currently have a run in flight — so it is built once
+    /// rather than per view, the same reason the credential resolver is.
+    private let reanalysisService: MeetingReanalysisService
     /// A factory, because playback state belongs to a single meeting at a time.
     private let makeAudioPlayer: () -> any MeetingAudioPlayer
 
@@ -408,6 +412,19 @@ struct HAENAApp: App {
             )
         }
 
+        reanalysisService = MeetingReanalysisService(
+            repository: repository,
+            extraction: WorkStateExtractionService(
+                repository: repository,
+                extractor: extractor,
+                continuity: WorkStateContinuityService(
+                    projects: repository,
+                    transitions: transitionRepository
+                )
+            ),
+            transitions: transitionRepository
+        )
+
         // Anything a previous session left behind — a recording abandoned by a crash — goes now.
         // Recordings are scratch by definition: nothing outside a live recording screen refers to
         // one, so clearing them at launch can never remove something a meeting depends on.
@@ -433,6 +450,7 @@ struct HAENAApp: App {
                 metricsRepository: metricsRepository,
                 notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
+                reanalysisService: reanalysisService,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

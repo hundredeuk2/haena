@@ -303,6 +303,12 @@ private struct AudioCaptureContext {
         // "연결 확인" only checks a key typed into the field next to it — it never reads the stored
         // item, so it cannot clear this state and must not be what the user is sent to do.
         XCTAssertFalse(text.contains("연결 확인"))
+        // The instruction has to name a control the user can actually find. This copy shipped in
+        // 0.2.3 (6) telling people to "다시 시도" when nothing in the app could do that.
+        XCTAssertTrue(
+            text.contains(MeetingReanalysisCopy.button),
+            "the copy must name the button that exists, not an action that does not"
+        )
     }
 
     func testUnreadableCredentialCopyIsDistinctFromMissingCredentialCopy() {

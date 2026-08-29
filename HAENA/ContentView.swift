@@ -19,6 +19,10 @@ struct ContentView: View {
     let metricsRepository: any BetaMetricsRepository
     let notificationScheduler: any LocalNotificationScheduler
     let credentialResolver: OpenAICredentialResolver
+    /// Assembled by `HAENAApp` and passed down whole, like the credential resolver: re-analysis
+    /// has to be able to tell "already running" from "not started", which a per-render value could
+    /// not do.
+    let reanalysisService: MeetingReanalysisService
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -152,7 +156,8 @@ struct ContentView: View {
                 service: TextMeetingCaptureService(repository: repository),
                 extractionService: extractionService,
                 onOpenResults: requestResults,
-                metrics: metricsService
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingRecordAudio) {
@@ -166,7 +171,8 @@ struct ContentView: View {
                 ),
                 extractionService: extractionService,
                 onOpenResults: requestResults,
-                metrics: metricsService
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -178,7 +184,8 @@ struct ContentView: View {
                 ),
                 extractionService: extractionService,
                 onOpenResults: requestResults,
-                metrics: metricsService
+                metrics: metricsService,
+                reanalysisService: reanalysisService
             )
         }
         .sheet(isPresented: $showingProjectBrowser) {
@@ -196,6 +203,7 @@ struct ContentView: View {
                 // Without this the review screen builds an uninstrumented service and no verdict is
                 // ever counted: this view is the only place `WorkStateReviewService` is constructed.
                 metrics: metricsService,
+                reanalysisService: reanalysisService,
                 initialProjectID: browserDestination?.projectID,
                 initialMeetingID: browserDestination?.meetingID,
                 initialActionItemID: browserDestination?.actionItemID,
@@ -289,6 +297,16 @@ struct ContentView: View {
         metricsRepository: InMemoryBetaMetricsRepository(),
         notificationScheduler: InMemoryLocalNotificationScheduler(),
         credentialResolver: OpenAICredentialResolver(store: InMemoryAPICredentialStore()),
+        reanalysisService: {
+            let repository = InMemoryProjectRepository()
+            return MeetingReanalysisService(
+                repository: repository,
+                extraction: WorkStateExtractionService(
+                    repository: repository,
+                    extractor: DeterministicWorkStateExtractor()
+                )
+            )
+        }(),
         showingPasteTranscript: .constant(false),
         showingProjectBrowser: .constant(false),
         showingImportAudio: .constant(false),
