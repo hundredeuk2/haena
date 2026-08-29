@@ -43,10 +43,10 @@
               "1.2"
             ],
             "details": "Use typed UUID references. Remove the dependent group and its reviews atomically with the sidecar closure; preserve unrelated groups and reviews.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Cover incomingObjectID, each priorCandidateIDs path, dependent ambiguityReviews, and unrelated value preservation.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-29T13:32:18.231Z"
+            "updatedAt": "2026-08-29T13:33:50.693Z"
           },
           {
             "id": 4,
@@ -97,12 +97,12 @@
             "parentId": "undefined"
           }
         ],
-        "updatedAt": "2026-08-29T13:32:18.231Z"
+        "updatedAt": "2026-08-29T13:33:50.693Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T13:32:18.234Z",
+      "lastModified": "2026-08-29T13:33:50.693Z",
       "taskCount": 1,
       "completedCount": 0,
       "tags": [
