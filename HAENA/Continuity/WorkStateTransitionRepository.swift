@@ -87,6 +87,23 @@ struct MeetingDeletionIntent: Codable, Equatable, Sendable {
     }
 }
 
+/// Durable record that a project deletion was authorized and has not finished yet.
+///
+/// The same two-store window `MeetingDeletionIntent` closes, one scope up. It carries two fields
+/// and can carry no more: a project deletion receipt has no meeting to name, and the project's
+/// title, its meetings and its Work State are exactly what the deletion is removing — a receipt
+/// must not become the last place any of it survives.
+///
+/// Unlike the meeting intent there is no list of removed object ids, because none is needed: the
+/// sidecar rows are found by their own `projectID`, which is still on every one of them after the
+/// aggregate is gone.
+struct ProjectDeletionIntent: Codable, Equatable, Sendable {
+    let projectID: UUID
+    let requestedAt: Date
+
+    var storageKey: String { projectID.uuidString.lowercased() }
+}
+
 /// Durable, privacy-safe description of one user-approved apply operation.
 ///
 /// It deliberately contains identifiers, finite enums, a timestamp and a hash only. Project
@@ -270,6 +287,7 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
     var refusals: [WorkStateTransitionRefusalRecord]
     var applyIntents: [WorkStateTransitionApplyIntent]
     var meetingDeletionIntents: [MeetingDeletionIntent]
+    var projectDeletionIntents: [ProjectDeletionIntent]
 
     init(
         schemaVersion: Int = WorkStateTransitionStoreFile.currentSchemaVersion,
@@ -279,7 +297,8 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         ambiguityReviews: [WorkStateAmbiguityReviewState] = [],
         refusals: [WorkStateTransitionRefusalRecord] = [],
         applyIntents: [WorkStateTransitionApplyIntent] = [],
-        meetingDeletionIntents: [MeetingDeletionIntent] = []
+        meetingDeletionIntents: [MeetingDeletionIntent] = [],
+        projectDeletionIntents: [ProjectDeletionIntent] = []
     ) {
         self.schemaVersion = schemaVersion
         self.proposals = proposals
@@ -289,11 +308,12 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         self.refusals = refusals
         self.applyIntents = applyIntents
         self.meetingDeletionIntents = meetingDeletionIntents
+        self.projectDeletionIntents = projectDeletionIntents
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, proposals, reviews, ambiguousMatchGroups, ambiguityReviews, refusals
-        case applyIntents, meetingDeletionIntents
+        case applyIntents, meetingDeletionIntents, projectDeletionIntents
     }
 
     init(from decoder: Decoder) throws {
@@ -319,6 +339,12 @@ struct WorkStateTransitionStoreFile: Codable, Equatable, Sendable {
         // operation decodes with no pending deletions, which is exactly true of it.
         meetingDeletionIntents = try container.decodeIfPresent(
             [MeetingDeletionIntent].self, forKey: .meetingDeletionIntents
+        ) ?? []
+        // Additive and optional for the same reason, one scope up: a sidecar written before project
+        // deletion became a two-store operation decodes with no pending project deletions, which is
+        // exactly true of it. No schema bump — nothing existing is read differently.
+        projectDeletionIntents = try container.decodeIfPresent(
+            [ProjectDeletionIntent].self, forKey: .projectDeletionIntents
         ) ?? []
     }
 }
@@ -369,6 +395,15 @@ protocol WorkStateTransitionRepository: Sendable {
     func applyMeetingDeletion(_ intent: MeetingDeletionIntent) async throws
     /// Marks the deletion finished. Idempotent.
     func clearMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws
+    /// Records that a project deletion was authorized, before either store changes.
+    /// Re-recording the same intent is a no-op.
+    func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) async throws
+    /// Project deletions authorized but never confirmed finished — the relaunch work list.
+    func pendingProjectDeletionIntents() async throws -> [ProjectDeletionIntent]
+    /// Removes every row belonging to the project **and the intent itself** in one write, so the
+    /// sweep and its receipt cannot come apart. Safe to run again: the second run finds neither and
+    /// writes nothing.
+    func applyProjectDeletion(_ intent: ProjectDeletionIntent) async throws
 }
 
 private struct WorkStateTransitionStoreCache {
@@ -379,6 +414,7 @@ private struct WorkStateTransitionStoreCache {
     var refusals: [String: WorkStateTransitionRefusalRecord] = [:]
     var applyIntents: [String: WorkStateTransitionApplyIntent] = [:]
     var meetingDeletionIntents: [String: MeetingDeletionIntent] = [:]
+    var projectDeletionIntents: [String: ProjectDeletionIntent] = [:]
 }
 
 actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
@@ -810,6 +846,74 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
         cache = stored
     }
 
+    // MARK: - Project deletion
+
+    func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) throws {
+        var stored = try loadIfNeeded()
+        guard stored.projectDeletionIntents[intent.storageKey] != intent else { return }
+        stored.projectDeletionIntents[intent.storageKey] = intent
+        try persist(stored)
+        cache = stored
+    }
+
+    func pendingProjectDeletionIntents() throws -> [ProjectDeletionIntent] {
+        try loadIfNeeded().projectDeletionIntents.values
+            .sorted { $0.storageKey < $1.storageKey }
+    }
+
+    func applyProjectDeletion(_ intent: ProjectDeletionIntent) throws {
+        var stored = try loadIfNeeded()
+        let closure = ProjectDeletionClosure.resolve(
+            projectID: intent.projectID,
+            proposals: Array(stored.proposals.values),
+            ambiguousMatchGroups: Array(stored.ambiguousMatchGroups.values),
+            ambiguityReviews: Array(stored.ambiguityReviews.values),
+            refusals: Array(stored.refusals.values),
+            applyIntents: Array(stored.applyIntents.values),
+            meetingDeletionIntents: Array(stored.meetingDeletionIntents.values)
+        )
+        let hasIntent = stored.projectDeletionIntents[intent.storageKey] != nil
+        // Nothing left and no receipt to retire is what the second pass sees. Returning without
+        // writing is what makes repeated recovery leave the file byte-identical.
+        guard !closure.isEmpty || hasIntent else { return }
+
+        removeProjectScopedRows(closure, from: &stored)
+        // Retired in the same write as the rows it authorized. Split across two writes there would
+        // be a moment where the work is done and the receipt says it is not, and recovery would
+        // redo a sweep that has already happened.
+        stored.projectDeletionIntents.removeValue(forKey: intent.storageKey)
+
+        try persist(stored)
+        cache = stored
+    }
+
+    /// The removal loop, shared by the live path and recovery so they cannot drift apart. A
+    /// proposal's review leaves with it under the same `dedupKey`, exactly as in the meeting path.
+    private func removeProjectScopedRows(
+        _ closure: ProjectDeletionClosure,
+        from stored: inout WorkStateTransitionStoreCache
+    ) {
+        for key in closure.proposalKeys {
+            stored.proposals.removeValue(forKey: key)
+            stored.reviews.removeValue(forKey: key)
+        }
+        for key in closure.ambiguousMatchGroupKeys {
+            stored.ambiguousMatchGroups.removeValue(forKey: key)
+        }
+        for key in closure.refusalKeys {
+            stored.refusals.removeValue(forKey: key)
+        }
+        for groupID in closure.ambiguityGroupIDs {
+            stored.ambiguityReviews.removeValue(forKey: groupID)
+        }
+        for key in closure.applyIntentKeys {
+            stored.applyIntents.removeValue(forKey: key)
+        }
+        for key in closure.meetingDeletionIntentKeys {
+            stored.meetingDeletionIntents.removeValue(forKey: key)
+        }
+    }
+
     private func sortedRefusals(
         _ stored: WorkStateTransitionStoreCache
     ) -> [WorkStateTransitionRefusalRecord] {
@@ -837,6 +941,8 @@ actor JSONWorkStateTransitionRepository: WorkStateTransitionRepository {
             refusals: sortedRefusals(stored),
             applyIntents: stored.applyIntents.values.sorted { $0.storageKey < $1.storageKey },
             meetingDeletionIntents: stored.meetingDeletionIntents.values
+                .sorted { $0.storageKey < $1.storageKey },
+            projectDeletionIntents: stored.projectDeletionIntents.values
                 .sorted { $0.storageKey < $1.storageKey }
         )
         let encoder = JSONEncoder()
@@ -1159,6 +1265,44 @@ actor InMemoryWorkStateTransitionRepository: WorkStateTransitionRepository {
 
     func clearMeetingDeletionIntent(_ intent: MeetingDeletionIntent) {
         cache.meetingDeletionIntents.removeValue(forKey: intent.storageKey)
+    }
+
+    // MARK: - Project deletion
+
+    func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) {
+        cache.projectDeletionIntents[intent.storageKey] = intent
+    }
+
+    func pendingProjectDeletionIntents() -> [ProjectDeletionIntent] {
+        cache.projectDeletionIntents.values.sorted { $0.storageKey < $1.storageKey }
+    }
+
+    func applyProjectDeletion(_ intent: ProjectDeletionIntent) {
+        let closure = ProjectDeletionClosure.resolve(
+            projectID: intent.projectID,
+            proposals: Array(cache.proposals.values),
+            ambiguousMatchGroups: Array(cache.ambiguousMatchGroups.values),
+            ambiguityReviews: Array(cache.ambiguityReviews.values),
+            refusals: Array(cache.refusals.values),
+            applyIntents: Array(cache.applyIntents.values),
+            meetingDeletionIntents: Array(cache.meetingDeletionIntents.values)
+        )
+        for key in closure.proposalKeys {
+            cache.proposals.removeValue(forKey: key)
+            cache.reviews.removeValue(forKey: key)
+        }
+        for key in closure.ambiguousMatchGroupKeys {
+            cache.ambiguousMatchGroups.removeValue(forKey: key)
+        }
+        for key in closure.refusalKeys { cache.refusals.removeValue(forKey: key) }
+        for groupID in closure.ambiguityGroupIDs {
+            cache.ambiguityReviews.removeValue(forKey: groupID)
+        }
+        for key in closure.applyIntentKeys { cache.applyIntents.removeValue(forKey: key) }
+        for key in closure.meetingDeletionIntentKeys {
+            cache.meetingDeletionIntents.removeValue(forKey: key)
+        }
+        cache.projectDeletionIntents.removeValue(forKey: intent.storageKey)
     }
 }
 

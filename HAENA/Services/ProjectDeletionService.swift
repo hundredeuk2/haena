@@ -51,11 +51,27 @@ struct ProjectDeletionService: Sendable {
         guard let project = try await existingProject(id: id) else {
             throw ProjectDeletionError.projectNotFound
         }
+
+        // Same shape as `deleteMeeting`, one scope up: the intent is written before either store
+        // changes, so an interruption leaves a state a relaunch can finish rather than guess at.
+        let intent = ProjectDeletionIntent(projectID: id, requestedAt: now())
+        if let transitions {
+            do {
+                try await transitions.recordProjectDeletionIntent(intent)
+            } catch {
+                // Nothing removed yet, so the project is still whole. A failure the user can retry.
+                throw ProjectDeletionError.repositoryFailure
+            }
+        }
+
         do {
             try await repository.delete(id: id)
         } catch {
             throw ProjectDeletionError.repositoryFailure
         }
+
+        try await finishProjectDeletion(intent)
+
         removeStoredAudio(for: project.meetings)
     }
 
@@ -149,6 +165,37 @@ struct ProjectDeletionService: Sendable {
                 guard (try? await repository.save(project)) != nil else { continue }
             }
             try? await finishMeetingDeletion(intent)
+        }
+    }
+
+    /// Finishes project deletions that were authorized but interrupted, at launch.
+    ///
+    /// The aggregate delete is re-run first because it may not have happened, and it is a no-op
+    /// when it has: removing a key that is already gone changes nothing. Failures are left for the
+    /// next launch rather than thrown, for the same reason as the meeting path — a stuck recovery
+    /// must not be able to stop the app from starting.
+    func recoverInterruptedProjectDeletions() async {
+        guard let transitions,
+              let pending = try? await transitions.pendingProjectDeletionIntents() else {
+            return
+        }
+        for intent in pending {
+            guard (try? await repository.delete(id: intent.projectID)) != nil else { continue }
+            try? await finishProjectDeletion(intent)
+        }
+    }
+
+    /// The sidecar half, shared by the live path and recovery so they cannot drift apart. The sweep
+    /// and the retirement of the intent are one write inside the repository, so there is no state
+    /// where the rows are gone and the receipt still says they are not.
+    private func finishProjectDeletion(_ intent: ProjectDeletionIntent) async throws {
+        guard let transitions else { return }
+        do {
+            try await transitions.applyProjectDeletion(intent)
+        } catch {
+            // The aggregate is already deleted and is the authority. The intent stays on disk, so
+            // the next launch finishes the sidecar instead of leaving its rows there forever.
+            throw ProjectDeletionError.repositoryFailure
         }
     }
 

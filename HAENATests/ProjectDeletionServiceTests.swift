@@ -965,6 +965,454 @@ final class ProjectDeletionServiceTests: XCTestCase {
         XCTAssertFalse(remaining.contains { $0.sourceMeetingID == f.doomedMeetingID })
     }
 
+    // MARK: - Project deletion sidecar lifecycle
+
+    /// Refuses only the project-scoped sweep, and only that: everything before it succeeds, so the
+    /// aggregate is already gone by the time this throws.
+    private actor SidecarFailingOnProjectSweep: WorkStateTransitionRepository {
+        enum SimulatedError: Error { case sweep }
+
+        private let base: InMemoryWorkStateTransitionRepository
+
+        init(base: InMemoryWorkStateTransitionRepository) { self.base = base }
+
+        func applyProjectDeletion(_ intent: ProjectDeletionIntent) async throws {
+            throw SimulatedError.sweep
+        }
+
+        func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) async throws {
+            try await base.recordProjectDeletionIntent(intent)
+        }
+        func pendingProjectDeletionIntents() async throws -> [ProjectDeletionIntent] {
+            try await base.pendingProjectDeletionIntents()
+        }
+        func proposals(forProject projectID: UUID) async throws -> [WorkStateTransitionProposal] {
+            try await base.proposals(forProject: projectID)
+        }
+        func allProposals() async throws -> [WorkStateTransitionProposal] {
+            try await base.allProposals()
+        }
+        func ambiguousMatchGroups(forProject projectID: UUID) async throws -> [WorkStateAmbiguousMatchGroup] {
+            try await base.ambiguousMatchGroups(forProject: projectID)
+        }
+        func allAmbiguousMatchGroups() async throws -> [WorkStateAmbiguousMatchGroup] {
+            try await base.allAmbiguousMatchGroups()
+        }
+        func ambiguityReview(groupID: UUID) async throws -> WorkStateAmbiguityReviewState? {
+            try await base.ambiguityReview(groupID: groupID)
+        }
+        func refusals(forProject projectID: UUID) async throws -> [WorkStateTransitionRefusalRecord] {
+            try await base.refusals(forProject: projectID)
+        }
+        func allRefusals() async throws -> [WorkStateTransitionRefusalRecord] {
+            try await base.allRefusals()
+        }
+        func upsert(_ proposals: [WorkStateTransitionProposal]) async throws {
+            try await base.upsert(proposals)
+        }
+        func upsert(
+            proposals: [WorkStateTransitionProposal],
+            ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup],
+            refusals: [WorkStateTransitionRefusalRecord]
+        ) async throws {
+            try await base.upsert(
+                proposals: proposals, ambiguousMatchGroups: ambiguousMatchGroups, refusals: refusals
+            )
+        }
+        func recordTerminalReview(
+            projectID: UUID, proposalID: UUID, verdict: WorkStateTransitionTerminalVerdict
+        ) async throws -> WorkStateTransitionReviewWriteResult {
+            try await base.recordTerminalReview(
+                projectID: projectID, proposalID: proposalID, verdict: verdict
+            )
+        }
+        func recordTerminalReviews(
+            projectID: UUID, reviews: [WorkStateTransitionTerminalReview]
+        ) async throws -> WorkStateTransitionReviewWriteResult {
+            try await base.recordTerminalReviews(projectID: projectID, reviews: reviews)
+        }
+        func resolveAmbiguity(
+            projectID: UUID, groupID: UUID,
+            selection: WorkStateAmbiguousMatchSelection, reviewedAt: Date
+        ) async throws -> WorkStateTransitionReviewWriteResult {
+            try await base.resolveAmbiguity(
+                projectID: projectID, groupID: groupID, selection: selection, reviewedAt: reviewedAt
+            )
+        }
+        func pendingApplyIntents() async throws -> [WorkStateTransitionApplyIntent] {
+            try await base.pendingApplyIntents()
+        }
+        func prepareApplyIntent(
+            _ intent: WorkStateTransitionApplyIntent
+        ) async throws -> WorkStateTransitionApplyIntentWriteResult {
+            try await base.prepareApplyIntent(intent)
+        }
+        func finalizeApplyIntent(
+            _ intent: WorkStateTransitionApplyIntent
+        ) async throws -> WorkStateTransitionReviewWriteResult {
+            try await base.finalizeApplyIntent(intent)
+        }
+        func recordMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws {
+            try await base.recordMeetingDeletionIntent(intent)
+        }
+        func pendingMeetingDeletionIntents() async throws -> [MeetingDeletionIntent] {
+            try await base.pendingMeetingDeletionIntents()
+        }
+        func applyMeetingDeletion(_ intent: MeetingDeletionIntent) async throws {
+            try await base.applyMeetingDeletion(intent)
+        }
+        func clearMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws {
+            try await base.clearMeetingDeletionIntent(intent)
+        }
+    }
+
+    /// Two projects whose sidecars are deliberately indistinguishable except for `projectID` —
+    /// same object UUID, same meeting id, same shapes. Anything that leaks across is a scope bug,
+    /// and it will show up as the other project's rows changing.
+    private func makeProjectDeletionFixture(
+        meetings: Int = 1
+    ) async throws -> (
+        repository: InMemoryProjectRepository,
+        transitions: InMemoryWorkStateTransitionRepository,
+        service: ProjectDeletionService,
+        sharedObjectID: UUID,
+        sharedMeetingID: UUID,
+        targetGroupID: UUID,
+        otherGroupID: UUID
+    ) {
+        let repository = InMemoryProjectRepository()
+        let sharedObjectID = UUID(uuidString: "D1000000-0000-4000-8000-000000000001")!
+        let sharedMeetingID = UUID(uuidString: "D1000000-0000-4000-8000-000000000002")!
+        let meeting = makeMeeting(
+            id: sharedMeetingID, projectID: TestFixtures.projectID, title: "Target"
+        )
+        try await repository.save(makeProject(
+            id: TestFixtures.projectID,
+            meetings: meetings == 0 ? [] : [meeting]
+        ))
+        try await repository.save(makeProject(id: Self.otherProjectID, meetings: []))
+
+        func rows(for projectID: UUID) -> (
+            WorkStateTransitionProposal, WorkStateAmbiguousMatchGroup, WorkStateTransitionRefusalRecord
+        ) {
+            (
+                makeProposal(
+                    projectID: projectID,
+                    sourceMeetingID: sharedMeetingID,
+                    currentObjectID: sharedObjectID,
+                    reviewStatus: .approved
+                ),
+                makeAmbiguityGroup(
+                    projectID: projectID,
+                    sourceMeetingID: sharedMeetingID,
+                    incomingObjectID: sharedObjectID,
+                    priorCandidateIDs: [sharedObjectID]
+                ),
+                makeRefusal(
+                    projectID: projectID,
+                    sourceMeetingID: sharedMeetingID,
+                    currentObjectID: sharedObjectID,
+                    reason: .missingEvidence
+                )
+            )
+        }
+        let target = rows(for: TestFixtures.projectID)
+        let other = rows(for: Self.otherProjectID)
+
+        let transitions = InMemoryWorkStateTransitionRepository(
+            proposals: [target.0, other.0],
+            ambiguousMatchGroups: [target.1, other.1],
+            ambiguityReviews: [
+                makeAmbiguityReview(group: target.1), makeAmbiguityReview(group: other.1)
+            ],
+            refusals: [target.2, other.2]
+        )
+        for projectID in [TestFixtures.projectID, Self.otherProjectID] {
+            let group = projectID == TestFixtures.projectID ? target.1 : other.1
+            _ = try await transitions.prepareApplyIntent(
+                WorkStateTransitionApplyIntent.ambiguity(
+                    projectID: projectID,
+                    groupID: group.id,
+                    selection: .new,
+                    reviewedAt: TestFixtures.fixedDate
+                )
+            )
+            try await transitions.recordMeetingDeletionIntent(
+                MeetingDeletionIntent(
+                    projectID: projectID,
+                    meetingID: sharedMeetingID,
+                    removedWorkStateIDs: [sharedObjectID],
+                    requestedAt: TestFixtures.fixedDate
+                )
+            )
+        }
+
+        let service = ProjectDeletionService(
+            repository: repository,
+            transitions: transitions,
+            now: { TestFixtures.laterDate }
+        )
+        return (
+            repository, transitions, service,
+            sharedObjectID, sharedMeetingID, target.1.id, other.1.id
+        )
+    }
+
+    /// Everything the other project holds, as one comparable value.
+    private func otherProjectRows(
+        _ transitions: InMemoryWorkStateTransitionRepository,
+        groupID: UUID
+    ) async throws -> (
+        [WorkStateTransitionProposal], [WorkStateAmbiguousMatchGroup],
+        [WorkStateTransitionRefusalRecord], WorkStateAmbiguityReviewState?,
+        [WorkStateTransitionApplyIntent], [MeetingDeletionIntent]
+    ) {
+        (
+            try await transitions.proposals(forProject: Self.otherProjectID),
+            try await transitions.ambiguousMatchGroups(forProject: Self.otherProjectID),
+            try await transitions.refusals(forProject: Self.otherProjectID),
+            try await transitions.ambiguityReview(groupID: groupID),
+            try await transitions.pendingApplyIntents().filter { $0.projectID == Self.otherProjectID },
+            try await transitions.pendingMeetingDeletionIntents().filter { $0.projectID == Self.otherProjectID }
+        )
+    }
+
+    func testDeletingAProjectRemovesEverySidecarKindItOwns() async throws {
+        let f = try await makeProjectDeletionFixture()
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let proposals = try await f.transitions.proposals(forProject: TestFixtures.projectID)
+        let groups = try await f.transitions.ambiguousMatchGroups(forProject: TestFixtures.projectID)
+        let refusals = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+        XCTAssertTrue(proposals.isEmpty)
+        XCTAssertTrue(groups.isEmpty)
+        XCTAssertTrue(refusals.isEmpty)
+    }
+
+    /// The two collections with no `projectID` route of their own: a proposal's review is keyed by
+    /// its dedupKey, and an ambiguity review by its group id.
+    func testDeletingAProjectRemovesIndirectlyLinkedReviews() async throws {
+        let f = try await makeProjectDeletionFixture()
+        let reviewBefore = try await f.transitions.ambiguityReview(groupID: f.targetGroupID)
+        XCTAssertNotNil(reviewBefore)
+
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let reviewAfter = try await f.transitions.ambiguityReview(groupID: f.targetGroupID)
+        XCTAssertNil(reviewAfter)
+        // A proposal review outliving its proposal would come back as a pending row here.
+        let proposals = try await f.transitions.allProposals()
+        XCTAssertTrue(proposals.allSatisfy { $0.projectID != TestFixtures.projectID })
+    }
+
+    func testDeletingAProjectRemovesItsApplyAndMeetingDeletionIntents() async throws {
+        let f = try await makeProjectDeletionFixture()
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let applyIntents = try await f.transitions.pendingApplyIntents()
+        let meetingIntents = try await f.transitions.pendingMeetingDeletionIntents()
+        XCTAssertFalse(applyIntents.contains { $0.projectID == TestFixtures.projectID })
+        XCTAssertFalse(meetingIntents.contains { $0.projectID == TestFixtures.projectID })
+        let projectIntents = try await f.transitions.pendingProjectDeletionIntents()
+        XCTAssertTrue(projectIntents.isEmpty, "the receipt retires in the same write as the rows")
+    }
+
+    /// The case a per-meeting intent could never express: nothing to iterate, rows still there.
+    func testDeletingAProjectWithNoMeetingsStillCleansItsSidecar() async throws {
+        let f = try await makeProjectDeletionFixture(meetings: 0)
+        let loaded = try await f.repository.project(id: TestFixtures.projectID)
+        let project = try XCTUnwrap(loaded)
+        XCTAssertTrue(project.meetings.isEmpty)
+
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let proposals = try await f.transitions.proposals(forProject: TestFixtures.projectID)
+        let refusals = try await f.transitions.refusals(forProject: TestFixtures.projectID)
+        XCTAssertTrue(proposals.isEmpty)
+        XCTAssertTrue(refusals.isEmpty)
+    }
+
+    /// The scoping guard. Every row here mirrors a deleted one and shares its object UUID, its
+    /// meeting id and its shape; only `projectID` differs.
+    func testDeletingAProjectLeavesAnotherProjectsRowsByteForByte() async throws {
+        let f = try await makeProjectDeletionFixture()
+        let before = try await otherProjectRows(f.transitions, groupID: f.otherGroupID)
+        XCTAssertFalse(before.0.isEmpty)
+        XCTAssertNotNil(before.3)
+
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let after = try await otherProjectRows(f.transitions, groupID: f.otherGroupID)
+        XCTAssertEqual(after.0, before.0)
+        XCTAssertEqual(after.1, before.1)
+        XCTAssertEqual(after.2, before.2)
+        XCTAssertEqual(after.3, before.3)
+        XCTAssertEqual(after.4, before.4)
+        XCTAssertEqual(after.5, before.5)
+    }
+
+    /// Stated separately from the row comparison above because it is the specific confusion worth
+    /// ruling out: the shared id is never what selects a row.
+    func testDeletingAProjectDoesNotFollowAnObjectUUIDIntoAnotherProject() async throws {
+        let f = try await makeProjectDeletionFixture()
+        try await f.service.deleteProject(id: TestFixtures.projectID)
+
+        let survivors = try await f.transitions.proposals(forProject: Self.otherProjectID)
+        XCTAssertTrue(survivors.contains { $0.currentObjectID == f.sharedObjectID })
+    }
+
+    func testDeletingAProjectWithoutContinuityConfiguredStillDeletesTheAggregate() async throws {
+        let repository = InMemoryProjectRepository()
+        try await repository.save(makeProject(id: TestFixtures.projectID, meetings: []))
+        let service = ProjectDeletionService(repository: repository, now: { TestFixtures.laterDate })
+
+        try await service.deleteProject(id: TestFixtures.projectID)
+
+        let loaded = try await repository.project(id: TestFixtures.projectID)
+        XCTAssertNil(loaded)
+    }
+
+    /// The intent is written first, so a failure to remove the aggregate must leave the sidecar
+    /// untouched and the receipt on disk for the next launch.
+    func testAggregateDeleteFailureLeavesTheSidecarIntactAndTheIntentPending() async throws {
+        let stored = makeProject(id: TestFixtures.projectID, meetings: [])
+        let transitions = InMemoryWorkStateTransitionRepository(
+            proposals: [makeProposal(projectID: TestFixtures.projectID, sourceMeetingID: UUID())]
+        )
+        let service = ProjectDeletionService(
+            repository: FailingProjectRepository(failureMode: .delete, stored: stored),
+            transitions: transitions,
+            now: { TestFixtures.laterDate }
+        )
+
+        do {
+            try await service.deleteProject(id: TestFixtures.projectID)
+            XCTFail("a failed aggregate delete must not report success")
+        } catch {
+            XCTAssertEqual(error as? ProjectDeletionError, .repositoryFailure)
+        }
+
+        let proposals = try await transitions.proposals(forProject: TestFixtures.projectID)
+        XCTAssertEqual(proposals.count, 1, "the sweep must not run before the aggregate is gone")
+        let pending = try await transitions.pendingProjectDeletionIntents()
+        XCTAssertEqual(pending.count, 1)
+    }
+
+    /// The other side of the window: the aggregate is gone, the sweep failed. The receipt has to
+    /// survive or those rows are orphaned for good.
+    func testSidecarFailureAfterAggregateDeleteKeepsTheIntentForRecovery() async throws {
+        let repository = InMemoryProjectRepository()
+        try await repository.save(makeProject(id: TestFixtures.projectID, meetings: []))
+        let base = InMemoryWorkStateTransitionRepository(
+            proposals: [makeProposal(projectID: TestFixtures.projectID, sourceMeetingID: UUID())]
+        )
+        let service = ProjectDeletionService(
+            repository: repository,
+            transitions: SidecarFailingOnProjectSweep(base: base),
+            now: { TestFixtures.laterDate }
+        )
+
+        do {
+            try await service.deleteProject(id: TestFixtures.projectID)
+            XCTFail("a failed sidecar sweep must be reported")
+        } catch {
+            XCTAssertEqual(error as? ProjectDeletionError, .repositoryFailure)
+        }
+
+        let deletedProject = try await repository.project(id: TestFixtures.projectID)
+        XCTAssertNil(deletedProject)
+        let pending = try await base.pendingProjectDeletionIntents()
+        XCTAssertEqual(pending.count, 1, "without the receipt those rows are orphaned for good")
+    }
+
+    /// In-memory convergence only. Process-level crash points are TM 1.5.
+    func testRepeatedProjectDeletionRecoveryConvergesAndChangesNothingTwice() async throws {
+        let f = try await makeProjectDeletionFixture()
+        try await f.transitions.recordProjectDeletionIntent(
+            ProjectDeletionIntent(projectID: TestFixtures.projectID, requestedAt: TestFixtures.fixedDate)
+        )
+
+        await f.service.recoverInterruptedProjectDeletions()
+        let afterFirst = try await otherProjectRows(f.transitions, groupID: f.otherGroupID)
+        let targetAfterFirst = try await f.transitions.proposals(forProject: TestFixtures.projectID)
+        XCTAssertTrue(targetAfterFirst.isEmpty)
+        let intentsAfterFirst = try await f.transitions.pendingProjectDeletionIntents()
+        XCTAssertTrue(intentsAfterFirst.isEmpty)
+
+        await f.service.recoverInterruptedProjectDeletions()
+        let afterSecond = try await otherProjectRows(f.transitions, groupID: f.otherGroupID)
+        XCTAssertEqual(afterSecond.0, afterFirst.0)
+        XCTAssertEqual(afterSecond.3, afterFirst.3)
+        let targetAfterSecond = try await f.transitions.proposals(forProject: TestFixtures.projectID)
+        XCTAssertTrue(targetAfterSecond.isEmpty)
+    }
+
+    func testASidecarWithoutTheProjectDeletionIntentFieldStillDecodes() throws {
+        let json = Data("""
+        {"schemaVersion":4,"proposals":[],"reviews":[],"ambiguousMatchGroups":[],        "ambiguityReviews":[],"refusals":[],"applyIntents":[],"meetingDeletionIntents":[]}
+        """.utf8)
+
+        let decoded = try JSONDecoder().decode(WorkStateTransitionStoreFile.self, from: json)
+
+        XCTAssertTrue(decoded.projectDeletionIntents.isEmpty)
+        XCTAssertEqual(decoded.schemaVersion, 4, "an additive optional field is not a new schema")
+    }
+
+    /// A project deletion receipt has two fields and can have no more — no title, no meeting, no
+    /// Work State text. The deletion is removing exactly that content.
+    func testProjectDeletionIntentSerializesIdentifiersAndATimestampOnly() throws {
+        let intent = ProjectDeletionIntent(
+            projectID: TestFixtures.projectID, requestedAt: TestFixtures.fixedDate
+        )
+        let encoded = try JSONEncoder().encode(intent)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        XCTAssertEqual(Set(object.keys), ["projectID", "requestedAt"])
+    }
+
+    /// Audio goes last, after both stores. Proven by the failure path: when the sidecar sweep
+    /// throws, the aggregate is already gone but the file is still on disk.
+    func testAudioIsUnlinkedOnlyAfterTheAggregateAndSidecarAreDone() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HAENAProjectDeletion-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let assetStore = AudioAssetStore(directoryURL: directory)
+
+        var meeting = makeMeeting(projectID: TestFixtures.projectID, title: "With audio")
+        let asset = AudioAsset(
+            id: UUID(),
+            storedFileName: "recording.m4a",
+            originalFileName: "recording.m4a",
+            byteSize: 4,
+            importedAt: TestFixtures.fixedDate
+        )
+        meeting.audioAsset = asset
+        let fileURL = assetStore.url(for: asset)
+        try Data([0, 1, 2, 3]).write(to: fileURL)
+
+        let repository = InMemoryProjectRepository()
+        try await repository.save(makeProject(id: TestFixtures.projectID, meetings: [meeting]))
+        let base = InMemoryWorkStateTransitionRepository()
+        let service = ProjectDeletionService(
+            repository: repository,
+            assetStore: assetStore,
+            transitions: SidecarFailingOnProjectSweep(base: base),
+            now: { TestFixtures.laterDate }
+        )
+
+        _ = try? await service.deleteProject(id: TestFixtures.projectID)
+
+        let deletedProject = try await repository.project(id: TestFixtures.projectID)
+        XCTAssertNil(deletedProject)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: fileURL.path),
+            "audio must not be unlinked while the sidecar half is unfinished"
+        )
+    }
+
     /// Crash right after the intent, before the Project save. Recovery has to finish both halves.
     func testRecoveryFinishesADeletionInterruptedAfterTheIntent() async throws {
         let f = try await makeDeletionFixture()

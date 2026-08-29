@@ -229,6 +229,13 @@ struct ContentView: View {
                 assetStore: audioAssetStore,
                 transitions: transitionRepository
             ).recoverInterruptedMeetingDeletions()
+            // Deleting a whole project spans the same two stores, so an interrupted one needs the
+            // same finishing here.
+            await ProjectDeletionService(
+                repository: repository,
+                assetStore: audioAssetStore,
+                transitions: transitionRepository
+            ).recoverInterruptedProjectDeletions()
             await reminderService.reconcile()
         }
     }

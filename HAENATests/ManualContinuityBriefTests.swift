@@ -932,6 +932,9 @@ private actor CountingTransitionRepository: WorkStateTransitionRepository {
     func pendingMeetingDeletionIntents() async throws -> [MeetingDeletionIntent] { [] }
     func applyMeetingDeletion(_ intent: MeetingDeletionIntent) async throws {}
     func clearMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws {}
+    func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) async throws {}
+    func pendingProjectDeletionIntents() async throws -> [ProjectDeletionIntent] { [] }
+    func applyProjectDeletion(_ intent: ProjectDeletionIntent) async throws {}
 
     func ambiguousMatchGroups(forProject projectID: UUID) async throws -> [WorkStateAmbiguousMatchGroup] {
         projectAmbiguityReadCount += 1

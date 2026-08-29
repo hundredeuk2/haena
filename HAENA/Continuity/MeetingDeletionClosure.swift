@@ -151,3 +151,80 @@ struct MeetingDeletionClosure: Equatable, Sendable {
         )
     }
 }
+
+/// Everything in the transition sidecar that belongs to one project, for when the whole project
+/// goes.
+///
+/// A separate type from `MeetingDeletionClosure` on purpose. The two answer different questions and
+/// only look alike: a meeting deletion has to chase object references across meetings to find what
+/// stopped making sense, while a project deletion is a flat scope test — every row that names this
+/// project goes, and no row that does not can be affected by it. Expressing the second as a special
+/// case of the first would mean inventing a meeting to stand for the project, and that fiction
+/// misses exactly the rows this exists to catch: a project with no meetings left but sidecar rows
+/// still in it, and a sidecar that drifted out of step with its aggregate through some earlier
+/// deletion.
+struct ProjectDeletionClosure: Equatable, Sendable {
+    /// `dedupKey`s, because that is what the store keys these by.
+    let proposalKeys: Set<String>
+    let ambiguousMatchGroupKeys: Set<String>
+    let refusalKeys: Set<String>
+    let ambiguityGroupIDs: Set<UUID>
+    let applyIntentKeys: Set<String>
+    let meetingDeletionIntentKeys: Set<String>
+
+    var isEmpty: Bool {
+        proposalKeys.isEmpty
+            && ambiguousMatchGroupKeys.isEmpty
+            && refusalKeys.isEmpty
+            && ambiguityGroupIDs.isEmpty
+            && applyIntentKeys.isEmpty
+            && meetingDeletionIntentKeys.isEmpty
+    }
+
+    /// Every row is selected by comparing its own `projectID` to this one. Nothing is matched by
+    /// name, by key shape, or by a UUID that merely appears in both projects — an object id shared
+    /// across projects selects neither project's rows, because the id is never what is tested.
+    ///
+    /// `ambiguityReviews` are reached two ways, and both are exact. A review is condemned when its
+    /// group is, and also when its own `projectID` matches — the second catches a review whose group
+    /// was already removed by some earlier deletion, which the first alone would leave behind
+    /// forever.
+    ///
+    /// Proposal reviews have no such second path. `reviews` is keyed by the proposal's `dedupKey`
+    /// and its value is a bare enum, so the only typed route to a project is the proposal that owns
+    /// the key. No code path today writes a review without a proposal or removes a proposal without
+    /// its review, so this is complete for stores this app produced; a review left behind by some
+    /// other means would not be reachable here.
+    static func resolve(
+        projectID: UUID,
+        proposals: [WorkStateTransitionProposal],
+        ambiguousMatchGroups: [WorkStateAmbiguousMatchGroup],
+        ambiguityReviews: [WorkStateAmbiguityReviewState],
+        refusals: [WorkStateTransitionRefusalRecord],
+        applyIntents: [WorkStateTransitionApplyIntent],
+        meetingDeletionIntents: [MeetingDeletionIntent]
+    ) -> ProjectDeletionClosure {
+        let doomedGroups = ambiguousMatchGroups.filter { $0.projectID == projectID }
+        let groupIDsFromGroups = Set(doomedGroups.map(\.id))
+        let groupIDsFromReviews = Set(
+            ambiguityReviews.filter { $0.projectID == projectID }.map(\.groupID)
+        )
+
+        return ProjectDeletionClosure(
+            proposalKeys: Set(
+                proposals.filter { $0.projectID == projectID }.map(\.dedupKey)
+            ),
+            ambiguousMatchGroupKeys: Set(doomedGroups.map(\.dedupKey)),
+            refusalKeys: Set(
+                refusals.filter { $0.projectID == projectID }.map(\.dedupKey)
+            ),
+            ambiguityGroupIDs: groupIDsFromGroups.union(groupIDsFromReviews),
+            applyIntentKeys: Set(
+                applyIntents.filter { $0.projectID == projectID }.map(\.storageKey)
+            ),
+            meetingDeletionIntentKeys: Set(
+                meetingDeletionIntents.filter { $0.projectID == projectID }.map(\.storageKey)
+            )
+        )
+    }
+}
