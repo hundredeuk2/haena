@@ -149,6 +149,27 @@ rather than because a gap was imagined:
   completion. A review written before flags were judgeable gains the empty entries on load —
   structure, never a verdict — so it reopens as unresolved instead of staying complete.
 
+## Primary review batch 1 — TM 2.4, 2026-08-30
+
+Four cases reviewed against packet `78ec6c28…`, all `complete`, zero unresolved structural
+fields, validation PASS, zero network calls. The reviews themselves stay local; only
+identifiers, digests, and counts are recorded here.
+
+| case | focus | candidates | flags | omissions | forbidden | ambiguities | review sha256 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| MEV0-004 | explicit_single_output | approve 1, modify 1 | reject 2 | 2 | 7 | 0 | `27d1d7c9` |
+| MEV0-010 | multi_output | exclude 1 | — | 1 | 8 | 1 | `179601f0` |
+| MEV0-014 | negative_or_forbidden | none offered | agree 1 | 0 | 9 | 1 | `fc8f248e` |
+| MEV0-019 | assignee_or_due_ambiguity | approve 1, modify 1, exclude 1 | agree 1 | 1 | 11 | 3 | `4b5fadd1` |
+
+Six AI candidates drew two approvals, two corrections, and two exclusions; four omissions
+were added that no candidate covered. The model's own uncertainty flags fared worse than its
+candidates: of four, three were rejected as having drawn the wrong boundary rather than
+having found a real ambiguity.
+
+Every case reached `not_applicable` on prior state, and no case file, gold field, or draft
+was modified by any of it.
+
 ## Current gate
 
 TM 2.1, TM 2.2 and TM 2.3 are `done`. Human semantic review has not started. The
