@@ -145,10 +145,10 @@
               "2.2"
             ],
             "details": "Build from the repaired 16 development IDs only. Keep AI suggestions labeled as non-gold. Include candidate verdicts, missing-item checks, direct utterance evidence, assignee basis, due-date basis, forbidden inference, and prior-state transition fields. Do not include sealed IDs or content.",
-            "status": "pending",
+            "status": "review",
             "testStrategy": "Packet headings equal the development ID set exactly; 16 cases; no sealed IDs; every suggestion has passed local evidence validation; generation is deterministic and local-only.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T07:48:25.906Z"
           },
           {
             "id": 4,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T07:02:14.486Z"
+        "updatedAt": "2026-08-30T07:48:25.906Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T07:02:14.486Z",
+      "lastModified": "2026-08-30T07:48:25.908Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [

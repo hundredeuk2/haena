@@ -61,10 +61,34 @@ rather than the counts.
 - A full rebuild now refuses to run over a repaired corpus unless `--allow-partition-reset`
   is passed, so the original swap cannot silently return.
 
+## Review packet — TM 2.3, 2026-08-30
+
+`DEVELOPMENT_REVIEW.md` is now generated from the repaired development set and is the packet
+human review runs against. The previous one is archived at
+`meeting-execution-v0/retired-packets/DEVELOPMENT_REVIEW.stale.md`; it is superseded, not
+wrong about its own inputs.
+
+- The old generator read `manifest.jsonl` — the one file holding every case body, sealed
+  holdouts included — and filtered to development afterwards. The new one reads the
+  transcript-free index, takes the development IDs from it, and opens exactly those 16 case
+  files. Sealed cases are never loaded, so there is nothing to filter out.
+- Same AI content (7 decisions, 18 action items, 7 open questions, 2 next agenda, 26 flags),
+  new review surfaces: per-item non-gold labelling, explicit / derived proposal / forbidden
+  inference, target speaker B responsibility, assignee and due-date basis judgments,
+  prior-state expected transition, forbidden-inference checks, reviewer note and ambiguity.
+- Evidence now points at a transcript position (`전사 U12 · 45.2초 · 화자 B`) and the cited
+  rows are marked in the full transcript, so a reviewer can check the original rather than
+  the quote the model chose.
+- The generator refuses to overwrite a packet it did not write, refuses a draft set that is
+  not exactly the development set, refuses a draft that failed local evidence validation,
+  and refuses to write text containing a sealed ID or a machine path.
+- Generation writes nothing to any case, gold field, or progress counter, and does not
+  advance review. All 16 cases remain `human_review_pending`, all drafts `pending`.
+
 ## Current gate
 
-TM 2.1 and TM 2.2 are in `review`. Human semantic review has not started. The fail-closed
-audit added by TM 2.2 proves:
+TM 2.1, TM 2.2 and TM 2.3 are in `review`. Human semantic review has not started. The
+fail-closed audit added by TM 2.2 proves:
 
 1. 16 development and 8 sealed cases;
 2. manifest, source index, case metadata, draft IDs, and packet headings agree;
@@ -74,9 +98,9 @@ audit added by TM 2.2 proves:
 6. repeated metadata-only selection is deterministic and idempotent;
 7. external calls and sealed payload reads are zero.
 
-TM 2.3 still has to regenerate the review packet: the current `DEVELOPMENT_REVIEW.md`
-matches the repaired development set by construction, but it was written before the repair
-and is not yet the packet human review runs against.
+TM 2.4 starts primary human review batch 1 against the regenerated packet. Nothing in this
+repository decides whether that review has happened: only reviewer marks in the packet and
+the resulting gold do. A generated packet is a worksheet, not progress.
 
 ## Privacy and execution limits
 

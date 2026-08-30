@@ -203,7 +203,9 @@ def discover_exposure(benchmark_root, audit):
             if CASE_ID_PATTERN.fullmatch(str(result.get("case_id", "")))
         })
     packet_ids = set()
-    for path in sorted(benchmark_root.glob("*.md")):
+    # Recursive on purpose: a superseded packet is archived into a subdirectory rather than
+    # deleted, and the cases it showed a reviewer stay exposed wherever the file now lives.
+    for path in sorted(benchmark_root.rglob("*.md")):
         packet_ids.update(CASE_ID_PATTERN.findall(path.read_text(encoding="utf-8")))
     evidence["review_packet"] = sorted(packet_ids)
     return evidence
