@@ -1,0 +1,241 @@
+{
+  "schema_version": "ambiguity-taxonomy-v0.1",
+  "mapping_version": "1",
+  "taxonomy": [
+    "assignee_scope",
+    "commitment_scope",
+    "due_or_time",
+    "evidence_quality",
+    "historical_vs_new",
+    "metadata_mismatch",
+    "other",
+    "output_category",
+    "prior_state_identity",
+    "procedural_vs_substantive",
+    "question_resolution",
+    "speaker_or_actor_identity",
+    "window_boundary"
+  ],
+  "mappings": {
+    "accepted_general_request_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "수락된 요청의 범위 문제",
+      "confidence": "high"
+    },
+    "actor_and_action_state": {
+      "taxonomy": "other",
+      "reason": "actor 정체성과 행위 상태 둘 다 가리켜 단일 category 불가",
+      "confidence": "low"
+    },
+    "agenda_item_number_conflict": {
+      "taxonomy": "evidence_quality",
+      "reason": "절차와 실질 결과를 구분하는 문제가 아니라 동일 안건의 번호가 발화 사이에서 충돌하는 근거 신뢰성 문제",
+      "confidence": "medium"
+    },
+    "answered_but_contested_question": {
+      "taxonomy": "question_resolution",
+      "reason": "질문 해결 상태를 직접 지시",
+      "confidence": "high"
+    },
+    "asr_corruption": {
+      "taxonomy": "evidence_quality",
+      "reason": "전사 품질 결함",
+      "confidence": "high"
+    },
+    "attendance_request_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "요청 범위 문제",
+      "confidence": "medium"
+    },
+    "audit_review_vs_execution": {
+      "taxonomy": "commitment_scope",
+      "reason": "검토와 실행의 수락 범위 구분",
+      "confidence": "medium"
+    },
+    "closing_instruction_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "지시 범위 문제",
+      "confidence": "medium"
+    },
+    "commitment_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "이름이 taxonomy와 동일",
+      "confidence": "high"
+    },
+    "conditional_answer_correction": {
+      "taxonomy": "other",
+      "reason": "답변 정정이 evidence 품질인지 question resolution인지 갈림",
+      "confidence": "low"
+    },
+    "contested_procurement_motive": {
+      "taxonomy": "other",
+      "reason": "주장·부인 대립으로 기존 category와 대응 없음",
+      "confidence": "low"
+    },
+    "cross_department_dependency": {
+      "taxonomy": "assignee_scope",
+      "reason": "부서 간 담당 귀속 문제",
+      "confidence": "medium"
+    },
+    "evaluation_vs_reporting_compliance": {
+      "taxonomy": "other",
+      "reason": "두 절차 이행의 구분으로 단일 category 불가",
+      "confidence": "low"
+    },
+    "existing_policy_vs_new_action": {
+      "taxonomy": "historical_vs_new",
+      "reason": "기존과 신규 구분을 직접 지시",
+      "confidence": "high"
+    },
+    "formal_request_without_acceptance": {
+      "taxonomy": "commitment_scope",
+      "reason": "수락 없는 요청의 성립 범위",
+      "confidence": "medium"
+    },
+    "formal_review_opinion_vs_adopted_outcome": {
+      "taxonomy": "output_category",
+      "reason": "의견과 채택 결과의 산출물 종류 구분",
+      "confidence": "medium"
+    },
+    "historical_state_vs_current_plan": {
+      "taxonomy": "historical_vs_new",
+      "reason": "과거 상태와 현재 계획 구분",
+      "confidence": "high"
+    },
+    "indirect_response_without_acceptance": {
+      "taxonomy": "commitment_scope",
+      "reason": "수락 여부에 대한 범위 문제",
+      "confidence": "medium"
+    },
+    "metadata_domain_mismatch": {
+      "taxonomy": "metadata_mismatch",
+      "reason": "metadata 필드 불일치",
+      "confidence": "high"
+    },
+    "metadata_transcript_mismatch": {
+      "taxonomy": "metadata_mismatch",
+      "reason": "metadata와 transcript 불일치를 직접 지시",
+      "confidence": "high"
+    },
+    "numeric_self_correction": {
+      "taxonomy": "evidence_quality",
+      "reason": "발화 내 값 정정으로 근거 품질 문제",
+      "confidence": "high"
+    },
+    "ongoing_activity_vs_new_commitment": {
+      "taxonomy": "historical_vs_new",
+      "reason": "기존 활동과 신규 확약 구분",
+      "confidence": "high"
+    },
+    "open_question_with_resolution_task": {
+      "taxonomy": "question_resolution",
+      "reason": "질문 해결 상태를 직접 지시",
+      "confidence": "high"
+    },
+    "organizational_commitment_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "commitment 범위 문제이며 조직 여부는 하위 구분",
+      "confidence": "high"
+    },
+    "overlapping_commitments_distinct_scope": {
+      "taxonomy": "commitment_scope",
+      "reason": "이름이 범위를 직접 지시",
+      "confidence": "high"
+    },
+    "past_statement_vs_current_proposal": {
+      "taxonomy": "historical_vs_new",
+      "reason": "과거와 현재 구분",
+      "confidence": "high"
+    },
+    "plan_vs_decision": {
+      "taxonomy": "output_category",
+      "reason": "산출물 종류 구분",
+      "confidence": "high"
+    },
+    "prior_reference_without_typed_state": {
+      "taxonomy": "prior_state_identity",
+      "reason": "prior reference와 typed state를 직접 지시",
+      "confidence": "high"
+    },
+    "procedural_handling_vs_decision": {
+      "taxonomy": "procedural_vs_substantive",
+      "reason": "이름이 절차와 실질 구분을 직접 지시",
+      "confidence": "high"
+    },
+    "refused_guarantee_vs_accepted_effort": {
+      "taxonomy": "commitment_scope",
+      "reason": "수락 범위 구분",
+      "confidence": "high"
+    },
+    "relative_due_anchor_unavailable": {
+      "taxonomy": "due_or_time",
+      "reason": "due anchor 부재를 직접 지시",
+      "confidence": "high"
+    },
+    "rhetorical_vs_resolved_question": {
+      "taxonomy": "question_resolution",
+      "reason": "질문 해결 여부를 직접 지시",
+      "confidence": "high"
+    },
+    "rumor_vs_official_account": {
+      "taxonomy": "evidence_quality",
+      "reason": "근거 출처의 신뢰성 문제",
+      "confidence": "medium"
+    },
+    "same_meeting_agenda": {
+      "taxonomy": "output_category",
+      "reason": "Next Agenda 종류 판정 문제",
+      "confidence": "medium"
+    },
+    "same_meeting_schedule": {
+      "taxonomy": "output_category",
+      "reason": "위와 동일 계열",
+      "confidence": "medium"
+    },
+    "selection_limit_vs_reported_expansion": {
+      "taxonomy": "other",
+      "reason": "비판과 보고의 대비로 기존 category와 대응 없음",
+      "confidence": "low"
+    },
+    "speaker_role_inconsistency": {
+      "taxonomy": "speaker_or_actor_identity",
+      "reason": "화자 역할 정체성을 직접 지시",
+      "confidence": "high"
+    },
+    "truncated_commitment": {
+      "taxonomy": "window_boundary",
+      "reason": "절단으로 인한 확약 범위 불확정",
+      "confidence": "medium"
+    },
+    "truncated_window": {
+      "taxonomy": "window_boundary",
+      "reason": "이름이 window 절단을 직접 지시",
+      "confidence": "high"
+    },
+    "truncated_window_end": {
+      "taxonomy": "window_boundary",
+      "reason": "이름이 window 끝 절단을 직접 지시",
+      "confidence": "high"
+    },
+    "truncated_window_start": {
+      "taxonomy": "window_boundary",
+      "reason": "이름이 window 시작 절단을 직접 지시",
+      "confidence": "high"
+    },
+    "two_document_scope": {
+      "taxonomy": "other",
+      "reason": "산출물 분리 문제로 commitment_scope와 output_category 둘 다 가능",
+      "confidence": "low"
+    },
+    "unfinished_agenda_disposition": {
+      "taxonomy": "output_category",
+      "reason": "질문의 해결 여부가 아니라 미완결 안건을 Decision·Next Agenda·보류 등 어떤 결과 category로도 확정할 수 없다는 문제",
+      "confidence": "medium"
+    },
+    "urgency_without_due_anchor": {
+      "taxonomy": "due_or_time",
+      "reason": "due anchor 부재를 직접 지시",
+      "confidence": "high"
+    }
+  }
+}
