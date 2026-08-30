@@ -111,6 +111,43 @@ def validate_authorized_audio_metric_scopes(output_root, audio_index, errors):
         )
 
 
+def validate_meeting_holdout_provenance(output_root, meeting_by_id, report, errors):
+    """Check the meeting holdout against whichever ledger is currently authoritative.
+
+    The original build recorded one metadata-only swap. A later partition repair supersedes
+    it, because the swap sealed a case the drafts had already exposed. Naming either set of
+    case IDs inline would just re-freeze one of them, so the expectation is read from the
+    ledger that exists.
+    """
+    repair_path = output_root / "meeting-execution-v0" / "partition-repair-report.json"
+    if repair_path.is_file():
+        repair = json.loads(repair_path.read_text(encoding="utf-8"))
+        for case_id in repair.get("retired_case_ids", []):
+            require(
+                case_id not in meeting_by_id,
+                "retired case {} is still in the partition".format(case_id),
+                errors,
+            )
+        for entry in repair.get("replacements", []):
+            require(
+                meeting_by_id.get(entry.get("new_case_id"), {}).get("split") == "sealed_holdout",
+                "replacement {} must be sealed".format(entry.get("new_case_id")),
+                errors,
+            )
+        return
+    for entry in report.get("metadata_only_holdout_replacements", {}).get("meeting_execution", []):
+        require(
+            meeting_by_id.get(entry.get("exposed_case_id"), {}).get("split") == "development",
+            "exposed case {} must not be sealed".format(entry.get("exposed_case_id")),
+            errors,
+        )
+        require(
+            meeting_by_id.get(entry.get("replacement_case_id"), {}).get("split") == "sealed_holdout",
+            "meeting replacement split mismatch",
+            errors,
+        )
+
+
 def main():
     args = parse_args()
     output_root = args.output_root.resolve()
@@ -136,8 +173,7 @@ def main():
     )
     meeting_by_id = {row["case_id"]: row for row in meeting_index}
     audio_by_id = {row["case_id"]: row for row in audio_index}
-    require(meeting_by_id.get("MEV0-001", {}).get("split") == "development", "MEV0-001 must be development", errors)
-    require(meeting_by_id.get("MEV0-004", {}).get("split") == "sealed_holdout", "meeting replacement split mismatch", errors)
+    validate_meeting_holdout_provenance(output_root, meeting_by_id, report, errors)
     require(audio_by_id.get("ARV0-001", {}).get("split") == "development", "ARV0-001 must be development", errors)
     require(audio_by_id.get("ARV0-002", {}).get("split") == "sealed_holdout", "audio replacement split mismatch", errors)
     validate_authorized_audio_metric_scopes(output_root, audio_index, errors)

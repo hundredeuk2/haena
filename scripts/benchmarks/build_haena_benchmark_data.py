@@ -71,6 +71,11 @@ def parse_args():
         action="store_true",
         help="Swap exposed cases using existing metadata-only benchmark indexes; opens no content",
     )
+    parser.add_argument(
+        "--allow-partition-reset",
+        action="store_true",
+        help="Rebuild over a repaired partition, discarding its exposure ledger",
+    )
     return parser.parse_args()
 
 
@@ -706,6 +711,18 @@ def main():
 
     if args.source_root is None:
         raise SystemExit("--source-root is required unless --refresh-discovery-index-only is used")
+    # A full rebuild reproduces the original selection, including the holdout swap that
+    # sealed a case the drafts had already exposed. Running it over a repaired corpus would
+    # silently reintroduce that exposure, so the ledger blocks the rebuild rather than
+    # trusting whoever runs it to remember.
+    repair_ledger = output_root / "meeting-execution-v0" / "partition-repair-report.json"
+    if repair_ledger.is_file() and not args.allow_partition_reset:
+        raise SystemExit(
+            "Refusing to rebuild over a repaired partition: {} exists. "
+            "Pass --allow-partition-reset only when the exposure ledger is meant to be discarded.".format(
+                repair_ledger.name
+            )
+        )
     source_root = args.source_root.resolve()
     if not source_root.exists():
         raise SystemExit("Source root does not exist: {}".format(source_root))

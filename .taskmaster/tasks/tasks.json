@@ -132,10 +132,10 @@
               "2.1"
             ],
             "details": "Use metadata-only source selection. Every case that has a model suggestion or appeared in a review packet must be treated as exposed and cannot be sealed. Preserve 16 development and 8 truly unexposed sealed cases, choosing any replacement from the unused corpus by finite metadata strata only. Prefer a repair that preserves the current 16 draft IDs as development and replaces the extra exposed case with a new unexposed sealed candidate, but confirm selection invariants before editing. Add a fail-closed audit so draftIDs equal developmentIDs and draftIDs intersect sealedIDs is empty. Do not call a provider or read new sealed payloads.",
-            "status": "pending",
+            "status": "review",
             "testStrategy": "Prove deterministic 16/8 selection; source-index, manifest, case metadata, draft IDs, and packet headings agree; exposed IDs are never sealed; repeated generation is byte-stable; sealed payload read count is zero in metadata-only mode.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T06:27:16.488Z"
           },
           {
             "id": 3,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T06:05:23.735Z"
+        "updatedAt": "2026-08-30T06:27:16.488Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T06:05:23.735Z",
+      "lastModified": "2026-08-30T06:27:16.490Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [

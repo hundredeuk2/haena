@@ -36,18 +36,47 @@ session is not eligible to act as an independent sealed-holdout reviewer. A late
 must use a fresh reviewer/session without this context, or explicitly record a weaker independence
 claim.
 
+## Partition repair — TM 2.2, 2026-08-30
+
+The 16/8 counts were right and the partition was still wrong, because the holdout swap ran
+after the drafts were generated. `scripts/benchmarks/repair_meeting_execution_partition.py`
+now derives the partition from exposure evidence instead of a hardcoded swap, and
+`scripts/benchmarks/validate_meeting_execution_partition.py` fails closed on the identities
+rather than the counts.
+
+- Exposed: the 16 model suggestions, the draft reports, the review packet, and `MEV0-001`,
+  which only the build report still remembered — 17 IDs, leaving at most 7 unexposed cases
+  among the original 24. An internal swap therefore could not produce 8 sealed holdouts.
+- Development is now exactly the 16 suggestion IDs. `MEV0-004` moved back into development
+  because a model had already seen it.
+- `MEV0-001` is exposed and has no suggestion, so it belongs in neither half. It is retired
+  to `meeting-execution-v0/retired-cases/`, marked `retired_exposed`, and kept rather than
+  deleted.
+- The vacated `explicit_single_output` holdout seat is refilled by `MEV0-025`, selected from
+  the 957-case corpus by `(media, type, domain)` strata and lowest `source_id` among 19
+  unused, family-disjoint candidates. Selection opened no label file; exactly one was opened
+  afterwards to materialize the case.
+- Sealed payload reads during selection: 0. Sealed cases contribute provenance only through
+  a projection that drops transcript, gold, features, and heuristic signals.
+- A full rebuild now refuses to run over a repaired corpus unless `--allow-partition-reset`
+  is passed, so the original swap cannot silently return.
+
 ## Current gate
 
-TM 2.1 is in `review`. Human semantic review has not started. TM 2.2 must first repair partition
-integrity and add a fail-closed audit proving:
+TM 2.1 and TM 2.2 are in `review`. Human semantic review has not started. The fail-closed
+audit added by TM 2.2 proves:
 
 1. 16 development and 8 sealed cases;
 2. manifest, source index, case metadata, draft IDs, and packet headings agree;
 3. draft IDs equal development IDs;
 4. draft IDs intersect sealed IDs is empty;
 5. every exposed ID is non-sealed;
-6. repeated metadata-only selection is deterministic;
+6. repeated metadata-only selection is deterministic and idempotent;
 7. external calls and sealed payload reads are zero.
+
+TM 2.3 still has to regenerate the review packet: the current `DEVELOPMENT_REVIEW.md`
+matches the repaired development set by construction, but it was written before the repair
+and is not yet the packet human review runs against.
 
 ## Privacy and execution limits
 
