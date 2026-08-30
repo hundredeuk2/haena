@@ -197,10 +197,10 @@
               "2.6"
             ],
             "details": "Batch 4 is fixed to MEV0-007, MEV0-008, MEV0-020, and MEV0-024. Finish all 16 primary reviews in separate per-case JSON files and identify any remaining conflicts or missing contract fields before normalization.",
-            "status": "in-progress",
+            "status": "review",
             "testStrategy": "Exactly 16 unique development cases have primary human verdicts; sealed cases remain untouched; every case has four-category missing-item closure.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T13:06:35.909Z"
+            "updatedAt": "2026-08-30T13:34:33.929Z"
           },
           {
             "id": 8,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T13:06:35.909Z"
+        "updatedAt": "2026-08-30T13:34:33.929Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T13:06:35.909Z",
+      "lastModified": "2026-08-30T13:34:33.931Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [

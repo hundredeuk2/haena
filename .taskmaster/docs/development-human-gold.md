@@ -273,6 +273,54 @@ Across three batches: twelve unique development IDs, complete 12/12, explicit co
 12/12, full-window coverage 12/12, packet digest matching 12/12, unresolved 0, and no case
 file, gold field, or draft modified.
 
+## Primary review batch 4 — TM 2.7, 2026-08-30
+
+The last four cases against packet `78ec6c28…`, all `complete`, zero unresolved structural
+fields, validation PASS, zero network calls. v0.3 held again; no contract change was needed.
+
+| case | focus | candidates | flags | omissions | forbidden | ambiguities | review sha256 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| MEV0-007 | explicit_single_output | modify 2, exclude 1 | agree 1, reject 1 | 2 | 16 | 9 | `af9913cf` |
+| MEV0-008 | explicit_single_output | approve 1, exclude 1 | agree 2 | 0 | 16 | 6 | `54d0867c` |
+| MEV0-020 | assignee_or_due_ambiguity | modify 1, exclude 1 | reject 1 | 0 | 16 | 7 | `79fe3eb4` |
+| MEV0-024 | prior_state_transition | approve 2, modify 3 | reject 2 | 0 | 17 | 6 | `5d74a612` |
+
+`MEV0-024` closed the boundary the whole exercise kept circling: an open question and the
+task created to answer it are both outputs. Two questions stayed open while three
+confirm-and-report commitments were recorded against them, because a task existing is not
+the question being answered. It is also the only case where a speaker's admitted ignorance
+was ruled irrelevant to whether their commitment stands.
+
+`MEV0-020` drew the matching line from the other side: a refusal to guarantee an outcome is
+not a refusal of the work. The department head declined to promise the problem would be
+solved and in the same breath accepted prioritising the worst areas and working on it.
+
+Both prior_state_transition cases ended at `insufficient_prior_state`. Their prior recordings
+exist in the corpus and no case was ever built from either, so no typed identity or
+transition could be judged — a fact the metadata-only pre-audit established before either
+case was presented, without opening anything.
+
+## Development review complete — 16 / 16
+
+| | |
+| --- | --- |
+| complete | 16 / 16 |
+| explicit user confirmation | 16 / 16 |
+| full-window coverage | 16 / 16 |
+| packet digest match | 16 / 16 |
+| case file unchanged | 16 / 16 |
+| unresolved structural fields | 0 |
+| AI candidates | 34 → approve 8, modify 15, exclude 11 |
+| AI uncertainty flags | 26 → agree 15, reject 11 |
+| omissions added by reviewers | 8 |
+| forbidden inferences recorded | 216 |
+| ambiguities preserved | 68 |
+| prior state | `not_applicable` 14, `insufficient_prior_state` 2 |
+
+Fewer than a quarter of the model's candidates survived unchanged, and eleven of its own
+uncertainty flags drew the wrong boundary rather than finding a real one. Four contract
+versions coexist across the sixteen files and no completed review was ever rewritten.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
