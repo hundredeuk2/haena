@@ -321,6 +321,33 @@ Fewer than a quarter of the model's candidates survived unchanged, and eleven of
 uncertainty flags drew the wrong boundary rather than finding a real one. Four contract
 versions coexist across the sixteen files and no completed review was ever rewritten.
 
+## Canonical gold draft contract — development-gold-draft-v0.1, TM 2.8 checkpoint A
+
+The sixteen primary reviews stay exactly as their reviewers left them. This is a projection
+into one shape, not a migration: three contract versions are read side by side, the source
+files are never written, and their digests are unchanged.
+
+The design turns on one distinction the source data forces — **not recorded is not the same
+as unspecified**. An assignee scope nobody stated is `null` with `scope_recorded: false`, not
+`unspecified`. A prior-state field v0.1 had no slot for is `null` with `recorded: false`, not
+`absent`. Filling either in would manufacture a judgment nobody made, and the validator fails
+the draft when it happens.
+
+Two things are deliberately not derived. Reviewers wrote basis kinds like
+`speaker_commitment` inside a free-text assignee value, and scope is not in the schema at
+all; recovering either means reading Korean prose, so those records carry
+`normalization_status: pending_secondary_review` instead. Ambiguity taxonomy stays `null`
+until its mapping is approved — raw kind, the reviewer's own `about` and `statement`, the
+evidence and the resolution all survive regardless.
+
+What the projection preserves that the first canonical sketch would have dropped: every
+ambiguity's `about` and `statement`, every reviewer `note` on outputs and exclusions, the
+verbatim assignee value, and each prior-state block's raw source form.
+
+Nothing here is gold. The draft carries `primary_normalized_pending_secondary_review` and
+`scorer_ready: false`, no prior-state record in this corpus is scorer-eligible, and the
+original cases still read `human_review_pending`.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
