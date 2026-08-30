@@ -210,10 +210,10 @@
               "2.7"
             ],
             "details": "Normalize the four result types, direct evidence references, assignee and due-date bases, forbidden inference, and expected prior-state transitions. Preserve explicit ambiguity. Validation must report unreviewed and unresolved structural fields separately from adjudicated ambiguity.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Gold schema validation passes; 16/16 review status is human-reviewed; utterance references resolve; unreviewed count is zero; forbidden and ambiguity records remain finite and typed.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T14:07:14.441Z"
+            "updatedAt": "2026-08-30T14:31:51.053Z"
           },
           {
             "id": 9,
@@ -223,10 +223,10 @@
               "2.8"
             ],
             "details": "The second reviewer must not be this contaminated session for sealed work and must not merely accept model suggestions. Record agreement, disagreement, adjudication, and unresolved ambiguity. If only one human is available, use a separated blinded second pass and record that limitation explicitly rather than claiming inter-rater agreement.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Every case has second-review provenance; disagreements are enumerated and adjudicated or explicitly ambiguous; no hidden overwrite of primary decisions.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T14:31:52.251Z"
           },
           {
             "id": 10,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T14:07:14.441Z"
+        "updatedAt": "2026-08-30T14:31:52.251Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T14:07:14.445Z",
+      "lastModified": "2026-08-30T14:31:52.251Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
