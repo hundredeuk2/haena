@@ -184,10 +184,10 @@
               "2.5"
             ],
             "details": "Batch 3 is fixed to MEV0-006, MEV0-011, MEV0-016, and MEV0-018. Continue the same separate per-case primary-review JSON contract, preserving explicit ambiguity instead of forcing a false answer.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Same evidence and unresolved-field checks as earlier batches; log ambiguity rather than converting it to an inferred gold label.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T13:02:53.585Z"
+            "updatedAt": "2026-08-30T13:04:50.679Z"
           },
           {
             "id": 7,
@@ -197,10 +197,10 @@
               "2.6"
             ],
             "details": "Batch 4 is fixed to MEV0-007, MEV0-008, MEV0-020, and MEV0-024. Finish all 16 primary reviews in separate per-case JSON files and identify any remaining conflicts or missing contract fields before normalization.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Exactly 16 unique development cases have primary human verdicts; sealed cases remain untouched; every case has four-category missing-item closure.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T13:06:35.909Z"
           },
           {
             "id": 8,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T13:02:53.585Z"
+        "updatedAt": "2026-08-30T13:06:35.909Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T13:02:53.588Z",
+      "lastModified": "2026-08-30T13:06:35.909Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
