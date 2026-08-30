@@ -385,6 +385,33 @@ question could not be answered, not an answer of "no change".
 Nothing is gold. Every draft reads `primary_normalized_pending_secondary_review` with
 `scorer_ready: false`, and the sixteen cases still read `human_review_pending`.
 
+## Blind second pass — TM 2.9 checkpoint B, 2026-08-30
+
+No independent human reviewer is available, so the contract's own fallback applies: a
+**single-human separated blind pass**, recorded as such. This is not inter-rater agreement
+and the review files say so in a field rather than leaving it to a report. The limitation
+that matters is recorded with them — repository- and screen-level blinding is enforced, but
+the same person performs both passes, so memory contamination cannot be ruled out.
+
+The blind is enforced, not promised. `human-reviews/primary/`, `human-reviews/gold-draft/`
+and the primary audit summaries are registered with a guard that raises on any read, and the
+zero counts the second pass reports come from that same guard. A future edit that starts
+consulting the first pass fails rather than quietly producing a second opinion that already
+knew the answer.
+
+The reviewer sees the case and the model's suggestions — transcript, speakers, window,
+candidates with keys, flags, evidence positions, prior-source facts — and an empty decision
+form. They do not see any first-pass verdict, wording, omission, ambiguity, note, statistic
+or digest. That includes the eighteen assignee records the first pass left pending: naming
+them would leak its structure, so every action item the second pass recognises carries scope
+and basis as separate required answers instead.
+
+Sixteen packets and sixteen empty templates exist. 204 structural fields are unresolved
+across them, which is the correct state before any judgment: nothing has been decided.
+
+Adjudication authority is the control tower. This session records, validates and compares
+mechanically, and never picks a side.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
