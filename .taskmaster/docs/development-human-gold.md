@@ -348,6 +348,43 @@ Nothing here is gold. The draft carries `primary_normalized_pending_secondary_re
 `scorer_ready: false`, no prior-state record in this corpus is scorer-eligible, and the
 original cases still read `human_review_pending`.
 
+## Normalization — TM 2.8, 2026-08-30
+
+Sixteen canonical drafts materialized from the completed primary reviews. The reviews were
+read and never written; their digests, the cases, the case gold fields, and the model drafts
+are all unchanged.
+
+| | |
+| --- | --- |
+| canonical drafts | 16 / 16 |
+| source contract versions projected | v0.1 4, v0.2 2, v0.3 10 |
+| outputs | 31 (approved 8, modified 15, reviewer-added 8) |
+| excluded candidates | 11, each with its reason and grounds |
+| forbidden inferences | 216 |
+| ambiguities | 68 / 68, every raw kind, `about`, `statement`, evidence and resolution kept |
+| reviewer notes | 42 / 42 |
+| assignee fields pending secondary review | 18 |
+| scorer-eligible prior transitions | 0 |
+| taxonomy config | `ambiguity-taxonomy-v0.1`, `1d225034…` |
+| audit summary | `fd8e9765…` |
+
+The taxonomy distribution across the 68 ambiguities: `window_boundary` 21,
+`commitment_scope` 12, `metadata_mismatch` 5, `output_category` 5, `evidence_quality` 4,
+`historical_vs_new` 4, `question_resolution` 3, `due_or_time` 3, `prior_state_identity` 2,
+`other` 6, and one each of `procedural_vs_substantive`, `speaker_or_actor_identity` and
+`assignee_scope`. The approved summary table added to 65 rather than 68 — `commitment_scope`
+is twelve ambiguities across ten raw kinds and `historical_vs_new` is four across four. The
+per-kind mapping that summary described is unchanged.
+
+Eighteen assignee fields are pending secondary review because scope was never a field a
+reviewer could fill and the basis kinds they did record live inside a free-text value.
+Neither is derived here. No prior transition is scorer-eligible: fourteen are
+`not_applicable` and two are `insufficient_prior_state`, which is a judgment that the
+question could not be answered, not an answer of "no change".
+
+Nothing is gold. Every draft reads `primary_normalized_pending_secondary_review` with
+`scorer_ready: false`, and the sixteen cases still read `human_review_pending`.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
