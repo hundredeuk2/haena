@@ -25,7 +25,7 @@
     "defaultNumTasks": 10,
     "defaultSubtasks": 5,
     "defaultPriority": "medium",
-    "projectName": "HAE.NA — Meeting deletion lifecycle",
+    "projectName": "HAE.NA — Development human gold",
     "ollamaBaseURL": "http://127.0.0.1:9/api",
     "bedrockBaseURL": "http://127.0.0.1:9",
     "responseLanguage": "Korean",

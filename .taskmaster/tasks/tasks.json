@@ -102,12 +102,153 @@
           }
         ],
         "updatedAt": "2026-08-29T15:28:44.041Z"
+      },
+      {
+        "id": "2",
+        "title": "Establish development 16 human semantic gold",
+        "description": "Create a human-reviewed development gold set for Meeting Execution without treating model suggestions as truth or exposing the sealed holdout.",
+        "details": "Notion page 3baf6cd22fd581938839d70523e907dd is the authority. Work locally from codex/development-human-gold. The current review packet is not review-ready: current metadata says MEV0-001 is development and MEV0-004 is sealed_holdout, while the 16 model suggestions contain MEV0-004 and omit MEV0-001. Do not start semantic review until the partition and exposure contract are repaired. No external AI, provider key, MCP/server, corpus upload, sealed payload inspection, or product-code change without a later approved subtask order.",
+        "testStrategy": "Use metadata-only partition checks first. Human-review progress requires explicit evidence gates, not Task Master completion counts. Validate gold schema, evidence references, unresolved count, independent second review, and deterministic scorer handoff before completion.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit development split and review artifacts",
+            "description": "Compare source-index, manifest, model-suggestion files, validation report, and review packet without using sealed payload content.",
+            "dependencies": [],
+            "details": "Read-only audit completed. source-index and manifest agree on 16 development and 8 sealed cases. Draft/report IDs are the stale pre-repair set: 15 current development IDs plus sealed MEV0-004, with development MEV0-001 missing. The old validation report's 16/16 pass proves only schema/evidence validity for that stale set. The existing review packet must not be used for human gold. A broad read-only search also traversed sealed case paths in this session; no files were changed or transmitted, but this session must not later act as the independent sealed-holdout reviewer.",
+            "status": "done",
+            "testStrategy": "Assert metadata 16/8, exact manifest/index agreement, draft-vs-development set difference, sealed intersection, review-packet heading set, all current development gold statuses pending, and zero filesystem writes or network calls.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:05:23.735Z"
+          },
+          {
+            "id": 2,
+            "title": "Repair partition integrity and fail closed on exposed holdouts",
+            "description": "Make the development and sealed sets consistent with actual model exposure before any human review begins.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Use metadata-only source selection. Every case that has a model suggestion or appeared in a review packet must be treated as exposed and cannot be sealed. Preserve 16 development and 8 truly unexposed sealed cases, choosing any replacement from the unused corpus by finite metadata strata only. Prefer a repair that preserves the current 16 draft IDs as development and replaces the extra exposed case with a new unexposed sealed candidate, but confirm selection invariants before editing. Add a fail-closed audit so draftIDs equal developmentIDs and draftIDs intersect sealedIDs is empty. Do not call a provider or read new sealed payloads.",
+            "status": "pending",
+            "testStrategy": "Prove deterministic 16/8 selection; source-index, manifest, case metadata, draft IDs, and packet headings agree; exposed IDs are never sealed; repeated generation is byte-stable; sealed payload read count is zero in metadata-only mode.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 3,
+            "title": "Regenerate a development-only review packet",
+            "description": "Produce the authoritative local review packet only after partition integrity is proven.",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Build from the repaired 16 development IDs only. Keep AI suggestions labeled as non-gold. Include candidate verdicts, missing-item checks, direct utterance evidence, assignee basis, due-date basis, forbidden inference, and prior-state transition fields. Do not include sealed IDs or content.",
+            "status": "pending",
+            "testStrategy": "Packet headings equal the development ID set exactly; 16 cases; no sealed IDs; every suggestion has passed local evidence validation; generation is deterministic and local-only.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 4,
+            "title": "Complete primary human review batch 1",
+            "description": "Review the first deterministic quarter of the repaired development set.",
+            "dependencies": [
+              "2.3"
+            ],
+            "details": "A human must approve, modify, or reject every candidate and add omissions. Record direct utterance evidence, assignee and due-date basis, forbidden inferences, and prior-state expectations. The code agent may present and validate but must not decide semantic truth.",
+            "status": "pending",
+            "testStrategy": "All assigned cases have explicit candidate verdicts, missing-item completion, evidence references that exist in the case, and no unresolved fields hidden as defaults.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 5,
+            "title": "Complete primary human review batch 2",
+            "description": "Review the second deterministic quarter of the repaired development set.",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Apply the same human-verdict and evidence contract as batch 1. Do not tune prior decisions to improve a model score because no semantic scorer is authoritative yet.",
+            "status": "pending",
+            "testStrategy": "Same evidence and unresolved-field checks as batch 1; verify cumulative reviewed IDs are unique and development-only.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 6,
+            "title": "Complete primary human review batch 3",
+            "description": "Review the third deterministic quarter of the repaired development set.",
+            "dependencies": [
+              "2.5"
+            ],
+            "details": "Continue the same review contract, preserving explicit ambiguity instead of forcing a false answer.",
+            "status": "pending",
+            "testStrategy": "Same evidence and unresolved-field checks as earlier batches; log ambiguity rather than converting it to an inferred gold label.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 7,
+            "title": "Complete primary human review batch 4",
+            "description": "Review the final deterministic quarter of the repaired development set.",
+            "dependencies": [
+              "2.6"
+            ],
+            "details": "Finish all 16 primary reviews and identify any remaining conflicts or missing contract fields before normalization.",
+            "status": "pending",
+            "testStrategy": "Exactly 16 unique development cases have primary human verdicts; sealed cases remain untouched; every case has four-category missing-item closure.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 8,
+            "title": "Normalize and validate development gold",
+            "description": "Convert human decisions into typed gold artifacts and remove structural uncertainty without inventing semantic answers.",
+            "dependencies": [
+              "2.7"
+            ],
+            "details": "Normalize the four result types, direct evidence references, assignee and due-date bases, forbidden inference, and expected prior-state transitions. Preserve explicit ambiguity. Validation must report unreviewed and unresolved structural fields separately from adjudicated ambiguity.",
+            "status": "pending",
+            "testStrategy": "Gold schema validation passes; 16/16 review status is human-reviewed; utterance references resolve; unreviewed count is zero; forbidden and ambiguity records remain finite and typed.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 9,
+            "title": "Run independent second review and adjudication",
+            "description": "Have a reviewer independent from the primary pass identify disagreements and ambiguous cases before freezing gold.",
+            "dependencies": [
+              "2.8"
+            ],
+            "details": "The second reviewer must not be this contaminated session for sealed work and must not merely accept model suggestions. Record agreement, disagreement, adjudication, and unresolved ambiguity. If only one human is available, use a separated blinded second pass and record that limitation explicitly rather than claiming inter-rater agreement.",
+            "status": "pending",
+            "testStrategy": "Every case has second-review provenance; disagreements are enumerated and adjudicated or explicitly ambiguous; no hidden overwrite of primary decisions.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          },
+          {
+            "id": 10,
+            "title": "Freeze development gold and hand off to semantic scorer",
+            "description": "Version the reviewed development contract and prepare the next scorer task without opening the sealed holdout.",
+            "dependencies": [
+              "2.9"
+            ],
+            "details": "Freeze development gold, review rules, provenance, ambiguity policy, and validation evidence. Synchronize Notion and Git evidence, but keep final Task completion behind user approval. The sealed holdout remains unopened until the semantic scorer and development rules are frozen.",
+            "status": "pending",
+            "testStrategy": "Re-run deterministic gold validation, verify provenance and rule version, confirm sealed payloads were not consumed, and prepare the scorer handoff with exact known limitations.",
+            "parentId": "undefined",
+            "updatedAt": "2026-08-30T06:04:11.000Z"
+          }
+        ],
+        "updatedAt": "2026-08-30T06:05:23.735Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-29T15:28:44.041Z",
-      "taskCount": 1,
+      "lastModified": "2026-08-30T06:05:23.735Z",
+      "taskCount": 2,
       "completedCount": 1,
       "tags": [
         "master"
