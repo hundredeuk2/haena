@@ -171,10 +171,10 @@
               "2.4"
             ],
             "details": "Batch 2 is fixed to MEV0-005, MEV0-012, MEV0-015, and MEV0-023. Use the primary-review-v0.1 contract frozen after batch 1. Do not add or reinterpret fields silently. A discovered contract defect requires a new explicit schema version, a migration impact report for every completed review, and re-opening only cases that need new human semantic input; a lossless structural migration may be automated only when it creates no semantic default. Apply the same separate per-case primary-review JSON contract as batch 1. Do not tune prior decisions to improve a model score because no semantic scorer is authoritative yet.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Same evidence and unresolved-field checks as batch 1; verify cumulative reviewed IDs are unique and development-only.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T12:39:40.064Z"
+            "updatedAt": "2026-08-30T12:41:51.757Z"
           },
           {
             "id": 6,
@@ -184,10 +184,10 @@
               "2.5"
             ],
             "details": "Batch 3 is fixed to MEV0-006, MEV0-011, MEV0-016, and MEV0-018. Continue the same separate per-case primary-review JSON contract, preserving explicit ambiguity instead of forcing a false answer.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Same evidence and unresolved-field checks as earlier batches; log ambiguity rather than converting it to an inferred gold label.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T12:43:35.767Z"
           },
           {
             "id": 7,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T12:39:40.064Z"
+        "updatedAt": "2026-08-30T12:43:35.767Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T12:39:40.067Z",
+      "lastModified": "2026-08-30T12:43:35.769Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
