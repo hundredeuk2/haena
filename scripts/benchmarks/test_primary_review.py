@@ -58,6 +58,13 @@ def full_decisions(case_id, statement_key, action_key):
         "forbidden_inference": {"checked": True, "items": []},
         "prior_state_expectation": {"status": "not_applicable", "reason": "이전 회의 source 없음"},
         "ambiguities": [],
+        "review_flag_verdicts": {
+            "review_flags[1]": {
+                "verdict": "agree",
+                "reason": "이미 수행 중인 관행 설명이므로 신규 업무가 아님",
+                "evidence_utterance_ids": ["U2"],
+            }
+        },
         "transcript_coverage": {"full_window_reviewed": True, "statement": "전체 전사를 끝까지 확인했습니다"},
         "explicit_user_confirmation": {"confirmed": True, "statement": "이 사례 검수를 확정합니다"},
         "reviewed_at": "2026-08-30T00:00:00+00:00",
@@ -528,6 +535,81 @@ class PrimaryReviewTests(unittest.TestCase):
             "evidence_utterance_ids": [],
         }]}}).returncode, 0)
         self.assertEqual(self.review()["forbidden_inference"]["items"][0]["basis"], "review_method")
+
+    def test_flags_start_unjudged_and_block_completion(self):
+        self.assertEqual(self.template().returncode, 0)
+        entry, = self.review()["review_flag_verdicts"]
+        self.assertEqual(entry["flag_key"], "review_flags[1]")
+        self.assertEqual(entry["ai_claim"], "담당자가 분명하지 않음")
+        self.assertIsNone(entry["verdict"])
+        decisions = full_decisions(self.case_id, self.statement_key, self.action_key)
+        decisions.pop("review_flag_verdicts")
+        result = self.record(decisions)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("review_flags[1].verdict", result.stderr)
+
+    def test_agreeing_with_a_flag_needs_a_reason_and_evidence(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "reason": "관행 설명임",
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("evidence needs at least one utterance ID", result.stderr)
+
+    def test_rejecting_a_flag_needs_the_boundary_and_the_correction(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "reject", "reason": "플래그가 경계를 잘못 잡음",
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("must name the boundary it got wrong", result.stderr)
+
+        self.assertEqual(self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "reject",
+            "reason": "플래그가 경계를 잘못 잡음",
+            "wrong_boundary": "담당자 불명이 아니라 화자 자신이 수행을 약속함",
+            "correction": "담당 화자를 B로 확정",
+        }}}).returncode, 0)
+        entry, = self.review()["review_flag_verdicts"]
+        self.assertEqual(entry["verdict"], "reject")
+        self.assertEqual(entry["correction"], "담당 화자를 B로 확정")
+
+    def test_a_flag_verdict_needs_a_reason(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "evidence_utterance_ids": ["U2"],
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs the reviewer's reason", result.stderr)
+
+    def test_a_flag_key_the_packet_does_not_have_is_refused(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[2]": {
+            "verdict": "agree", "reason": "동의", "evidence_utterance_ids": ["U2"],
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is not an AI flag in this case", result.stderr)
+
+    def test_a_review_written_before_flags_reopens_rather_than_staying_complete(self):
+        self.assertEqual(self.complete().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        del review["review_flag_verdicts"]  # a review from before flags were judgeable
+        fixture.write_json(path, review)
+        result = self.run_command("validate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 1)
+        report = json.loads(result.stdout)
+        self.assertIn("review_flags[1].verdict", report["reviews"][0]["unresolved"])
+
+    def test_flag_verdicts_must_cover_the_packet_flags_exactly(self):
+        self.assertEqual(self.complete().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["review_flag_verdicts"] = []
+        fixture.write_json(path, review)
+        result = self.run_command("validate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("do not cover the packet's flags", result.stdout)
 
     def test_a_decision_document_for_another_case_is_refused(self):
         self.assertEqual(self.template().returncode, 0)

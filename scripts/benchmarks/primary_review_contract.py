@@ -43,6 +43,12 @@ INFERENCE_CLASSES = ("explicit", "derived_proposal", "forbidden_inference")
 BASIS_STATUS = ("supported_by_utterance", "absent_must_stay_empty", "corrected")
 PRIOR_STATE_STATUS = ("not_applicable", "expected")
 AMBIGUITY_KEYS = frozenset({"about", "statement", "kind", "evidence_utterance_ids", "resolution"})
+# `kind` stays free-form through primary review and is normalized to a finite taxonomy (or
+# `other`) at TM 2.8. A raw value here is not an input to gold or to the scorer.
+FLAG_VERDICTS = ("agree", "reject")
+FLAG_DECISION_KEYS = frozenset({
+    "verdict", "reason", "evidence_utterance_ids", "wrong_boundary", "correction",
+})
 # `review_method` covers a prohibition that rests on how review is conducted rather than on
 # the recording — "the focus label is a selection stratum, not an answer count". Like an
 # absence claim it cites nothing, but it is not a claim about the window, so it does not
@@ -52,9 +58,9 @@ REVIEW_STATUSES = ("in_progress", "complete")
 CANDIDATE_KEY = re.compile(r"(decisions|action_items|open_questions|next_agenda)\[(\d+)\]")
 
 DECISION_KEYS = frozenset({
-    "candidate_verdicts", "missing_items", "no_missing", "forbidden_inference",
-    "prior_state_expectation", "ambiguities", "explicit_user_confirmation", "review_status",
-    "reviewed_at", "transcript_coverage",
+    "candidate_verdicts", "review_flag_verdicts", "missing_items", "no_missing",
+    "forbidden_inference", "prior_state_expectation", "ambiguities",
+    "explicit_user_confirmation", "review_status", "reviewed_at", "transcript_coverage",
 })
 VERDICT_KEYS = frozenset({
     "verdict", "final_text", "evidence_status", "evidence_utterance_ids",
@@ -112,6 +118,7 @@ def build_template(case, draft, packet_sha256, case_sha256):
         "review_status": "in_progress",
         "reviewer_kind": REVIEWER_KIND,
         "candidate_verdicts": verdicts,
+        "review_flag_verdicts": build_flag_entries(draft),
         "missing_items": [],
         "no_missing": {category: None for category in CATEGORIES},
         "forbidden_inference": {"checked": None, "items": []},
@@ -127,6 +134,30 @@ def build_template(case, draft, packet_sha256, case_sha256):
         "explicit_user_confirmation": None,
         "reviewed_at": None,
     }
+
+
+def flag_key(position):
+    return "review_flags[{}]".format(position)
+
+
+def build_flag_entries(draft):
+    """One unjudged entry per AI flag. An AI flag is a question, not a finding."""
+    return [
+        {
+            "flag_key": flag_key(position),
+            "ai_kind": flag.get("kind"),
+            "ai_category": flag.get("category"),
+            "ai_claim": flag.get("claim"),
+            "ai_reason": flag.get("reason"),
+            "ai_related_utterance_id": flag.get("related_utterance_id"),
+            "verdict": None,
+            "reason": None,
+            "evidence_utterance_ids": None,
+            "wrong_boundary": None,
+            "correction": None,
+        }
+        for position, flag in enumerate(draft["suggestion"].get("review_flags", []), start=1)
+    ]
 
 
 def utterance_ids(case):
@@ -229,6 +260,41 @@ def apply_verdict(entry, decision, case):
     return updated
 
 
+def apply_flag_verdict(entry, decision, case):
+    """Judge one AI flag, or refuse. Agreeing is a decision, not the absence of one."""
+    key = entry["flag_key"]
+    unknown = sorted(set(decision) - FLAG_DECISION_KEYS)
+    _require(not unknown, "{} carries fields outside the contract: {}".format(key, unknown))
+    known = utterance_ids(case)
+
+    verdict = decision.get("verdict")
+    _require(verdict in FLAG_VERDICTS, "{} verdict must be one of {}".format(key, FLAG_VERDICTS))
+    _require(str(decision.get("reason") or "").strip(), "{} needs the reviewer's reason".format(key))
+    if verdict == "agree":
+        _check_ids(decision.get("evidence_utterance_ids"), known, "{} evidence".format(key))
+        _require(
+            not decision.get("wrong_boundary") and not decision.get("correction"),
+            "{} agrees with the flag but records a correction".format(key),
+        )
+    else:
+        _require(
+            str(decision.get("wrong_boundary") or "").strip(),
+            "{} rejects the flag and must name the boundary it got wrong".format(key),
+        )
+        _require(
+            str(decision.get("correction") or "").strip(),
+            "{} rejects the flag and must record the correction".format(key),
+        )
+        if decision.get("evidence_utterance_ids"):
+            _check_ids(decision["evidence_utterance_ids"], known, "{} evidence".format(key))
+
+    updated = dict(entry)
+    for field in FLAG_DECISION_KEYS:
+        if field in decision:
+            updated[field] = decision[field]
+    return updated
+
+
 def apply_missing_items(items, case):
     known = utterance_ids(case)
     applied = []
@@ -279,6 +345,12 @@ def apply_decisions(review, decisions, case):
         _require(entries, "{} is not a candidate in this case".format(key))
         index = updated["candidate_verdicts"].index(entries[0])
         updated["candidate_verdicts"][index] = apply_verdict(entries[0], decision, case)
+
+    for key, decision in (decisions.get("review_flag_verdicts") or {}).items():
+        entries = [item for item in updated.get("review_flag_verdicts", []) if item["flag_key"] == key]
+        _require(entries, "{} is not an AI flag in this case".format(key))
+        index = updated["review_flag_verdicts"].index(entries[0])
+        updated["review_flag_verdicts"][index] = apply_flag_verdict(entries[0], decision, case)
 
     if "missing_items" in decisions:
         updated["missing_items"] = apply_missing_items(decisions["missing_items"], case)
@@ -397,6 +469,9 @@ def unresolved_fields(review):
     for entry in review.get("candidate_verdicts", []):
         if entry.get("verdict") not in VERDICTS:
             unresolved.append("{}.verdict".format(entry["candidate_key"]))
+    for entry in review.get("review_flag_verdicts", []):
+        if entry.get("verdict") not in FLAG_VERDICTS:
+            unresolved.append("{}.verdict".format(entry["flag_key"]))
     stated = {item.get("category") for item in review.get("missing_items", [])}
     for category in CATEGORIES:
         value = (review.get("no_missing") or {}).get(category)

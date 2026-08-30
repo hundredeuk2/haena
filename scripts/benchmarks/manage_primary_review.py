@@ -25,11 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from primary_review_contract import (  # noqa: E402  (import path is set above)
     CATEGORIES,
+    FLAG_VERDICTS,
     REVIEW_DIRECTORY,
     SCHEMA_VERSION,
     VERDICTS,
     ReviewContractError,
     apply_decisions,
+    build_flag_entries,
     build_template,
     sha256_of,
     unresolved_fields,
@@ -89,6 +91,13 @@ def review_path(benchmark_root, case_id):
     return benchmark_root / REVIEW_DIRECTORY / "{}.review.json".format(case_id)
 
 
+def draft_of(benchmark_root, case_id):
+    return json.loads(
+        (benchmark_root / "drafts" / "{}.model-suggestion.json".format(case_id))
+        .read_text(encoding="utf-8")
+    )
+
+
 def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -112,6 +121,11 @@ def load_review(benchmark_root, case_id, case_path, case):
         )
     if review.get("case_sha256") != sha256_of(case_path):
         raise ReviewCommandError("{} case file changed after the review started".format(case_id))
+    if "review_flag_verdicts" not in review:
+        # A review written before AI flags were judgeable gains the empty entries, never a
+        # verdict. Backfilling structure is safe; backfilling a judgment would not be, so a
+        # review that was complete now reads as unresolved until a person rules on them.
+        review["review_flag_verdicts"] = build_flag_entries(draft_of(benchmark_root, case_id))
     return path, review
 
 
@@ -124,10 +138,7 @@ def command_template(args):
                 args.case_id
             )
         )
-    draft = json.loads(
-        (args.benchmark_root / "drafts" / "{}.model-suggestion.json".format(args.case_id))
-        .read_text(encoding="utf-8")
-    )
+    draft = draft_of(args.benchmark_root, args.case_id)
     review = build_template(
         case, draft, sha256_of(args.benchmark_root / PACKET_NAME), sha256_of(case_path)
     )
@@ -183,6 +194,14 @@ def judge(benchmark_root, case_id):
         errors.append("{} cites utterances outside the case: {}".format(case_id, dangling))
     if review.get("reviewer_kind") != "human_user":
         errors.append("{} is not recorded as a human review".format(case_id))
+    expected_flags = [entry["flag_key"] for entry in build_flag_entries(draft_of(benchmark_root, case_id))]
+    recorded_flags = [entry["flag_key"] for entry in review.get("review_flag_verdicts", [])]
+    if recorded_flags != expected_flags:
+        errors.append(
+            "{} flag verdicts do not cover the packet's flags: {} vs {}".format(
+                case_id, recorded_flags, expected_flags
+            )
+        )
     coverage = review.get("transcript_coverage") or {}
     if coverage.get("full_window_reviewed") is True:
         ordered = [row["utterance_id"] for row in case.get("transcript", [])]
@@ -210,6 +229,14 @@ def judge(benchmark_root, case_id):
         "case_file_unchanged": review["case_sha256"] == sha256_of(case_path),
         "candidates": len(review["candidate_verdicts"]),
         "verdicts": verdicts,
+        "review_flags": len(review.get("review_flag_verdicts", [])),
+        "flag_verdicts": {
+            verdict: sum(
+                1 for entry in review.get("review_flag_verdicts", [])
+                if entry.get("verdict") == verdict
+            )
+            for verdict in FLAG_VERDICTS
+        },
         "missing_items": len(review["missing_items"]),
         "no_missing": {category: review["no_missing"][category] for category in CATEGORIES},
         "forbidden_inferences": len((review.get("forbidden_inference") or {}).get("items", [])),
@@ -255,6 +282,8 @@ def command_audit(args):
                 "case_sha256": result["case_sha256"],
                 "candidates": result["candidates"],
                 "verdicts": result["verdicts"],
+                "review_flags": result["review_flags"],
+                "flag_verdicts": result["flag_verdicts"],
                 "missing_items": result["missing_items"],
                 "forbidden_inferences": result["forbidden_inferences"],
                 "prior_state_status": result["prior_state_status"],

@@ -131,7 +131,15 @@ rather than because a gap was imagined:
   window, so it does not borrow the coverage confirmation;
 - an ambiguity keeps its `kind`, span, and `resolution` instead of being flattened into a
   sentence. `kind` is deliberately not an enum: ambiguity types cannot be listed in advance,
-  and a closed set would push a reviewer into the nearest wrong bucket.
+  and a closed set would push a reviewer into the nearest wrong bucket. It stays free-form
+  through primary review and is normalized to a finite taxonomy, or `other`, at TM 2.8; a raw
+  value is not an input to gold or to the scorer;
+- AI review flags are judged, not read. The packet had `동의 / 반려` boxes with nowhere to
+  store the answer, so a review could close with the model's warnings unanswered. Flag keys
+  must match the packet's exactly, `agree` needs evidence, `reject` needs the boundary the
+  flag got wrong and the correction, both need a reason, and an unjudged flag blocks
+  completion. A review written before flags were judgeable gains the empty entries on load —
+  structure, never a verdict — so it reopens as unresolved instead of staying complete.
 
 ## Current gate
 
