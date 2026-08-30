@@ -42,13 +42,14 @@ RESPONSIBILITY = ("b_responsible", "other_speaker", "no_responsibility_assigned"
 INFERENCE_CLASSES = ("explicit", "derived_proposal", "forbidden_inference")
 BASIS_STATUS = ("supported_by_utterance", "absent_must_stay_empty", "corrected")
 PRIOR_STATE_STATUS = ("not_applicable", "expected")
+FORBIDDEN_BASIS = ("utterance", "absence_in_window")
 REVIEW_STATUSES = ("in_progress", "complete")
 CANDIDATE_KEY = re.compile(r"(decisions|action_items|open_questions|next_agenda)\[(\d+)\]")
 
 DECISION_KEYS = frozenset({
     "candidate_verdicts", "missing_items", "no_missing", "forbidden_inference",
     "prior_state_expectation", "ambiguities", "explicit_user_confirmation", "review_status",
-    "reviewed_at",
+    "reviewed_at", "transcript_coverage",
 })
 VERDICT_KEYS = frozenset({
     "verdict", "final_text", "evidence_status", "evidence_utterance_ids",
@@ -110,6 +111,13 @@ def build_template(case, draft, packet_sha256, case_sha256):
         "forbidden_inference": {"checked": None, "items": []},
         "prior_state_expectation": None,
         "ambiguities": [],
+        "transcript_coverage": {
+            "full_window_reviewed": None,
+            "statement": None,
+            "first_utterance_id": None,
+            "last_utterance_id": None,
+            "utterance_count": None,
+        },
         "explicit_user_confirmation": None,
         "reviewed_at": None,
     }
@@ -219,11 +227,16 @@ def apply_missing_items(items, case):
             item.get("target_speaker_b_responsibility") in RESPONSIBILITY,
             "{} needs a target speaker B responsibility judgment".format(label),
         )
+        _require(
+            item.get("inference_class") in INFERENCE_CLASSES,
+            "{} needs an inference class from {}".format(label, INFERENCE_CLASSES),
+        )
         entry = {
             "category": item["category"],
             "text": item["text"],
             "evidence_utterance_ids": item["evidence_utterance_ids"],
             "target_speaker_b_responsibility": item["target_speaker_b_responsibility"],
+            "inference_class": item["inference_class"],
             "assignee_basis": item.get("assignee_basis"),
             "due_basis": item.get("due_basis"),
             "note": item.get("note"),
@@ -261,6 +274,28 @@ def apply_decisions(review, decisions, case):
         _require(isinstance(value, bool), "no_missing[{}] must be stated as true or false".format(category))
         updated["no_missing"][category] = value
 
+    if "transcript_coverage" in decisions:
+        block = decisions["transcript_coverage"]
+        _require(isinstance(block, dict), "transcript_coverage must be an object")
+        _require(
+            block.get("full_window_reviewed") is True,
+            "transcript coverage must be an explicit confirmation that the whole window was read",
+        )
+        _require(
+            str(block.get("statement") or "").strip(),
+            "transcript coverage must quote what the reviewer said",
+        )
+        _require(known, "transcript coverage cannot be confirmed for a case with no transcript")
+        # The window is pinned from the case itself, so a later partial review cannot inherit
+        # this confirmation: the case digest and these bounds have to agree.
+        updated["transcript_coverage"] = {
+            "full_window_reviewed": True,
+            "statement": block["statement"],
+            "first_utterance_id": known[0],
+            "last_utterance_id": known[-1],
+            "utterance_count": len(known),
+        }
+
     if "forbidden_inference" in decisions:
         block = decisions["forbidden_inference"]
         _require(isinstance(block, dict), "forbidden_inference must be an object")
@@ -270,7 +305,24 @@ def apply_decisions(review, decisions, case):
             label = "forbidden inference {}".format(position)
             _require(str(item.get("claim") or "").strip(), "{} needs the claim it rejects".format(label))
             _require(str(item.get("reason") or "").strip(), "{} needs the reviewer's reason".format(label))
-            _check_ids(item.get("evidence_utterance_ids"), known, "{} evidence".format(label))
+            # Half of these are about what the window does not contain — "no due date was
+            # ever stated" cites nothing by construction. Demanding an utterance ID there
+            # would push the reviewer into citing an unrelated line to satisfy the schema.
+            _require(
+                item.get("basis") in FORBIDDEN_BASIS,
+                "{} needs a basis from {}".format(label, FORBIDDEN_BASIS),
+            )
+            if item["basis"] == "absence_in_window":
+                _require(
+                    not item.get("evidence_utterance_ids"),
+                    "{} rests on absence but cites utterances".format(label),
+                )
+                _require(
+                    (updated.get("transcript_coverage") or {}).get("full_window_reviewed") is True,
+                    "{} claims absence without a confirmed full-window review".format(label),
+                )
+            else:
+                _check_ids(item.get("evidence_utterance_ids"), known, "{} evidence".format(label))
         updated["forbidden_inference"] = {"checked": True, "items": items}
 
     if "prior_state_expectation" in decisions:
@@ -337,6 +389,9 @@ def unresolved_fields(review):
     confirmation = review.get("explicit_user_confirmation")
     if not (isinstance(confirmation, dict) and confirmation.get("confirmed") is True):
         unresolved.append("explicit_user_confirmation")
+    coverage = review.get("transcript_coverage") or {}
+    if coverage.get("full_window_reviewed") is not True:
+        unresolved.append("transcript_coverage")
     if not review.get("reviewed_at"):
         unresolved.append("reviewed_at")
     return unresolved

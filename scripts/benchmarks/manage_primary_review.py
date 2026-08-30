@@ -183,6 +183,17 @@ def judge(benchmark_root, case_id):
         errors.append("{} cites utterances outside the case: {}".format(case_id, dangling))
     if review.get("reviewer_kind") != "human_user":
         errors.append("{} is not recorded as a human review".format(case_id))
+    coverage = review.get("transcript_coverage") or {}
+    if coverage.get("full_window_reviewed") is True:
+        ordered = [row["utterance_id"] for row in case.get("transcript", [])]
+        if (
+            coverage.get("first_utterance_id") != (ordered[0] if ordered else None)
+            or coverage.get("last_utterance_id") != (ordered[-1] if ordered else None)
+            or coverage.get("utterance_count") != len(ordered)
+        ):
+            errors.append(
+                "{} claims full-window coverage of a window the case does not have".format(case_id)
+            )
     unresolved = unresolved_fields(review)
     if review["review_status"] == "complete" and unresolved:
         errors.append("{} claims complete while unresolved: {}".format(case_id, unresolved))
@@ -203,6 +214,7 @@ def judge(benchmark_root, case_id):
         "no_missing": {category: review["no_missing"][category] for category in CATEGORIES},
         "forbidden_inferences": len((review.get("forbidden_inference") or {}).get("items", [])),
         "prior_state_status": (review.get("prior_state_expectation") or {}).get("status"),
+        "full_window_reviewed": coverage.get("full_window_reviewed") is True,
         "ambiguities": len(review.get("ambiguities") or []),
         "explicit_user_confirmation": bool(
             (review.get("explicit_user_confirmation") or {}).get("confirmed")
@@ -246,6 +258,7 @@ def command_audit(args):
                 "missing_items": result["missing_items"],
                 "forbidden_inferences": result["forbidden_inferences"],
                 "prior_state_status": result["prior_state_status"],
+                "full_window_reviewed": result["full_window_reviewed"],
                 "ambiguities": result["ambiguities"],
                 "explicit_user_confirmation": result["explicit_user_confirmation"],
                 "unresolved": len(result["unresolved"]),

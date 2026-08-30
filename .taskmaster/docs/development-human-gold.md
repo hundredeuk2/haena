@@ -110,6 +110,19 @@ what a person actually said.
   to run over reviews that do not validate, and carries no transcript, reviewer text, or
   utterance identifiers.
 
+Three contract fields were added during batch 1, each because a real answer had nowhere to go
+rather than because a gap was imagined:
+
+- omissions carry their own `inference_class`, since a reviewer-added item can be a derived
+  proposal just as a model candidate can;
+- a forbidden inference may rest on `absence_in_window`, because "no due date was ever
+  stated" cites nothing — demanding an utterance ID there would push a reviewer into citing
+  an unrelated line to satisfy the schema, and such an item may cite nothing at all;
+- `transcript_coverage` records that the whole window was read. An absence claim is refused
+  without it, and no review completes without it, so a partial or truncated pass cannot end
+  as `complete`. The window bounds are pinned from the case itself, and validation fails if a
+  review later claims coverage of a window the case does not have.
+
 ## Current gate
 
 TM 2.1, TM 2.2 and TM 2.3 are `done`. Human semantic review has not started. The

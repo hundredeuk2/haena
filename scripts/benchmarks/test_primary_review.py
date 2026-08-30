@@ -58,6 +58,7 @@ def full_decisions(case_id, statement_key, action_key):
         "forbidden_inference": {"checked": True, "items": []},
         "prior_state_expectation": {"status": "not_applicable", "reason": "이전 회의 source 없음"},
         "ambiguities": [],
+        "transcript_coverage": {"full_window_reviewed": True, "statement": "전체 전사를 끝까지 확인했습니다"},
         "explicit_user_confirmation": {"confirmed": True, "statement": "이 사례 검수를 확정합니다"},
         "reviewed_at": "2026-08-30T00:00:00+00:00",
         "review_status": "complete",
@@ -201,6 +202,7 @@ class PrimaryReviewTests(unittest.TestCase):
             "text": "유치원 운영위원회 구성 여부",
             "evidence_utterance_ids": ["U3"],
             "target_speaker_b_responsibility": "no_responsibility_assigned",
+            "inference_class": "explicit",
         }]
         self.assertEqual(self.record(decisions).returncode, 0)
         self.assertEqual(self.review()["review_status"], "complete")
@@ -364,6 +366,100 @@ class PrimaryReviewTests(unittest.TestCase):
         result = self.run_command("audit", "--case-id", self.case_id, "--output", str(self.root / "a.json"))
         self.assertEqual(result.returncode, 1)
         self.assertIn("refusing to summarize", result.stderr)
+
+    def test_a_missing_item_needs_its_own_inference_class(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"missing_items": [{
+            "category": "decisions",
+            "text": "예산안을 의결",
+            "evidence_utterance_ids": ["U1"],
+            "target_speaker_b_responsibility": "no_responsibility_assigned",
+        }]})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs an inference class", result.stderr)
+
+    def test_a_forbidden_inference_about_absence_cites_nothing(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"transcript_coverage": {
+            "full_window_reviewed": True, "statement": "전체 전사를 끝까지 확인했습니다",
+        }}).returncode, 0)
+        self.assertEqual(self.record({"forbidden_inference": {"checked": True, "items": [
+            {
+                "claim": "근거 없는 기한 생성",
+                "reason": "어떤 발화에도 기한 표현이 없음",
+                "basis": "absence_in_window",
+                "evidence_utterance_ids": [],
+            },
+            {
+                "claim": "질문에 답변이 있었다고 추론",
+                "reason": "창의 마지막 발화 이후 응답이 창 안에 없음",
+                "basis": "utterance",
+                "evidence_utterance_ids": ["U3"],
+            },
+        ]}}).returncode, 0)
+        self.assertEqual(len(self.review()["forbidden_inference"]["items"]), 2)
+
+    def test_absence_needs_a_confirmed_full_window_review(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"forbidden_inference": {"checked": True, "items": [{
+            "claim": "근거 없는 기한 생성",
+            "reason": "어떤 발화에도 기한 표현이 없음",
+            "basis": "absence_in_window",
+            "evidence_utterance_ids": [],
+        }]}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without a confirmed full-window review", result.stderr)
+
+    def test_coverage_pins_the_window_from_the_case_itself(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"transcript_coverage": {
+            "full_window_reviewed": True,
+            "statement": "전체 전사를 끝까지 확인했습니다",
+            "first_utterance_id": "U9", "last_utterance_id": "U9", "utterance_count": 1,
+        }}).returncode, 0)
+        coverage = self.review()["transcript_coverage"]
+        self.assertEqual(coverage["first_utterance_id"], "U1")
+        self.assertEqual(coverage["last_utterance_id"], "U3")
+        self.assertEqual(coverage["utterance_count"], 3)
+
+    def test_a_truncated_review_cannot_complete(self):
+        self.assertEqual(self.template().returncode, 0)
+        decisions = full_decisions(self.case_id, self.statement_key, self.action_key)
+        decisions.pop("transcript_coverage")
+        result = self.record(decisions)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("transcript_coverage", result.stderr)
+
+    def test_coverage_that_no_longer_matches_the_case_fails_validation(self):
+        self.assertEqual(self.complete().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["transcript_coverage"]["utterance_count"] = 2
+        fixture.write_json(path, review)
+        result = self.run_command("validate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("a window the case does not have", result.stdout)
+
+    def test_a_forbidden_inference_resting_on_absence_may_not_cite_utterances(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"forbidden_inference": {"checked": True, "items": [{
+            "claim": "근거 없는 기한 생성",
+            "reason": "어떤 발화에도 기한 표현이 없음",
+            "basis": "absence_in_window",
+            "evidence_utterance_ids": ["U1"],
+        }]}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("rests on absence but cites utterances", result.stderr)
+
+    def test_a_forbidden_inference_needs_a_stated_basis(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"forbidden_inference": {"checked": True, "items": [{
+            "claim": "근거 없는 기한 생성",
+            "reason": "어떤 발화에도 기한 표현이 없음",
+            "evidence_utterance_ids": [],
+        }]}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs a basis", result.stderr)
 
     def test_a_decision_document_for_another_case_is_refused(self):
         self.assertEqual(self.template().returncode, 0)
