@@ -611,6 +611,74 @@ class PrimaryReviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("do not cover the packet's flags", result.stdout)
 
+    def test_a_relative_due_date_records_whether_it_could_be_anchored(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"candidate_verdicts": {self.action_key: {
+            "verdict": "approve",
+            "evidence_status": "ai_evidence_approved",
+            "target_speaker_b_responsibility": "b_responsible",
+            "inference_class": "explicit",
+            "assignee_basis": {
+                "status": "supported_by_utterance", "utterance_ids": ["U2"], "value": "B",
+            },
+            "due_basis": {
+                "status": "explicit_relative", "utterance_ids": ["U2"], "value": "오늘 중으로",
+                "normalized_absolute_date": None,
+            },
+        }}}).returncode, 0)
+        entry = self.review()["candidate_verdicts"][1]
+        self.assertEqual(entry["due_basis"]["status"], "explicit_relative")
+        self.assertIsNone(entry["due_basis"]["normalized_absolute_date"])
+
+    def test_a_relative_due_date_must_say_whether_it_was_normalized(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"candidate_verdicts": {self.action_key: {
+            "verdict": "approve",
+            "evidence_status": "ai_evidence_approved",
+            "target_speaker_b_responsibility": "b_responsible",
+            "inference_class": "explicit",
+            "assignee_basis": {
+                "status": "supported_by_utterance", "utterance_ids": ["U2"], "value": "B",
+            },
+            "due_basis": {
+                "status": "explicit_relative", "utterance_ids": ["U2"], "value": "오늘 중으로",
+            },
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("whether the relative date could be normalized", result.stderr)
+
+    def test_a_normalized_date_needs_a_relative_basis(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"candidate_verdicts": {self.action_key: {
+            "verdict": "approve",
+            "evidence_status": "ai_evidence_approved",
+            "target_speaker_b_responsibility": "b_responsible",
+            "inference_class": "explicit",
+            "assignee_basis": {
+                "status": "supported_by_utterance", "utterance_ids": ["U2"], "value": "B",
+            },
+            "due_basis": {
+                "status": "absent_must_stay_empty", "utterance_ids": [], "value": None,
+                "normalized_absolute_date": "2014-11-14",
+            },
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without a relative basis", result.stderr)
+
+    def test_a_reported_prior_decision_has_its_own_exclude_reason(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"candidate_verdicts": {self.statement_key: {
+            "verdict": "exclude",
+            "exclude_reason": "historical_state_not_current_meeting_output",
+            "exclude_evidence_utterance_ids": ["U1"],
+            "target_speaker_b_responsibility": "no_responsibility_assigned",
+            "inference_class": "forbidden_inference",
+        }}}).returncode, 0)
+        self.assertEqual(
+            self.review()["candidate_verdicts"][0]["exclude_reason"],
+            "historical_state_not_current_meeting_output",
+        )
+
     def test_a_decision_document_for_another_case_is_refused(self):
         self.assertEqual(self.template().returncode, 0)
         result = self.record({"case_id": "MEV0-999", "no_missing": {"decisions": True}})

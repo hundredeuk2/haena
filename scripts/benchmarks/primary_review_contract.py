@@ -35,12 +35,21 @@ EXCLUDE_REASONS = (
     "not_supported_by_utterance",
     "speculative_inference",
     "not_a_meeting_output",
+    # Distinct from `not_a_meeting_output`: this is a real decision, reported here as an
+    # existing state rather than reached in this window. Collapsing the two would erase the
+    # boundary the benchmark exists to test.
+    "historical_state_not_current_meeting_output",
     "wrong_category",
     "duplicate_of_another_candidate",
 )
 RESPONSIBILITY = ("b_responsible", "other_speaker", "no_responsibility_assigned")
 INFERENCE_CLASSES = ("explicit", "derived_proposal", "forbidden_inference")
-BASIS_STATUS = ("supported_by_utterance", "absent_must_stay_empty", "corrected")
+# `explicit_relative` is for a due date an utterance states in relative terms — "by today" —
+# that cannot be resolved without an anchor the case does not carry. It is neither present
+# nor absent, and forcing it into either would either invent a date or discard a real one.
+BASIS_STATUS = (
+    "supported_by_utterance", "absent_must_stay_empty", "corrected", "explicit_relative",
+)
 PRIOR_STATE_STATUS = ("not_applicable", "expected")
 AMBIGUITY_KEYS = frozenset({"about", "statement", "kind", "evidence_utterance_ids", "resolution"})
 # `kind` stays free-form through primary review and is normalized to a finite taxonomy (or
@@ -178,12 +187,29 @@ def _check_ids(values, known, label):
 def _check_basis(basis, known, label):
     _require(isinstance(basis, dict), "{} must be an object".format(label))
     _require(basis.get("status") in BASIS_STATUS, "{} status must be one of {}".format(label, BASIS_STATUS))
+    if basis["status"] != "explicit_relative":
+        _require(
+            not basis.get("normalized_absolute_date"),
+            "{} carries a normalized date without a relative basis".format(label),
+        )
     if basis["status"] == "absent_must_stay_empty":
         _require(not basis.get("utterance_ids"), "{} claims no basis but cites utterances".format(label))
         _require(basis.get("value") in (None, ""), "{} claims no basis but carries a value".format(label))
         return
     _check_ids(basis.get("utterance_ids"), known, label)
     _require(str(basis.get("value") or "").strip(), "{} needs the value it is the basis for".format(label))
+    if basis["status"] == "explicit_relative":
+        # The key must be present even when it is null: whether the reviewer could anchor the
+        # date is itself the finding, and an absent key would read as "not looked at".
+        _require(
+            "normalized_absolute_date" in basis,
+            "{} must state whether the relative date could be normalized".format(label),
+        )
+        normalized = basis["normalized_absolute_date"]
+        _require(
+            normalized is None or str(normalized).strip(),
+            "{} normalized date must be a date or explicitly null".format(label),
+        )
 
 
 def apply_verdict(entry, decision, case):

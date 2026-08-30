@@ -134,6 +134,14 @@ rather than because a gap was imagined:
   and a closed set would push a reviewer into the nearest wrong bucket. It stays free-form
   through primary review and is normalized to a finite taxonomy, or `other`, at TM 2.8; a raw
   value is not an input to gold or to the scorer;
+- `historical_state_not_current_meeting_output` is its own exclusion reason. A decision
+  reported here as an existing state is not the same as something that was never a meeting
+  output at all, and collapsing the two would erase the boundary the benchmark exists to
+  test;
+- a due date can be `explicit_relative`: an utterance says "by today" and the case carries no
+  anchor to resolve it. It is neither present nor absent, and forcing it into either would
+  invent a date or discard a real one. Whether it could be normalized must be stated even
+  when the answer is null, because an absent key would read as "not looked at";
 - AI review flags are judged, not read. The packet had `동의 / 반려` boxes with nowhere to
   store the answer, so a review could close with the model's warnings unanswered. Flag keys
   must match the packet's exactly, `agree` needs evidence, `reject` needs the boundary the
