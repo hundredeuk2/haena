@@ -197,10 +197,10 @@
               "2.6"
             ],
             "details": "Batch 4 is fixed to MEV0-007, MEV0-008, MEV0-020, and MEV0-024. Finish all 16 primary reviews in separate per-case JSON files and identify any remaining conflicts or missing contract fields before normalization.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Exactly 16 unique development cases have primary human verdicts; sealed cases remain untouched; every case has four-category missing-item closure.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T13:34:33.929Z"
+            "updatedAt": "2026-08-30T13:39:40.545Z"
           },
           {
             "id": 8,
@@ -210,10 +210,10 @@
               "2.7"
             ],
             "details": "Normalize the four result types, direct evidence references, assignee and due-date bases, forbidden inference, and expected prior-state transitions. Preserve explicit ambiguity. Validation must report unreviewed and unresolved structural fields separately from adjudicated ambiguity.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Gold schema validation passes; 16/16 review status is human-reviewed; utterance references resolve; unreviewed count is zero; forbidden and ambiguity records remain finite and typed.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T13:40:59.754Z"
           },
           {
             "id": 9,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T13:34:33.929Z"
+        "updatedAt": "2026-08-30T13:40:59.754Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T13:34:33.931Z",
+      "lastModified": "2026-08-30T13:40:59.754Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
