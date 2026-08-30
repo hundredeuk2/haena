@@ -158,10 +158,10 @@
               "2.3"
             ],
             "details": "Batch 1 is fixed to MEV0-004, MEV0-010, MEV0-014, and MEV0-019: one explicit-single-output, one multi-output, one negative-or-forbidden, and one assignee-or-due ambiguity case across social, education, economy, and life domains. DEVELOPMENT_REVIEW.md is read-only evidence. Record only the user's explicit semantic decisions in separate per-case primary-review JSON files; the generator may create a missing template but must never overwrite an existing review. A human must approve, modify, or reject every candidate and add omissions. Record direct utterance evidence, assignee and due-date basis, forbidden inferences, and prior-state expectations. The code agent may present and validate but must not decide semantic truth.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "All assigned cases have explicit candidate verdicts, missing-item completion, evidence references that exist in the case, and no unresolved fields hidden as defaults.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T06:04:11.000Z"
+            "updatedAt": "2026-08-30T09:04:28.933Z"
           },
           {
             "id": 5,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T08:12:58.980Z"
+        "updatedAt": "2026-08-30T09:04:28.933Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T08:12:58.983Z",
+      "lastModified": "2026-08-30T09:04:28.936Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [

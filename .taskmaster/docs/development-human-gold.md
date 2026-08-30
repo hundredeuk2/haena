@@ -85,6 +85,31 @@ wrong about its own inputs.
 - Generation writes nothing to any case, gold field, or progress counter, and does not
   advance review. All 16 cases remain `human_review_pending`, all drafts `pending`.
 
+## Primary review storage — TM 2.4 checkpoint A, 2026-08-30
+
+Before any case was presented, the storage contract was built so that a review can only hold
+what a person actually said.
+
+- Reviews live at `meeting-execution-v0/human-reviews/primary/<case>.review.json`, under the
+  ignored `data/` tree. `DEVELOPMENT_REVIEW.md` stays read-only evidence.
+- No human field is ever seeded from the AI suggestion. A candidate nobody ruled on is
+  `null`, not `approve`. AI text is carried under `ai_`-prefixed keys that no completion rule
+  reads, so a default cannot survive review and become a label nobody chose.
+- `template` creates only when no review exists; an existing review is refused outright.
+  `record` changes only the fields the decision document names. `validate` writes nothing.
+- Completion is blocked while any structural field is unresolved: a candidate without a
+  verdict, a result type without either `no_missing` or a recorded omission, an unchecked
+  forbidden-inference pass, an unanswered prior-state question, or a missing explicit
+  confirmation from the reviewer.
+- `modify_and_approve` needs the corrected text and evidence, `exclude` needs a reason from a
+  closed list, an action item needs both assignee and due-date basis, and every cited
+  utterance ID must exist in that case. A basis claiming no support may not carry a value.
+- Regenerating the packet or changing a case file invalidates a review in progress by digest,
+  rather than letting it drift against evidence it no longer matches.
+- The shareable artifact is an audit summary of IDs, statuses, digests, and counts. It refuses
+  to run over reviews that do not validate, and carries no transcript, reviewer text, or
+  utterance identifiers.
+
 ## Current gate
 
 TM 2.1, TM 2.2 and TM 2.3 are `done`. Human semantic review has not started. The
