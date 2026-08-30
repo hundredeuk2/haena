@@ -170,10 +170,19 @@ having found a real ambiguity.
 Every case reached `not_applicable` on prior state, and no case file, gold field, or draft
 was modified by any of it.
 
+### Primary review contract freeze
+
+Batch 1 closes `primary-review-v0.1`. Batch 2 must use that version without silently adding,
+removing, or reinterpreting fields. A real contract defect still must be reported; it becomes
+a new explicit version with a migration impact report across all completed reviews. A lossless
+structural migration may run automatically only when it invents no semantic value. If the new
+contract requires a human decision that v0.1 did not capture, only the affected completed cases
+reopen and must be explicitly re-confirmed.
+
 ## Current gate
 
-TM 2.1, TM 2.2 and TM 2.3 are `done`. Human semantic review has not started. The
-fail-closed audit added by TM 2.2 proves:
+TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
+and user-approved. The fail-closed audit added by TM 2.2 proves:
 
 1. 16 development and 8 sealed cases;
 2. manifest, source index, case metadata, draft IDs, and packet headings agree;
@@ -183,7 +192,7 @@ fail-closed audit added by TM 2.2 proves:
 6. repeated metadata-only selection is deterministic and idempotent;
 7. external calls and sealed payload reads are zero.
 
-TM 2.4 starts primary human review batch 1 against the regenerated packet. The generated
+TM 2.5 continues primary human review batch 2 against the regenerated packet. The generated
 `DEVELOPMENT_REVIEW.md` is read-only evidence, not the decision store. Primary decisions live
 in separate per-case JSON under a local `human-reviews/primary/` directory. A generator may
 create a missing template, but it must never overwrite an existing review. Only explicit user
