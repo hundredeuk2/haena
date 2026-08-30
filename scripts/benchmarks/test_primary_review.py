@@ -449,7 +449,7 @@ class PrimaryReviewTests(unittest.TestCase):
             "evidence_utterance_ids": ["U1"],
         }]}})
         self.assertEqual(result.returncode, 1)
-        self.assertIn("rests on absence but cites utterances", result.stderr)
+        self.assertIn("rests on absence_in_window but cites utterances", result.stderr)
 
     def test_a_forbidden_inference_needs_a_stated_basis(self):
         self.assertEqual(self.template().returncode, 0)
@@ -460,6 +460,74 @@ class PrimaryReviewTests(unittest.TestCase):
         }]}})
         self.assertEqual(result.returncode, 1)
         self.assertIn("needs a basis", result.stderr)
+
+    def test_an_exclusion_records_its_own_grounds(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"candidate_verdicts": {self.statement_key: {
+            "verdict": "exclude",
+            "exclude_reason": "not_a_meeting_output",
+            "exclude_evidence_utterance_ids": ["U1", "U2"],
+            "target_speaker_b_responsibility": "other_speaker",
+            "inference_class": "forbidden_inference",
+        }}}).returncode, 0)
+        entry = self.review()["candidate_verdicts"][0]
+        self.assertEqual(entry["exclude_evidence_utterance_ids"], ["U1", "U2"])
+        self.assertIsNone(entry["evidence_status"])
+
+    def test_exclusion_grounds_must_exist_in_the_case(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"candidate_verdicts": {self.statement_key: {
+            "verdict": "exclude",
+            "exclude_reason": "not_a_meeting_output",
+            "exclude_evidence_utterance_ids": ["U99"],
+            "target_speaker_b_responsibility": "other_speaker",
+            "inference_class": "forbidden_inference",
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("exclusion grounds names utterances", result.stderr)
+
+    def test_exclusion_grounds_need_an_exclude_verdict(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"candidate_verdicts": {self.statement_key: {
+            "verdict": "approve",
+            "evidence_status": "ai_evidence_approved",
+            "exclude_evidence_utterance_ids": ["U1"],
+            "target_speaker_b_responsibility": "other_speaker",
+            "inference_class": "explicit",
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without an exclude verdict", result.stderr)
+
+    def test_an_ambiguity_keeps_its_kind_span_and_handling(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"ambiguities": [{
+            "kind": "truncated_window",
+            "about": "U3",
+            "statement": "문장이 중단돼 결론을 판단할 수 없음",
+            "evidence_utterance_ids": ["U3"],
+            "resolution": "결과를 억지로 생성하지 않고 ambiguity로 보존",
+        }]}).returncode, 0)
+        item, = self.review()["ambiguities"]
+        self.assertEqual(item["kind"], "truncated_window")
+        self.assertEqual(item["resolution"], "결과를 억지로 생성하지 않고 ambiguity로 보존")
+
+    def test_an_ambiguity_field_outside_the_contract_is_refused(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"ambiguities": [
+            {"about": "U3", "statement": "결론 없음", "verdict": "approve"}
+        ]})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("carries unknown fields", result.stderr)
+
+    def test_a_method_based_prohibition_needs_no_window_coverage(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"forbidden_inference": {"checked": True, "items": [{
+            "claim": "focus 라벨을 근거로 결과 수를 늘림",
+            "reason": "focus는 사례 선정 strata이며 정답 cardinality가 아님",
+            "basis": "review_method",
+            "evidence_utterance_ids": [],
+        }]}}).returncode, 0)
+        self.assertEqual(self.review()["forbidden_inference"]["items"][0]["basis"], "review_method")
 
     def test_a_decision_document_for_another_case_is_refused(self):
         self.assertEqual(self.template().returncode, 0)

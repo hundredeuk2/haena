@@ -121,7 +121,17 @@ rather than because a gap was imagined:
 - `transcript_coverage` records that the whole window was read. An absence claim is refused
   without it, and no review completes without it, so a partial or truncated pass cannot end
   as `complete`. The window bounds are pinned from the case itself, and validation fails if a
-  review later claims coverage of a window the case does not have.
+  review later claims coverage of a window the case does not have;
+- an exclusion carries `exclude_evidence_utterance_ids`, its own grounds. The contract had
+  conflated those with the evidence that would have supported the item as gold and forbidden
+  both, which left the reasoning behind a rejection nowhere to go;
+- a forbidden inference may also rest on `review_method`, for a prohibition about how review
+  is conducted rather than about the recording — "the focus label is a selection stratum, not
+  an answer count". It cites nothing, like an absence claim, but makes no claim about the
+  window, so it does not borrow the coverage confirmation;
+- an ambiguity keeps its `kind`, span, and `resolution` instead of being flattened into a
+  sentence. `kind` is deliberately not an enum: ambiguity types cannot be listed in advance,
+  and a closed set would push a reviewer into the nearest wrong bucket.
 
 ## Current gate
 

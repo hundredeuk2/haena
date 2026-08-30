@@ -42,7 +42,12 @@ RESPONSIBILITY = ("b_responsible", "other_speaker", "no_responsibility_assigned"
 INFERENCE_CLASSES = ("explicit", "derived_proposal", "forbidden_inference")
 BASIS_STATUS = ("supported_by_utterance", "absent_must_stay_empty", "corrected")
 PRIOR_STATE_STATUS = ("not_applicable", "expected")
-FORBIDDEN_BASIS = ("utterance", "absence_in_window")
+AMBIGUITY_KEYS = frozenset({"about", "statement", "kind", "evidence_utterance_ids", "resolution"})
+# `review_method` covers a prohibition that rests on how review is conducted rather than on
+# the recording — "the focus label is a selection stratum, not an answer count". Like an
+# absence claim it cites nothing, but it is not a claim about the window, so it does not
+# borrow the coverage confirmation that an absence claim requires.
+FORBIDDEN_BASIS = ("utterance", "absence_in_window", "review_method")
 REVIEW_STATUSES = ("in_progress", "complete")
 CANDIDATE_KEY = re.compile(r"(decisions|action_items|open_questions|next_agenda)\[(\d+)\]")
 
@@ -54,7 +59,7 @@ DECISION_KEYS = frozenset({
 VERDICT_KEYS = frozenset({
     "verdict", "final_text", "evidence_status", "evidence_utterance_ids",
     "target_speaker_b_responsibility", "inference_class", "assignee_basis", "due_basis",
-    "exclude_reason", "note",
+    "exclude_reason", "exclude_evidence_utterance_ids", "note",
 })
 
 
@@ -95,6 +100,7 @@ def build_template(case, draft, packet_sha256, case_sha256):
                 "assignee_basis": None,
                 "due_basis": None,
                 "exclude_reason": None,
+                "exclude_evidence_utterance_ids": None,
                 "note": None,
             })
     return {
@@ -187,7 +193,15 @@ def apply_verdict(entry, decision, case):
             decision.get("evidence_status") is None and not decision.get("evidence_utterance_ids"),
             "{} is excluded, so it carries no approved evidence".format(key),
         )
+        if decision.get("exclude_evidence_utterance_ids"):
+            _check_ids(
+                decision["exclude_evidence_utterance_ids"], known, "{} exclusion grounds".format(key)
+            )
     else:
+        _require(
+            not decision.get("exclude_evidence_utterance_ids"),
+            "{} carries exclusion grounds without an exclude verdict".format(key),
+        )
         status = decision.get("evidence_status")
         _require(
             status in ("ai_evidence_approved", "replaced"),
@@ -312,17 +326,18 @@ def apply_decisions(review, decisions, case):
                 item.get("basis") in FORBIDDEN_BASIS,
                 "{} needs a basis from {}".format(label, FORBIDDEN_BASIS),
             )
-            if item["basis"] == "absence_in_window":
+            if item["basis"] == "utterance":
+                _check_ids(item.get("evidence_utterance_ids"), known, "{} evidence".format(label))
+            else:
                 _require(
                     not item.get("evidence_utterance_ids"),
-                    "{} rests on absence but cites utterances".format(label),
+                    "{} rests on {} but cites utterances".format(label, item["basis"]),
                 )
-                _require(
-                    (updated.get("transcript_coverage") or {}).get("full_window_reviewed") is True,
-                    "{} claims absence without a confirmed full-window review".format(label),
-                )
-            else:
-                _check_ids(item.get("evidence_utterance_ids"), known, "{} evidence".format(label))
+                if item["basis"] == "absence_in_window":
+                    _require(
+                        (updated.get("transcript_coverage") or {}).get("full_window_reviewed") is True,
+                        "{} claims absence without a confirmed full-window review".format(label),
+                    )
         updated["forbidden_inference"] = {"checked": True, "items": items}
 
     if "prior_state_expectation" in decisions:
@@ -344,8 +359,16 @@ def apply_decisions(review, decisions, case):
         items = decisions["ambiguities"] or []
         for position, item in enumerate(items, start=1):
             label = "ambiguity {}".format(position)
+            unknown_keys = sorted(set(item) - AMBIGUITY_KEYS)
+            _require(not unknown_keys, "{} carries unknown fields: {}".format(label, unknown_keys))
             _require(str(item.get("about") or "").strip(), "{} needs what it is about".format(label))
             _require(str(item.get("statement") or "").strip(), "{} needs the reviewer's statement".format(label))
+            # `kind` is deliberately not an enum. Ambiguity types cannot be listed in advance,
+            # and a closed set would push a reviewer into the nearest wrong bucket.
+            if "kind" in item:
+                _require(str(item.get("kind") or "").strip(), "{} kind must not be blank".format(label))
+            if item.get("evidence_utterance_ids"):
+                _check_ids(item["evidence_utterance_ids"], known, "{} evidence".format(label))
         updated["ambiguities"] = items
 
     if "explicit_user_confirmation" in decisions:
