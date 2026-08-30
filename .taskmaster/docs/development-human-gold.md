@@ -220,6 +220,33 @@ about the window. The same rule now covers an ambiguity recorded with no evidenc
 Migration stays read-forward. v0.1 and v0.2 reviews are never rewritten: all six completed
 reviews validate with byte-identical digests, and only the two untouched templates moved.
 
+## Primary review batch 2 — TM 2.5, 2026-08-30
+
+Four cases reviewed against the same packet `78ec6c28…`, all `complete`, zero unresolved
+structural fields, validation PASS, zero network calls.
+
+| case | focus | candidates | flags | omissions | forbidden | ambiguities | schema | review sha256 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MEV0-005 | explicit_single_output | approve 1, modify 2, exclude 1 | none offered | 0 | 9 | 2 | v0.2 | `4f1765d1` |
+| MEV0-012 | multi_output | modify 1 | agree 2 | 0 | 12 | 3 | v0.2 | `03ac013e` |
+| MEV0-015 | negative_or_forbidden | none offered | agree 2 | 0 | 16 | 4 | v0.3 | `9a5093bf` |
+| MEV0-023 | prior_state_transition | approve 1, modify 1, exclude 1 | agree 2, reject 1 | 0 | 17 | 6 | v0.3 | `958607e4` |
+
+Batch 2 added no omissions at all, where batch 1 added four. The models under-extracted in
+batch 1 and over-reached in batch 2: both exclusions rejected something the meeting reported
+rather than produced — an agenda item the same meeting had already started, and a policy the
+speaker described in the present continuous.
+
+`MEV0-023` is the only case in either batch whose prior state is not `not_applicable`. Its
+prior recording exists in the corpus and no case was ever built from it, so it is recorded as
+`insufficient_prior_state`: provenance kept, object identity undecidable, transition kind
+null. The four utterances that reference an earlier data request are stored as evidence that
+a prior context existed, explicitly not as evidence of a transition.
+
+Across both batches: eight unique development IDs, complete 8/8, explicit confirmation 8/8,
+full-window coverage 8/8, packet digest matching 8/8, unresolved 0, and no case file, gold
+field, or draft modified by any of it.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated
