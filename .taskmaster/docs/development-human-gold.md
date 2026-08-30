@@ -87,7 +87,7 @@ wrong about its own inputs.
 
 ## Current gate
 
-TM 2.1, TM 2.2 and TM 2.3 are in `review`. Human semantic review has not started. The
+TM 2.1, TM 2.2 and TM 2.3 are `done`. Human semantic review has not started. The
 fail-closed audit added by TM 2.2 proves:
 
 1. 16 development and 8 sealed cases;
@@ -98,9 +98,19 @@ fail-closed audit added by TM 2.2 proves:
 6. repeated metadata-only selection is deterministic and idempotent;
 7. external calls and sealed payload reads are zero.
 
-TM 2.4 starts primary human review batch 1 against the regenerated packet. Nothing in this
-repository decides whether that review has happened: only reviewer marks in the packet and
-the resulting gold do. A generated packet is a worksheet, not progress.
+TM 2.4 starts primary human review batch 1 against the regenerated packet. The generated
+`DEVELOPMENT_REVIEW.md` is read-only evidence, not the decision store. Primary decisions live
+in separate per-case JSON under a local `human-reviews/primary/` directory. A generator may
+create a missing template, but it must never overwrite an existing review. Only explicit user
+decisions may populate semantic fields; the code agent presents, records, and validates but
+does not choose truth. A generated packet is a worksheet, not progress.
+
+The four deterministic batches are:
+
+1. `MEV0-004`, `MEV0-010`, `MEV0-014`, `MEV0-019`;
+2. `MEV0-005`, `MEV0-012`, `MEV0-015`, `MEV0-023`;
+3. `MEV0-006`, `MEV0-011`, `MEV0-016`, `MEV0-018`;
+4. `MEV0-007`, `MEV0-008`, `MEV0-020`, `MEV0-024`.
 
 ## Privacy and execution limits
 

@@ -145,10 +145,10 @@
               "2.2"
             ],
             "details": "Build from the repaired 16 development IDs only. Keep AI suggestions labeled as non-gold. Include candidate verdicts, missing-item checks, direct utterance evidence, assignee basis, due-date basis, forbidden inference, and prior-state transition fields. Do not include sealed IDs or content.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Packet headings equal the development ID set exactly; 16 cases; no sealed IDs; every suggestion has passed local evidence validation; generation is deterministic and local-only.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T07:48:25.906Z"
+            "updatedAt": "2026-08-30T08:12:58.980Z"
           },
           {
             "id": 4,
@@ -157,7 +157,7 @@
             "dependencies": [
               "2.3"
             ],
-            "details": "A human must approve, modify, or reject every candidate and add omissions. Record direct utterance evidence, assignee and due-date basis, forbidden inferences, and prior-state expectations. The code agent may present and validate but must not decide semantic truth.",
+            "details": "Batch 1 is fixed to MEV0-004, MEV0-010, MEV0-014, and MEV0-019: one explicit-single-output, one multi-output, one negative-or-forbidden, and one assignee-or-due ambiguity case across social, education, economy, and life domains. DEVELOPMENT_REVIEW.md is read-only evidence. Record only the user's explicit semantic decisions in separate per-case primary-review JSON files; the generator may create a missing template but must never overwrite an existing review. A human must approve, modify, or reject every candidate and add omissions. Record direct utterance evidence, assignee and due-date basis, forbidden inferences, and prior-state expectations. The code agent may present and validate but must not decide semantic truth.",
             "status": "pending",
             "testStrategy": "All assigned cases have explicit candidate verdicts, missing-item completion, evidence references that exist in the case, and no unresolved fields hidden as defaults.",
             "parentId": "undefined",
@@ -170,7 +170,7 @@
             "dependencies": [
               "2.4"
             ],
-            "details": "Apply the same human-verdict and evidence contract as batch 1. Do not tune prior decisions to improve a model score because no semantic scorer is authoritative yet.",
+            "details": "Batch 2 is fixed to MEV0-005, MEV0-012, MEV0-015, and MEV0-023. Apply the same separate per-case primary-review JSON contract as batch 1. Do not tune prior decisions to improve a model score because no semantic scorer is authoritative yet.",
             "status": "pending",
             "testStrategy": "Same evidence and unresolved-field checks as batch 1; verify cumulative reviewed IDs are unique and development-only.",
             "parentId": "undefined",
@@ -183,7 +183,7 @@
             "dependencies": [
               "2.5"
             ],
-            "details": "Continue the same review contract, preserving explicit ambiguity instead of forcing a false answer.",
+            "details": "Batch 3 is fixed to MEV0-006, MEV0-011, MEV0-016, and MEV0-018. Continue the same separate per-case primary-review JSON contract, preserving explicit ambiguity instead of forcing a false answer.",
             "status": "pending",
             "testStrategy": "Same evidence and unresolved-field checks as earlier batches; log ambiguity rather than converting it to an inferred gold label.",
             "parentId": "undefined",
@@ -196,7 +196,7 @@
             "dependencies": [
               "2.6"
             ],
-            "details": "Finish all 16 primary reviews and identify any remaining conflicts or missing contract fields before normalization.",
+            "details": "Batch 4 is fixed to MEV0-007, MEV0-008, MEV0-020, and MEV0-024. Finish all 16 primary reviews in separate per-case JSON files and identify any remaining conflicts or missing contract fields before normalization.",
             "status": "pending",
             "testStrategy": "Exactly 16 unique development cases have primary human verdicts; sealed cases remain untouched; every case has four-category missing-item closure.",
             "parentId": "undefined",
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T07:48:25.906Z"
+        "updatedAt": "2026-08-30T08:12:58.980Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T07:48:25.908Z",
+      "lastModified": "2026-08-30T08:12:58.983Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
