@@ -247,6 +247,32 @@ Across both batches: eight unique development IDs, complete 8/8, explicit confir
 full-window coverage 8/8, packet digest matching 8/8, unresolved 0, and no case file, gold
 field, or draft modified by any of it.
 
+## Primary review batch 3 — TM 2.6, 2026-08-30
+
+Four cases against the same packet `78ec6c28…`, all `complete`, zero unresolved structural
+fields, validation PASS, zero network calls. No contract change was needed: `wrong_category`
+already carried the meaning a reviewer reached for, so v0.3 held for the whole batch.
+
+| case | focus | candidates | flags | omissions | forbidden | ambiguities | review sha256 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| MEV0-006 | explicit_single_output | approve 1, modify 2 | reject 1 | 0 | 14 | 4 | `47352920` |
+| MEV0-011 | multi_output | modify 1 | reject 2 | 0 | 15 | 6 | `02820cc7` |
+| MEV0-016 | negative_or_forbidden | exclude 1 | agree 3 | 0 | 17 | 5 | `848b4801` |
+| MEV0-018 | assignee_or_due_ambiguity | exclude 3 | agree 1, reject 1 | 2 | 16 | 5 | `3035d3a0` |
+
+`MEV0-018` produced the batch's sharpest distinction. Two candidates were real meeting
+outputs filed under the wrong type — an execution plan recorded as a committee Decision —
+so they were excluded as `wrong_category` and re-entered as omissions in the right category,
+rather than as `not_a_meeting_output`, which would have said the meeting never produced them.
+
+`MEV0-006` drew the line the other way: a committee's formal request for documents and
+attendance is a meeting output even with no acceptance utterance, where a general
+recommendation is not. The two together separate procedural obligation from advice.
+
+Across three batches: twelve unique development IDs, complete 12/12, explicit confirmation
+12/12, full-window coverage 12/12, packet digest matching 12/12, unresolved 0, and no case
+file, gold field, or draft modified.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated

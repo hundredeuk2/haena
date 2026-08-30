@@ -184,10 +184,10 @@
               "2.5"
             ],
             "details": "Batch 3 is fixed to MEV0-006, MEV0-011, MEV0-016, and MEV0-018. Continue the same separate per-case primary-review JSON contract, preserving explicit ambiguity instead of forcing a false answer.",
-            "status": "in-progress",
+            "status": "review",
             "testStrategy": "Same evidence and unresolved-field checks as earlier batches; log ambiguity rather than converting it to an inferred gold label.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T12:43:35.767Z"
+            "updatedAt": "2026-08-30T13:02:53.585Z"
           },
           {
             "id": 7,
@@ -242,12 +242,12 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T12:43:35.767Z"
+        "updatedAt": "2026-08-30T13:02:53.585Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T12:43:35.769Z",
+      "lastModified": "2026-08-30T13:02:53.588Z",
       "taskCount": 2,
       "completedCount": 1,
       "tags": [
