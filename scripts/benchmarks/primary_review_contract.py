@@ -20,8 +20,11 @@ import json
 import re
 from pathlib import Path
 
-SCHEMA_VERSION = "haena-meeting-execution-primary-review-v0.2"
-LEGACY_SCHEMA_VERSIONS = ("haena-meeting-execution-primary-review-v0.1",)
+SCHEMA_VERSION = "haena-meeting-execution-primary-review-v0.3"
+LEGACY_SCHEMA_VERSIONS = (
+    "haena-meeting-execution-primary-review-v0.1",
+    "haena-meeting-execution-primary-review-v0.2",
+)
 REVIEWER_KIND = "human_user"
 REVIEW_DIRECTORY = "human-reviews/primary"
 CATEGORIES = ("decisions", "action_items", "open_questions", "next_agenda")
@@ -71,8 +74,12 @@ AMBIGUITY_KEYS = frozenset({"about", "statement", "kind", "evidence_utterance_id
 # `other`) at TM 2.8. A raw value here is not an input to gold or to the scorer.
 FLAG_VERDICTS = ("agree", "reject")
 FLAG_DECISION_KEYS = frozenset({
-    "verdict", "reason", "evidence_utterance_ids", "wrong_boundary", "correction",
+    "verdict", "basis", "reason", "evidence_utterance_ids", "wrong_boundary", "correction",
 })
+# A flag can be right about something the window does not contain — "the transcript never
+# mentions the topic its metadata names" cites nothing by construction. Requiring an
+# utterance there would force a reviewer to reject a correct observation to satisfy a schema.
+FLAG_BASIS = ("utterance", "absence_in_window", "review_method")
 # `review_method` covers a prohibition that rests on how review is conducted rather than on
 # the recording — "the focus label is a selection stratum, not an answer count". Like an
 # absence claim it cites nothing, but it is not a claim about the window, so it does not
@@ -175,6 +182,7 @@ def build_flag_entries(draft):
             "ai_reason": flag.get("reason"),
             "ai_related_utterance_id": flag.get("related_utterance_id"),
             "verdict": None,
+            "basis": None,
             "reason": None,
             "evidence_utterance_ids": None,
             "wrong_boundary": None,
@@ -301,7 +309,18 @@ def apply_verdict(entry, decision, case):
     return updated
 
 
-def apply_flag_verdict(entry, decision, case):
+def covers_whole_window(coverage, known):
+    """True when a recorded coverage confirmation matches this case's window exactly."""
+    if not isinstance(coverage, dict) or coverage.get("full_window_reviewed") is not True:
+        return False
+    return (
+        coverage.get("first_utterance_id") == (known[0] if known else None)
+        and coverage.get("last_utterance_id") == (known[-1] if known else None)
+        and coverage.get("utterance_count") == len(known)
+    )
+
+
+def apply_flag_verdict(entry, decision, case, coverage):
     """Judge one AI flag, or refuse. Agreeing is a decision, not the absence of one."""
     key = entry["flag_key"]
     unknown = sorted(set(decision) - FLAG_DECISION_KEYS)
@@ -312,7 +331,20 @@ def apply_flag_verdict(entry, decision, case):
     _require(verdict in FLAG_VERDICTS, "{} verdict must be one of {}".format(key, FLAG_VERDICTS))
     _require(str(decision.get("reason") or "").strip(), "{} needs the reviewer's reason".format(key))
     if verdict == "agree":
-        _check_ids(decision.get("evidence_utterance_ids"), known, "{} evidence".format(key))
+        basis = decision.get("basis")
+        _require(basis in FLAG_BASIS, "{} needs a basis from {}".format(key, FLAG_BASIS))
+        if basis == "utterance":
+            _check_ids(decision.get("evidence_utterance_ids"), known, "{} evidence".format(key))
+        else:
+            _require(
+                not decision.get("evidence_utterance_ids"),
+                "{} rests on {} but cites utterances".format(key, basis),
+            )
+            if basis == "absence_in_window":
+                _require(
+                    covers_whole_window(coverage, known),
+                    "{} claims absence without a confirmed review of this exact window".format(key),
+                )
         _require(
             not decision.get("wrong_boundary") and not decision.get("correction"),
             "{} agrees with the flag but records a correction".format(key),
@@ -387,12 +419,6 @@ def apply_decisions(review, decisions, case):
         index = updated["candidate_verdicts"].index(entries[0])
         updated["candidate_verdicts"][index] = apply_verdict(entries[0], decision, case)
 
-    for key, decision in (decisions.get("review_flag_verdicts") or {}).items():
-        entries = [item for item in updated.get("review_flag_verdicts", []) if item["flag_key"] == key]
-        _require(entries, "{} is not an AI flag in this case".format(key))
-        index = updated["review_flag_verdicts"].index(entries[0])
-        updated["review_flag_verdicts"][index] = apply_flag_verdict(entries[0], decision, case)
-
     if "missing_items" in decisions:
         updated["missing_items"] = apply_missing_items(decisions["missing_items"], case)
 
@@ -422,6 +448,14 @@ def apply_decisions(review, decisions, case):
             "last_utterance_id": known[-1],
             "utterance_count": len(known),
         }
+
+    for key, decision in (decisions.get("review_flag_verdicts") or {}).items():
+        entries = [item for item in updated.get("review_flag_verdicts", []) if item["flag_key"] == key]
+        _require(entries, "{} is not an AI flag in this case".format(key))
+        index = updated["review_flag_verdicts"].index(entries[0])
+        updated["review_flag_verdicts"][index] = apply_flag_verdict(
+            entries[0], decision, case, updated.get("transcript_coverage")
+        )
 
     if "forbidden_inference" in decisions:
         block = decisions["forbidden_inference"]
@@ -470,6 +504,13 @@ def apply_decisions(review, decisions, case):
                 _require(str(item.get("kind") or "").strip(), "{} kind must not be blank".format(label))
             if item.get("evidence_utterance_ids"):
                 _check_ids(item["evidence_utterance_ids"], known, "{} evidence".format(label))
+            else:
+                _require(
+                    covers_whole_window(updated.get("transcript_coverage"), known),
+                    "{} cites nothing, so it needs a confirmed review of this exact window".format(
+                        label
+                    ),
+                )
         updated["ambiguities"] = items
 
     if "explicit_user_confirmation" in decisions:

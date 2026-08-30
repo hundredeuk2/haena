@@ -61,6 +61,7 @@ def full_decisions(case_id, statement_key, action_key):
         "review_flag_verdicts": {
             "review_flags[1]": {
                 "verdict": "agree",
+                "basis": "utterance",
                 "reason": "이미 수행 중인 관행 설명이므로 신규 업무가 아님",
                 "evidence_utterance_ids": ["U2"],
             }
@@ -682,13 +683,89 @@ class PrimaryReviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("review_flags[1].verdict", result.stderr)
 
-    def test_agreeing_with_a_flag_needs_a_reason_and_evidence(self):
+    def test_agreeing_on_an_utterance_basis_needs_evidence(self):
         self.assertEqual(self.template().returncode, 0)
         result = self.record({"review_flag_verdicts": {"review_flags[1]": {
-            "verdict": "agree", "reason": "관행 설명임",
+            "verdict": "agree", "basis": "utterance", "reason": "관행 설명임",
         }}})
         self.assertEqual(result.returncode, 1)
         self.assertIn("evidence needs at least one utterance ID", result.stderr)
+
+    def test_agreeing_with_a_flag_needs_a_basis(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "reason": "관행 설명임", "evidence_utterance_ids": ["U2"],
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs a basis from", result.stderr)
+
+    def test_a_flag_about_absence_needs_confirmed_coverage(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "basis": "absence_in_window",
+            "reason": "window 전체에 해당 주제가 없음", "evidence_utterance_ids": [],
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without a confirmed review of this exact window", result.stderr)
+
+    def test_a_flag_about_absence_may_not_cite_utterances(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({
+            "transcript_coverage": {"full_window_reviewed": True, "statement": "끝까지 확인"},
+            "review_flag_verdicts": {"review_flags[1]": {
+                "verdict": "agree", "basis": "absence_in_window",
+                "reason": "window 전체에 해당 주제가 없음", "evidence_utterance_ids": ["U1"],
+            }},
+        })
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("rests on absence_in_window but cites utterances", result.stderr)
+
+    def test_absence_cannot_borrow_coverage_of_a_different_window(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({
+            "transcript_coverage": {"full_window_reviewed": True, "statement": "끝까지 확인"},
+        }).returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["transcript_coverage"]["utterance_count"] = 2  # a partial pass
+        fixture.write_json(path, review)
+        result = self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "basis": "absence_in_window",
+            "reason": "window 전체에 해당 주제가 없음", "evidence_utterance_ids": [],
+        }}})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without a confirmed review of this exact window", result.stderr)
+
+    def test_a_flag_on_review_method_cites_nothing_and_needs_no_coverage(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"review_flag_verdicts": {"review_flags[1]": {
+            "verdict": "agree", "basis": "review_method",
+            "reason": "focus 라벨은 선정 strata이며 정답 수가 아님", "evidence_utterance_ids": [],
+        }}}).returncode, 0)
+        self.assertEqual(self.review()["review_flag_verdicts"][0]["basis"], "review_method")
+
+    def test_an_ambiguity_citing_nothing_needs_confirmed_coverage(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"ambiguities": [{
+            "kind": "metadata_transcript_mismatch",
+            "about": "메타데이터와 전사",
+            "statement": "window 전체에 메타데이터가 가리키는 주제가 없음",
+            "evidence_utterance_ids": [],
+        }]})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cites nothing, so it needs a confirmed review", result.stderr)
+
+    def test_a_completed_v0_2_review_reads_unchanged(self):
+        self.assertEqual(self.complete().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["schema_version"] = "haena-meeting-execution-primary-review-v0.2"
+        fixture.write_json(path, review)
+        before = path.read_bytes()
+        result = self.run_command("validate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(json.loads(result.stdout)["reviews"][0]["unresolved"], [])
+        self.assertEqual(path.read_bytes(), before)
 
     def test_rejecting_a_flag_needs_the_boundary_and_the_correction(self):
         self.assertEqual(self.template().returncode, 0)
@@ -711,7 +788,7 @@ class PrimaryReviewTests(unittest.TestCase):
     def test_a_flag_verdict_needs_a_reason(self):
         self.assertEqual(self.template().returncode, 0)
         result = self.record({"review_flag_verdicts": {"review_flags[1]": {
-            "verdict": "agree", "evidence_utterance_ids": ["U2"],
+            "verdict": "agree", "basis": "utterance", "evidence_utterance_ids": ["U2"],
         }}})
         self.assertEqual(result.returncode, 1)
         self.assertIn("needs the reviewer's reason", result.stderr)
@@ -719,7 +796,8 @@ class PrimaryReviewTests(unittest.TestCase):
     def test_a_flag_key_the_packet_does_not_have_is_refused(self):
         self.assertEqual(self.template().returncode, 0)
         result = self.record({"review_flag_verdicts": {"review_flags[2]": {
-            "verdict": "agree", "reason": "동의", "evidence_utterance_ids": ["U2"],
+            "verdict": "agree", "basis": "utterance", "reason": "동의",
+            "evidence_utterance_ids": ["U2"],
         }}})
         self.assertEqual(result.returncode, 1)
         self.assertIn("is not an AI flag in this case", result.stderr)

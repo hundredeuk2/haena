@@ -203,6 +203,23 @@ batch 1's four reviews validate unchanged, with byte-identical digests, and thei
 to v0.2, and `migrate` refuses any review that already holds a decision. Raw prior-state
 structure is not a scorer input before TM 2.8 normalization.
 
+## Flag basis — primary-review-v0.3, 2026-08-30
+
+`MEV0-015` carries an AI flag with no `related_utterance_id` at all: the case metadata names
+a school-construction meeting and the transcript is entirely about a welfare budget, so the
+flag's observation is that the window contains nothing on its stated topic. v0.2 required at
+least one utterance to agree with a flag, which meant a correct observation could only be
+recorded by rejecting it.
+
+A flag verdict now declares its basis, the same three the forbidden-inference list already
+used. `utterance` cites evidence; `absence_in_window` cites nothing and requires a confirmed
+review of this exact window — bounds compared against the case, so a partial pass cannot
+lend its confirmation to an absence claim; `review_method` cites nothing and makes no claim
+about the window. The same rule now covers an ambiguity recorded with no evidence.
+
+Migration stays read-forward. v0.1 and v0.2 reviews are never rewritten: all six completed
+reviews validate with byte-identical digests, and only the two untouched templates moved.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated

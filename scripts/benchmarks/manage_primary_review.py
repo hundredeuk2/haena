@@ -192,6 +192,9 @@ def command_migrate(args):
     review["schema_version"] = SCHEMA_VERSION
     review.pop("prior_state_expectation", None)
     review["prior_transition"] = None
+    # An untouched template holds no verdicts, so its flag entries can be rebuilt from the
+    # draft rather than patched field by field as the shape grows.
+    review["review_flag_verdicts"] = build_flag_entries(draft_of(args.benchmark_root, args.case_id))
     write_json(path, review)
     return {
         "command": "migrate",
