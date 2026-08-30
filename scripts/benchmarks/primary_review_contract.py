@@ -20,7 +20,8 @@ import json
 import re
 from pathlib import Path
 
-SCHEMA_VERSION = "haena-meeting-execution-primary-review-v0.1"
+SCHEMA_VERSION = "haena-meeting-execution-primary-review-v0.2"
+LEGACY_SCHEMA_VERSIONS = ("haena-meeting-execution-primary-review-v0.1",)
 REVIEWER_KIND = "human_user"
 REVIEW_DIRECTORY = "human-reviews/primary"
 CATEGORIES = ("decisions", "action_items", "open_questions", "next_agenda")
@@ -50,7 +51,21 @@ INFERENCE_CLASSES = ("explicit", "derived_proposal", "forbidden_inference")
 BASIS_STATUS = (
     "supported_by_utterance", "absent_must_stay_empty", "corrected", "explicit_relative",
 )
-PRIOR_STATE_STATUS = ("not_applicable", "expected")
+# v0.1 recorded a prior state as a free-form before/after pair. That could not say the one
+# thing MEV0-023 needs said: a prior *recording* exists in the corpus while no prior case,
+# Work State, or identity does. Free text would have let a transition be asserted over an
+# object that was never built, so the third status exists to record that gap as a finding
+# rather than as an absence of one.
+PRIOR_STATE_STATUS = ("not_applicable", "expected", "insufficient_prior_state")
+PRIOR_REFERENCE_KINDS = ("typed_case", "corpus_source_only", "absent")
+OBJECT_IDENTITY_DECISIONS = ("same_object", "separate_object", "undecidable")
+TRANSITION_KINDS = (
+    "new", "same", "changed", "completed", "deferred", "blocked", "resolved",
+)
+PRIOR_TRANSITION_KEYS = frozenset({
+    "status", "prior_reference", "object_identity", "transition_kind", "from_state",
+    "to_state", "evidence_utterance_ids", "reason",
+})
 AMBIGUITY_KEYS = frozenset({"about", "statement", "kind", "evidence_utterance_ids", "resolution"})
 # `kind` stays free-form through primary review and is normalized to a finite taxonomy (or
 # `other`) at TM 2.8. A raw value here is not an input to gold or to the scorer.
@@ -68,7 +83,7 @@ CANDIDATE_KEY = re.compile(r"(decisions|action_items|open_questions|next_agenda)
 
 DECISION_KEYS = frozenset({
     "candidate_verdicts", "review_flag_verdicts", "missing_items", "no_missing",
-    "forbidden_inference", "prior_state_expectation", "ambiguities",
+    "forbidden_inference", "prior_transition", "ambiguities",
     "explicit_user_confirmation", "review_status", "reviewed_at", "transcript_coverage",
 })
 VERDICT_KEYS = frozenset({
@@ -131,7 +146,7 @@ def build_template(case, draft, packet_sha256, case_sha256):
         "missing_items": [],
         "no_missing": {category: None for category in CATEGORIES},
         "forbidden_inference": {"checked": None, "items": []},
-        "prior_state_expectation": None,
+        "prior_transition": None,
         "ambiguities": [],
         "transcript_coverage": {
             "full_window_reviewed": None,
@@ -438,20 +453,8 @@ def apply_decisions(review, decisions, case):
                     )
         updated["forbidden_inference"] = {"checked": True, "items": items}
 
-    if "prior_state_expectation" in decisions:
-        block = decisions["prior_state_expectation"]
-        _require(isinstance(block, dict), "prior_state_expectation must be an object")
-        _require(
-            block.get("status") in PRIOR_STATE_STATUS,
-            "prior state status must be one of {}".format(PRIOR_STATE_STATUS),
-        )
-        if block["status"] == "not_applicable":
-            _require(str(block.get("reason") or "").strip(), "not_applicable needs the reviewer's reason")
-        else:
-            for field in ("target", "from_state", "to_state"):
-                _require(str(block.get(field) or "").strip(), "expected transition needs {}".format(field))
-            _check_ids(block.get("evidence_utterance_ids"), known, "prior state evidence")
-        updated["prior_state_expectation"] = block
+    if "prior_transition" in decisions:
+        updated["prior_transition"] = normalized_prior_transition(decisions["prior_transition"], known)
 
     if "ambiguities" in decisions:
         items = decisions["ambiguities"] or []
@@ -489,6 +492,114 @@ def apply_decisions(review, decisions, case):
     return updated
 
 
+def prior_transition_of(review):
+    """Read the prior-state block from a v0.2 review or a v0.1 one.
+
+    v0.1 files are never rewritten, so both shapes have to remain readable. Only the status
+    is shared between them, and only the status decides completeness.
+    """
+    if isinstance(review.get("prior_transition"), dict):
+        return review["prior_transition"]
+    legacy = review.get("prior_state_expectation")
+    return legacy if isinstance(legacy, dict) else None
+
+
+def normalized_prior_transition(block, known):
+    """Validate a prior-state judgment, or refuse to record a transition nobody can check."""
+    _require(isinstance(block, dict), "prior_transition must be an object")
+    unknown = sorted(set(block) - PRIOR_TRANSITION_KEYS)
+    _require(not unknown, "prior_transition carries unknown fields: {}".format(unknown))
+    status = block.get("status")
+    _require(status in PRIOR_STATE_STATUS, "prior status must be one of {}".format(PRIOR_STATE_STATUS))
+
+    reference = block.get("prior_reference") or {}
+    identity = block.get("object_identity") or {}
+    _require(isinstance(reference, dict), "prior_reference must be an object")
+    _require(isinstance(identity, dict), "object_identity must be an object")
+    kind = reference.get("kind")
+    decision = identity.get("decision")
+    transition = block.get("transition_kind")
+    evidence = block.get("evidence_utterance_ids") or []
+    _require(str(block.get("reason") or "").strip(), "prior_transition needs the reviewer's reason")
+    _require(
+        transition is None or transition in TRANSITION_KINDS,
+        "transition_kind must be one of {} or null".format(TRANSITION_KINDS),
+    )
+    _require(
+        decision is None or decision in OBJECT_IDENTITY_DECISIONS,
+        "object identity decision must be one of {}".format(OBJECT_IDENTITY_DECISIONS),
+    )
+    _require(
+        kind is None or kind in PRIOR_REFERENCE_KINDS,
+        "prior reference kind must be one of {}".format(PRIOR_REFERENCE_KINDS),
+    )
+
+    if status == "expected":
+        _require(kind == "typed_case", "an expected transition needs a typed prior case")
+        _require(
+            str(reference.get("prior_case_id") or "").strip(),
+            "an expected transition needs the prior case it points at",
+        )
+        _require(
+            decision != "undecidable" and decision is not None,
+            "an expected transition needs the object identity decided",
+        )
+        _require(transition is not None, "an expected transition needs a transition kind")
+        _require(str(block.get("to_state") or "").strip(), "an expected transition needs to_state")
+        if transition == "new":
+            _require(
+                block.get("from_state") in (None, ""),
+                "a new object has no previous state to record",
+            )
+        else:
+            _require(
+                str(block.get("from_state") or "").strip(),
+                "an expected transition needs from_state unless the object is new",
+            )
+        _check_ids(evidence, known, "prior transition evidence")
+    elif status == "insufficient_prior_state":
+        # A corpus recording is provenance, not an object. Nothing may be inferred from it.
+        _require(
+            kind == "corpus_source_only",
+            "insufficient_prior_state is for a corpus source with no typed case",
+        )
+        _require(
+            str(reference.get("prior_source_id") or "").strip(),
+            "insufficient_prior_state needs the corpus source it found",
+        )
+        _require(
+            reference.get("prior_case_id") is None,
+            "a corpus source without a typed case cannot name a prior case",
+        )
+        _require(
+            decision == "undecidable",
+            "object identity cannot be decided against a prior object that was never built",
+        )
+        _require(transition is None, "a transition cannot be chosen without a prior object")
+        _require(block.get("from_state") in (None, ""), "there is no prior state to record")
+    else:
+        _require(kind in (None, "absent"), "not_applicable cannot point at a prior reference")
+        _require(transition is None, "not_applicable records no transition")
+        _require(block.get("from_state") in (None, ""), "not_applicable records no previous state")
+        _require(block.get("to_state") in (None, ""), "not_applicable records no resulting state")
+        _require(not evidence, "not_applicable cites no transition evidence")
+
+    return {
+        "status": status,
+        "prior_reference": {
+            "kind": kind,
+            "prior_case_id": reference.get("prior_case_id"),
+            "prior_source_id": reference.get("prior_source_id"),
+        },
+        "object_identity": {"decision": decision, "reason": identity.get("reason")},
+        "transition_kind": transition,
+        "from_state": block.get("from_state"),
+        "to_state": block.get("to_state"),
+        "evidence_utterance_ids": evidence,
+        "reason": block["reason"],
+    }
+
+
 def unresolved_fields(review):
     """Everything a completion claim would be hiding."""
     unresolved = []
@@ -508,8 +619,8 @@ def unresolved_fields(review):
         unresolved.append("no_missing.{}".format(category))
     if (review.get("forbidden_inference") or {}).get("checked") is not True:
         unresolved.append("forbidden_inference.checked")
-    if not isinstance(review.get("prior_state_expectation"), dict):
-        unresolved.append("prior_state_expectation")
+    if not isinstance(prior_transition_of(review), dict):
+        unresolved.append("prior_transition")
     confirmation = review.get("explicit_user_confirmation")
     if not (isinstance(confirmation, dict) and confirmation.get("confirmed") is True):
         unresolved.append("explicit_user_confirmation")

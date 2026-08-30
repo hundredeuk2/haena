@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from primary_review_contract import (  # noqa: E402  (import path is set above)
     CATEGORIES,
     FLAG_VERDICTS,
+    LEGACY_SCHEMA_VERSIONS,
     REVIEW_DIRECTORY,
     SCHEMA_VERSION,
     VERDICTS,
@@ -33,6 +34,7 @@ from primary_review_contract import (  # noqa: E402  (import path is set above)
     apply_decisions,
     build_flag_entries,
     build_template,
+    prior_transition_of,
     sha256_of,
     unresolved_fields,
 )
@@ -59,6 +61,9 @@ def parse_args():
     record = sub.add_parser("record", help="apply a decision document")
     record.add_argument("--case-id", required=True)
     record.add_argument("--decisions", type=Path, required=True)
+
+    migrate = sub.add_parser("migrate", help="move an untouched template to the current schema")
+    migrate.add_argument("--case-id", required=True)
 
     validate = sub.add_parser("validate", help="judge one review or all of them")
     validate.add_argument("--case-id", action="append", default=[])
@@ -109,8 +114,8 @@ def load_review(benchmark_root, case_id, case_path, case):
     if not path.is_file():
         raise ReviewCommandError("{} has no review yet; run `template` first".format(case_id))
     review = json.loads(path.read_text(encoding="utf-8"))
-    if review.get("schema_version") != SCHEMA_VERSION:
-        raise ReviewCommandError("{} review is not {}".format(case_id, SCHEMA_VERSION))
+    if review.get("schema_version") not in (SCHEMA_VERSION,) + LEGACY_SCHEMA_VERSIONS:
+        raise ReviewCommandError("{} review is not a known primary-review schema".format(case_id))
     if review.get("case_id") != case_id:
         raise ReviewCommandError("{} review identifies as {}".format(case_id, review.get("case_id")))
     packet_sha = sha256_of(benchmark_root / PACKET_NAME)
@@ -152,6 +157,51 @@ def command_template(args):
     }
 
 
+def is_untouched(review):
+    """True when nothing a person decided has been recorded yet."""
+    if any(entry.get("verdict") for entry in review.get("candidate_verdicts", [])):
+        return False
+    if any(entry.get("verdict") for entry in review.get("review_flag_verdicts", [])):
+        return False
+    if review.get("missing_items") or review.get("ambiguities"):
+        return False
+    if any(value is not None for value in (review.get("no_missing") or {}).values()):
+        return False
+    if (review.get("forbidden_inference") or {}).get("checked") is not None:
+        return False
+    if (review.get("transcript_coverage") or {}).get("full_window_reviewed") is not None:
+        return False
+    if review.get("explicit_user_confirmation") or review.get("reviewed_at"):
+        return False
+    return prior_transition_of(review) is None
+
+
+def command_migrate(args):
+    """Move an empty template forward. A review with judgment in it is never rewritten."""
+    case_path, case = resolve_case(args.benchmark_root, args.case_id)
+    path, review = load_review(args.benchmark_root, args.case_id, case_path, case)
+    if review.get("schema_version") == SCHEMA_VERSION:
+        return {"command": "migrate", "case_id": args.case_id, "migrated": False,
+                "reason": "already {}".format(SCHEMA_VERSION)}
+    if not is_untouched(review):
+        raise ReviewCommandError(
+            "{} already holds review decisions; migrating it would rewrite a person's work".format(
+                args.case_id
+            )
+        )
+    review["schema_version"] = SCHEMA_VERSION
+    review.pop("prior_state_expectation", None)
+    review["prior_transition"] = None
+    write_json(path, review)
+    return {
+        "command": "migrate",
+        "case_id": args.case_id,
+        "migrated": True,
+        "schema_version": SCHEMA_VERSION,
+        "unresolved": len(unresolved_fields(review)),
+    }
+
+
 def command_record(args):
     case_path, case = resolve_case(args.benchmark_root, args.case_id)
     path, review = load_review(args.benchmark_root, args.case_id, case_path, case)
@@ -161,6 +211,13 @@ def command_record(args):
             "decision document is for {}, not {}".format(decisions.get("case_id"), args.case_id)
         )
     decisions.pop("case_id", None)
+    prior = decisions.get("prior_transition") or {}
+    reference = (prior.get("prior_reference") or {}) if isinstance(prior, dict) else {}
+    if reference.get("prior_case_id") and reference["prior_case_id"] not in development_ids(args.benchmark_root):
+        raise ReviewCommandError(
+            "prior case {} is not a development case; a typed reference must point at one that "
+            "exists".format(reference["prior_case_id"])
+        )
     if "reviewed_at" not in decisions and decisions.get("review_status") == "complete":
         decisions["reviewed_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     updated = apply_decisions(review, decisions, case)
@@ -240,7 +297,8 @@ def judge(benchmark_root, case_id):
         "missing_items": len(review["missing_items"]),
         "no_missing": {category: review["no_missing"][category] for category in CATEGORIES},
         "forbidden_inferences": len((review.get("forbidden_inference") or {}).get("items", [])),
-        "prior_state_status": (review.get("prior_state_expectation") or {}).get("status"),
+        "schema_version": review.get("schema_version"),
+        "prior_state_status": (prior_transition_of(review) or {}).get("status"),
         "full_window_reviewed": coverage.get("full_window_reviewed") is True,
         "ambiguities": len(review.get("ambiguities") or []),
         "explicit_user_confirmation": bool(
@@ -316,7 +374,12 @@ def main():
         if errors:
             raise SystemExit(1)
         return
-    handlers = {"template": command_template, "record": command_record, "audit": command_audit}
+    handlers = {
+        "template": command_template,
+        "migrate": command_migrate,
+        "record": command_record,
+        "audit": command_audit,
+    }
     print(json.dumps(handlers[args.command](args), ensure_ascii=False, indent=2))
 
 

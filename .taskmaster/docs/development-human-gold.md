@@ -179,6 +179,30 @@ structural migration may run automatically only when it invents no semantic valu
 contract requires a human decision that v0.1 did not capture, only the affected completed cases
 reopen and must be explicitly re-confirmed.
 
+## Prior-state contract — primary-review-v0.2, 2026-08-30
+
+`MEV0-023` is the first `prior_state_transition` case, and v0.1 could not record what it
+actually found. The prior recording `DGBED21000030` exists in the corpus, but no case was
+ever built from it: there is no prior case, no Work State, no UUID. v0.1 offered
+`not_applicable` or a free-text before/after pair, so the only way to record the truth was to
+either deny the prior source exists or assert a transition over an object that was never
+built.
+
+v0.2 replaces `prior_state_expectation` with `prior_transition` and adds a third status,
+`insufficient_prior_state`, which records the gap as a finding. It requires
+`corpus_source_only` provenance, an undecidable object identity, and a null transition kind —
+a corpus recording is provenance, not an object, so nothing may be inferred from it. An
+`expected` transition, by contrast, requires a typed prior case that exists in the
+development set, a decided identity, and a transition kind from a finite list
+(`new`/`same`/`changed`/`completed`/`deferred`/`blocked`/`resolved`) rather than free text
+that keyword matching could fill in.
+
+Migration is read-forward, not rewrite. v0.1 files stay readable and are never touched:
+batch 1's four reviews validate unchanged, with byte-identical digests, and their
+`not_applicable` judgments are not reopened. Only the four untouched batch 2 templates moved
+to v0.2, and `migrate` refuses any review that already holds a decision. Raw prior-state
+structure is not a scorer input before TM 2.8 normalization.
+
 ## Current gate
 
 TM 2.1 through TM 2.4 are `done`. Primary human review is 4 / 16, with batch 1 validated

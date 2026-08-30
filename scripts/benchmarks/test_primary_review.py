@@ -56,7 +56,7 @@ def full_decisions(case_id, statement_key, action_key):
             "decisions": True, "action_items": True, "open_questions": True, "next_agenda": True,
         },
         "forbidden_inference": {"checked": True, "items": []},
-        "prior_state_expectation": {"status": "not_applicable", "reason": "이전 회의 source 없음"},
+        "prior_transition": {"status": "not_applicable", "reason": "이전 회의 source 없음"},
         "ambiguities": [],
         "review_flag_verdicts": {
             "review_flags[1]": {
@@ -122,7 +122,7 @@ class PrimaryReviewTests(unittest.TestCase):
                 self.assertIsNone(entry[field], field)
         self.assertEqual(set(review["no_missing"].values()), {None})
         self.assertIsNone(review["explicit_user_confirmation"])
-        self.assertIsNone(review["prior_state_expectation"])
+        self.assertIsNone(review["prior_transition"])
 
     def test_template_carries_ai_text_only_as_labelled_traceability(self):
         self.assertEqual(self.template().returncode, 0)
@@ -301,10 +301,144 @@ class PrimaryReviewTests(unittest.TestCase):
     def test_prior_state_must_be_answered_even_when_not_applicable(self):
         self.assertEqual(self.template().returncode, 0)
         decisions = full_decisions(self.case_id, self.statement_key, self.action_key)
-        decisions.pop("prior_state_expectation")
+        decisions.pop("prior_transition")
         result = self.record(decisions)
         self.assertEqual(result.returncode, 1)
-        self.assertIn("prior_state_expectation", result.stderr)
+        self.assertIn("prior_transition", result.stderr)
+
+    def test_a_completed_v0_1_review_still_reads_and_validates_unchanged(self):
+        self.assertEqual(self.complete().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["schema_version"] = contract.LEGACY_SCHEMA_VERSIONS[0]
+        review["prior_state_expectation"] = review.pop("prior_transition")
+        fixture.write_json(path, review)
+        before = path.read_bytes()
+        result = self.run_command("validate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        entry, = json.loads(result.stdout)["reviews"]
+        self.assertEqual(entry["review_status"], "complete")
+        self.assertEqual(entry["unresolved"], [])
+        self.assertEqual(entry["prior_state_status"], "not_applicable")
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_an_untouched_v0_1_template_migrates_losslessly(self):
+        self.assertEqual(self.template().returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["schema_version"] = contract.LEGACY_SCHEMA_VERSIONS[0]
+        review["prior_state_expectation"] = review.pop("prior_transition")
+        fixture.write_json(path, review)
+        before = json.loads(path.read_text(encoding="utf-8"))
+
+        result = self.run_command("migrate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(json.loads(result.stdout)["migrated"])
+        after = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(after["schema_version"], contract.SCHEMA_VERSION)
+        self.assertNotIn("prior_state_expectation", after)
+        self.assertIsNone(after["prior_transition"])
+        for key in ("candidate_verdicts", "review_flag_verdicts", "no_missing", "missing_items"):
+            self.assertEqual(after[key], before[key])
+
+    def test_a_review_with_decisions_in_it_is_never_migrated(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"no_missing": {"decisions": True}}).returncode, 0)
+        path = self.benchmark_root / contract.REVIEW_DIRECTORY / "{}.review.json".format(self.case_id)
+        review = json.loads(path.read_text(encoding="utf-8"))
+        review["schema_version"] = contract.LEGACY_SCHEMA_VERSIONS[0]
+        fixture.write_json(path, review)
+        before = path.read_bytes()
+        result = self.run_command("migrate", "--case-id", self.case_id)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("would rewrite a person's work", result.stderr)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_a_corpus_source_cannot_be_called_the_same_object(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"prior_transition": {
+            "status": "insufficient_prior_state",
+            "prior_reference": {"kind": "corpus_source_only", "prior_source_id": "SRC-030"},
+            "object_identity": {"decision": "same_object", "reason": "같은 회의 시리즈"},
+            "reason": "prior case가 없음",
+        }})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("object identity cannot be decided", result.stderr)
+
+    def test_a_corpus_source_cannot_carry_a_transition_kind(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"prior_transition": {
+            "status": "insufficient_prior_state",
+            "prior_reference": {"kind": "corpus_source_only", "prior_source_id": "SRC-030"},
+            "object_identity": {"decision": "undecidable", "reason": "prior object 없음"},
+            "transition_kind": "changed",
+            "reason": "prior case가 없음",
+        }})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("transition cannot be chosen without a prior object", result.stderr)
+
+    def test_an_expected_transition_needs_a_typed_prior_case(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"prior_transition": {
+            "status": "expected",
+            "prior_reference": {"kind": "corpus_source_only", "prior_source_id": "SRC-030"},
+            "object_identity": {"decision": "same_object", "reason": "동일 안건"},
+            "transition_kind": "changed",
+            "from_state": "검토 중", "to_state": "의결",
+            "evidence_utterance_ids": ["U1"],
+            "reason": "전이 확인",
+        }})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs a typed prior case", result.stderr)
+
+    def test_a_typed_prior_case_must_be_a_development_case(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"prior_transition": {
+            "status": "expected",
+            "prior_reference": {"kind": "typed_case", "prior_case_id": "MEV0-999"},
+            "object_identity": {"decision": "same_object", "reason": "동일 안건"},
+            "transition_kind": "changed",
+            "from_state": "검토 중", "to_state": "의결",
+            "evidence_utterance_ids": ["U1"],
+            "reason": "전이 확인",
+        }})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is not a development case", result.stderr)
+
+    def test_insufficient_prior_state_needs_the_reviewer_reason(self):
+        self.assertEqual(self.template().returncode, 0)
+        result = self.record({"prior_transition": {
+            "status": "insufficient_prior_state",
+            "prior_reference": {"kind": "corpus_source_only", "prior_source_id": "SRC-030"},
+            "object_identity": {"decision": "undecidable", "reason": "prior object 없음"},
+        }})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("needs the reviewer's reason", result.stderr)
+
+    def test_insufficient_prior_state_records_the_gap_as_a_finding(self):
+        self.assertEqual(self.template().returncode, 0)
+        self.assertEqual(self.record({"prior_transition": {
+            "status": "insufficient_prior_state",
+            "prior_reference": {"kind": "corpus_source_only", "prior_source_id": "SRC-030"},
+            "object_identity": {"decision": "undecidable", "reason": "prior object가 만들어진 적 없음"},
+            "reason": "corpus에 이전 회차 녹취는 있으나 typed case와 Work State가 없음",
+        }}).returncode, 0)
+        block = self.review()["prior_transition"]
+        self.assertEqual(block["status"], "insufficient_prior_state")
+        self.assertIsNone(block["transition_kind"])
+        self.assertIsNone(block["prior_reference"]["prior_case_id"])
+
+    def test_no_sealed_file_is_opened_by_any_review_command(self):
+        sealed = sorted(
+            row["case_id"] for row in repair.read_jsonl(self.benchmark_root / "source-index.jsonl")
+            if row["split"] == "sealed_holdout"
+        )
+        self.assertEqual(self.complete().returncode, 0)
+        for command in (("template",), ("migrate",), ("validate",)):
+            for case_id in sealed:
+                result = self.run_command(*command, "--case-id", case_id)
+                self.assertEqual(result.returncode, 1, command)
+                self.assertIn("is not a development case", result.stderr)
 
     def test_an_ambiguity_is_kept_rather_than_hidden(self):
         self.assertEqual(self.template().returncode, 0)
