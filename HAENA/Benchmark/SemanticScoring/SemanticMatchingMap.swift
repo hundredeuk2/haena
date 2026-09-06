@@ -121,11 +121,52 @@ struct SemanticDuplicatePredictionDeclaration: Codable, Comparable, Equatable, H
     }
 }
 
-/// Human-authored exact pairings. v0.1 remains pair-only. v0.2 adds explicit duplicate
-/// declarations without changing pair semantics or inferring equivalence from text.
+/// A reviewer-authored declaration that one exact prediction violates one exact forbidden record.
+/// The declaration exposes identities only; it contains no title, body, name, or transcript text.
+struct SemanticForbiddenPredictionDeclaration: Codable, Comparable, Equatable, Hashable, Sendable {
+    let prediction: SemanticPredictionReference
+    let forbiddenInferenceID: String
+    let outputKind: SemanticScoringOutputKind
+
+    static func < (
+        lhs: SemanticForbiddenPredictionDeclaration,
+        rhs: SemanticForbiddenPredictionDeclaration
+    ) -> Bool {
+        if lhs.outputKind != rhs.outputKind {
+            return lhs.outputKind.forbiddenDeclarationSortOrder
+                < rhs.outputKind.forbiddenDeclarationSortOrder
+        }
+        if lhs.prediction != rhs.prediction {
+            return lhs.prediction < rhs.prediction
+        }
+        return lhs.forbiddenInferenceID < rhs.forbiddenInferenceID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case prediction
+        case forbiddenInferenceID = "forbidden_inference_id"
+        case outputKind = "output_kind"
+    }
+}
+
+private extension SemanticScoringOutputKind {
+    var forbiddenDeclarationSortOrder: Int {
+        switch self {
+        case .decision: 0
+        case .actionItem: 1
+        case .openQuestion: 2
+        case .nextAgenda: 3
+        }
+    }
+}
+
+/// Human-authored exact relationships. v0.1 remains pair-only, v0.2 adds explicit duplicate
+/// declarations, and v0.3 adds exact forbidden-inference declarations. Earlier wire versions keep
+/// their original serialized shape and meaning.
 struct SemanticMatchingMap: Codable, Equatable, Sendable {
     static let schemaVersion = "haena-semantic-matching-map-v0.1"
     static let duplicateSchemaVersion = "haena-semantic-matching-map-v0.2"
+    static let forbiddenInferenceSchemaVersion = "haena-semantic-matching-map-v0.3"
     static let policyVersion = "haena-explicit-one-to-one-v0.1"
 
     let schemaVersion: String
@@ -137,6 +178,7 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
     let goldInputHash: String
     let pairs: [SemanticMatchingPair]
     let duplicatePredictions: [SemanticDuplicatePredictionDeclaration]
+    let forbiddenPredictions: [SemanticForbiddenPredictionDeclaration]
 
     init(
         schemaVersion: String = Self.schemaVersion,
@@ -145,7 +187,8 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         predictionArtifactHash: String,
         goldInputHash: String,
         pairs: [SemanticMatchingPair],
-        duplicatePredictions: [SemanticDuplicatePredictionDeclaration] = []
+        duplicatePredictions: [SemanticDuplicatePredictionDeclaration] = [],
+        forbiddenPredictions: [SemanticForbiddenPredictionDeclaration] = []
     ) {
         self.schemaVersion = schemaVersion
         self.policyVersion = policyVersion
@@ -154,6 +197,7 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         self.goldInputHash = goldInputHash
         self.pairs = pairs.sorted()
         self.duplicatePredictions = duplicatePredictions.sorted()
+        self.forbiddenPredictions = forbiddenPredictions.sorted()
     }
 
     static var encoder: JSONEncoder {
@@ -178,6 +222,10 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
             [SemanticDuplicatePredictionDeclaration].self,
             forKey: .duplicatePredictions
         )?.sorted() ?? []
+        forbiddenPredictions = try container.decodeIfPresent(
+            [SemanticForbiddenPredictionDeclaration].self,
+            forKey: .forbiddenPredictions
+        )?.sorted() ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -191,6 +239,9 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         if schemaVersion != Self.schemaVersion || !duplicatePredictions.isEmpty {
             try container.encode(duplicatePredictions, forKey: .duplicatePredictions)
         }
+        if schemaVersion == Self.forbiddenInferenceSchemaVersion || !forbiddenPredictions.isEmpty {
+            try container.encode(forbiddenPredictions, forKey: .forbiddenPredictions)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -201,5 +252,6 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         case goldInputHash = "gold_input_hash"
         case pairs
         case duplicatePredictions = "duplicate_predictions"
+        case forbiddenPredictions = "forbidden_predictions"
     }
 }

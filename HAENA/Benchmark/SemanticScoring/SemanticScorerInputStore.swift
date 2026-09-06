@@ -60,6 +60,13 @@ struct SemanticScorerAuthorizationRequest: Equatable, Sendable {
     let matchingMap: SemanticMatchingMap
 }
 
+/// Metric authorization extends the existing scorer gate with a complete typed observation
+/// inventory. It does not weaken or replace the metadata-only authorization request.
+struct SemanticMetricAuthorizationRequest: Equatable, Sendable {
+    let scorerRequest: SemanticScorerAuthorizationRequest
+    let predictionObservations: SemanticPredictionMetricObservationSet
+}
+
 /// A development-only payload-read capability. Its initializer and source metadata are file-private,
 /// so no external caller can forge one from a raw or stale index entry.
 struct AuthorizedSemanticScorerEntry: Equatable, Sendable {
@@ -74,6 +81,13 @@ struct AuthorizedSemanticScorerEntry: Equatable, Sendable {
     var predictionArtifactHash: String { sourceEntry.predictionArtifactHash }
     var goldInputHash: String { sourceEntry.goldInputHash }
     var matchingPolicyVersion: String { sourceEntry.matchingPolicyVersion }
+}
+
+/// Pre-open metric capability. It can only wrap an entry that passed the existing metadata gate
+/// and whose observation inventory passed exact identity and typed-shape validation.
+struct AuthorizedSemanticMetricScorerEntry: Equatable, Sendable {
+    fileprivate let scorerEntry: AuthorizedSemanticScorerEntry
+    fileprivate let predictionObservations: SemanticPredictionMetricObservationSet
 }
 
 /// The only value accepted by the accounting core. Its initializer is file-private, so callers
@@ -91,6 +105,22 @@ struct AuthorizedSemanticScoringCase: Equatable, Sendable {
         self.input = input
         self.availablePredictions = availablePredictions.sorted()
         self.matchingMap = matchingMap
+    }
+}
+
+/// The only value accepted by the policy-sensitive metric core. Construction requires metadata
+/// authorization, verified raw gold bytes, payload validation, observation validation, and final
+/// forbidden-record resolution.
+struct AuthorizedSemanticMetricScoringCase: Equatable, Sendable {
+    let scoringCase: AuthorizedSemanticScoringCase
+    let predictionObservations: [SemanticPredictionMetricObservation]
+
+    fileprivate init(
+        scoringCase: AuthorizedSemanticScoringCase,
+        predictionObservations: [SemanticPredictionMetricObservation]
+    ) {
+        self.scoringCase = scoringCase
+        self.predictionObservations = predictionObservations.sorted()
     }
 }
 
@@ -128,6 +158,21 @@ enum SemanticScorerRefusal: Error, Codable, CaseIterable, Equatable, Sendable {
     case duplicatePredictionIsPaired
     case duplicateCanonicalNotPaired
     case duplicateOfDuplicate
+    case forbiddenDeclarationsUnsupported
+    case forbiddenDeclarationRepeated
+    case forbiddenDeclarationConflict
+    case danglingForbiddenPredictionReference
+    case crossCaseForbiddenDeclaration
+    case crossKindForbiddenDeclaration
+    case forbiddenPredictionIsPaired
+    case forbiddenPredictionIsDuplicate
+    case danglingForbiddenInferenceReference
+    case forbiddenInferenceKindMismatch
+    case unknownPredictionObservationVersion
+    case duplicatePredictionObservation
+    case missingPredictionObservation
+    case additionalPredictionObservation
+    case malformedPredictionObservation
     case danglingPredictionReference
     case danglingGoldReference
     case crossCasePair
@@ -259,7 +304,14 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             guard request.matchingMap.duplicatePredictions.isEmpty else {
                 throw SemanticScorerRefusal.duplicateDeclarationsUnsupported
             }
+            guard request.matchingMap.forbiddenPredictions.isEmpty else {
+                throw SemanticScorerRefusal.forbiddenDeclarationsUnsupported
+            }
         case SemanticMatchingMap.duplicateSchemaVersion:
+            guard request.matchingMap.forbiddenPredictions.isEmpty else {
+                throw SemanticScorerRefusal.forbiddenDeclarationsUnsupported
+            }
+        case SemanticMatchingMap.forbiddenInferenceSchemaVersion:
             break
         default:
             throw SemanticScorerRefusal.unknownMatchingMapVersion
@@ -275,6 +327,22 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             sourceEntry: entry,
             availablePredictions: request.availablePredictions.sorted(),
             matchingMap: request.matchingMap
+        )
+    }
+
+    /// Extends the scorer capability with a complete versioned observation inventory. Every
+    /// refusal still occurs before a payload path exists or a payload file is opened.
+    func authorizeMetrics(
+        _ request: SemanticMetricAuthorizationRequest
+    ) throws -> AuthorizedSemanticMetricScorerEntry {
+        let scorerEntry = try authorize(request.scorerRequest)
+        try Self.validatePredictionObservations(
+            request.predictionObservations,
+            availablePredictions: scorerEntry.availablePredictions
+        )
+        return AuthorizedSemanticMetricScorerEntry(
+            scorerEntry: scorerEntry,
+            predictionObservations: request.predictionObservations
         )
     }
 
@@ -309,10 +377,26 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         for authorizedEntry: AuthorizedSemanticScorerEntry
     ) throws -> AuthorizedSemanticScoringCase {
         let input = try loadInput(for: authorizedEntry)
+        try Self.validateForbiddenDeclarationsAgainstPayload(
+            authorizedEntry.matchingMap.forbiddenPredictions,
+            input: input
+        )
         return AuthorizedSemanticScoringCase(
             input: input,
             availablePredictions: authorizedEntry.availablePredictions,
             matchingMap: authorizedEntry.matchingMap
+        )
+    }
+
+    /// Opens the already-authorized payload, verifies its raw-byte digest through `loadInput`, and
+    /// only then resolves reviewer-authored forbidden IDs against the decoded payload inventory.
+    func loadMetricScoringCase(
+        for authorizedEntry: AuthorizedSemanticMetricScorerEntry
+    ) throws -> AuthorizedSemanticMetricScoringCase {
+        let scoringCase = try loadScoringCase(for: authorizedEntry.scorerEntry)
+        return AuthorizedSemanticMetricScoringCase(
+            scoringCase: scoringCase,
+            predictionObservations: authorizedEntry.predictionObservations.observations
         )
     }
 
@@ -414,6 +498,14 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             pairedPredictions: usedPredictions,
             request: request
         )
+        try validateForbiddenDeclarations(
+            map.forbiddenPredictions,
+            map: map,
+            predictions: predictions,
+            pairedPredictions: usedPredictions,
+            duplicatePredictions: Set(map.duplicatePredictions.map(\.duplicate)),
+            request: request
+        )
     }
 
     private static func validateDuplicateDeclarations(
@@ -464,6 +556,171 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         }
         guard canonicalPredictions.isSubset(of: pairedPredictions) else {
             throw SemanticScorerRefusal.duplicateCanonicalNotPaired
+        }
+    }
+
+    private static func validateForbiddenDeclarations(
+        _ declarations: [SemanticForbiddenPredictionDeclaration],
+        map: SemanticMatchingMap,
+        predictions: Set<SemanticPredictionReference>,
+        pairedPredictions: Set<SemanticPredictionReference>,
+        duplicatePredictions: Set<SemanticPredictionReference>,
+        request: SemanticScorerAuthorizationRequest
+    ) throws {
+        guard Set(declarations).count == declarations.count else {
+            throw SemanticScorerRefusal.forbiddenDeclarationRepeated
+        }
+
+        var forbiddenIDByPrediction: [SemanticPredictionReference: String] = [:]
+        for declaration in declarations {
+            let prediction = declaration.prediction
+            guard prediction.caseID == map.caseID else {
+                throw SemanticScorerRefusal.crossCaseForbiddenDeclaration
+            }
+            guard prediction.kind == declaration.outputKind else {
+                throw SemanticScorerRefusal.crossKindForbiddenDeclaration
+            }
+            guard prediction.artifactFingerprint == request.predictionArtifactFingerprint.rawValue else {
+                throw SemanticScorerRefusal.predictionArtifactHashMismatch
+            }
+            guard predictions.contains(prediction) else {
+                throw SemanticScorerRefusal.danglingForbiddenPredictionReference
+            }
+            guard isSafeIdentifier(declaration.forbiddenInferenceID, maximumLength: 120) else {
+                throw SemanticScorerRefusal.invalidIdentity
+            }
+            guard !pairedPredictions.contains(prediction) else {
+                throw SemanticScorerRefusal.forbiddenPredictionIsPaired
+            }
+            guard !duplicatePredictions.contains(prediction) else {
+                throw SemanticScorerRefusal.forbiddenPredictionIsDuplicate
+            }
+            if let existing = forbiddenIDByPrediction[prediction],
+               existing != declaration.forbiddenInferenceID {
+                throw SemanticScorerRefusal.forbiddenDeclarationConflict
+            }
+            forbiddenIDByPrediction[prediction] = declaration.forbiddenInferenceID
+        }
+    }
+
+    private static func validatePredictionObservations(
+        _ observationSet: SemanticPredictionMetricObservationSet,
+        availablePredictions: [SemanticPredictionReference]
+    ) throws {
+        guard observationSet.schemaVersion == SemanticPredictionMetricObservationSet.schemaVersion,
+              observationSet.observations.allSatisfy({
+                  $0.schemaVersion == SemanticPredictionMetricObservation.schemaVersion
+              }) else {
+            throw SemanticScorerRefusal.unknownPredictionObservationVersion
+        }
+
+        let references = observationSet.observations.map(\.predictionReference)
+        guard Set(references).count == references.count else {
+            throw SemanticScorerRefusal.duplicatePredictionObservation
+        }
+        let expected = Set(availablePredictions)
+        let actual = Set(references)
+        guard actual.isSubset(of: expected) else {
+            throw SemanticScorerRefusal.additionalPredictionObservation
+        }
+        guard expected.isSubset(of: actual) else {
+            throw SemanticScorerRefusal.missingPredictionObservation
+        }
+
+        for observation in observationSet.observations {
+            try validate(observation)
+        }
+    }
+
+    private static func validate(_ observation: SemanticPredictionMetricObservation) throws {
+        switch observation.evidence.state {
+        case .known:
+            guard isValidEvidence(observation.evidence.utteranceIDs) else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .absent:
+            guard observation.evidence.utteranceIDs.isEmpty else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .unresolved:
+            guard isUniqueSafeReferences(observation.evidence.utteranceIDs) else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        }
+
+        try validate(observation.assignee)
+        try validate(observation.due)
+
+        if observation.predictionReference.kind != .actionItem {
+            guard observation.targetResponsibility == .noResponsibilityAssigned,
+                  observation.assignee.state == .absent,
+                  observation.due.status == .absent else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        }
+    }
+
+    private static func validate(_ assignee: SemanticPredictionAssigneeObservation) throws {
+        guard isUniqueSafeReferences(assignee.evidenceUtteranceIDs),
+              assignee.valueReference.map({ isSafeIdentifier($0, maximumLength: 120) }) ?? true else {
+            throw SemanticScorerRefusal.malformedPredictionObservation
+        }
+        switch assignee.state {
+        case .known:
+            guard assignee.scope != nil,
+                  let basis = assignee.basis,
+                  basis != .absentMustStayEmpty,
+                  assignee.valueReference != nil,
+                  !assignee.evidenceUtteranceIDs.isEmpty else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .absent:
+            guard assignee.scope == nil,
+                  assignee.basis == nil,
+                  assignee.valueReference == nil,
+                  assignee.evidenceUtteranceIDs.isEmpty else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .unresolved, .incomparable:
+            break
+        }
+    }
+
+    private static func validate(_ due: SemanticPredictionDueObservation) throws {
+        guard isUniqueSafeReferences(due.evidenceUtteranceIDs),
+              due.value.map({
+                  !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 120
+              }) ?? true else {
+            throw SemanticScorerRefusal.malformedPredictionObservation
+        }
+        switch due.status {
+        case .explicit, .explicitRelative:
+            guard due.value != nil, !due.evidenceUtteranceIDs.isEmpty else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .absent:
+            guard due.value == nil, due.evidenceUtteranceIDs.isEmpty else {
+                throw SemanticScorerRefusal.malformedPredictionObservation
+            }
+        case .unresolved, .incomparable:
+            break
+        }
+    }
+
+    private static func validateForbiddenDeclarationsAgainstPayload(
+        _ declarations: [SemanticForbiddenPredictionDeclaration],
+        input: SemanticScorerInput
+    ) throws {
+        let forbiddenByID = Dictionary(uniqueKeysWithValues: input.forbiddenInferences.map {
+            ($0.id, $0)
+        })
+        for declaration in declarations {
+            guard let forbidden = forbiddenByID[declaration.forbiddenInferenceID] else {
+                throw SemanticScorerRefusal.danglingForbiddenInferenceReference
+            }
+            guard forbidden.outputKind == declaration.outputKind else {
+                throw SemanticScorerRefusal.forbiddenInferenceKindMismatch
+            }
         }
     }
 
