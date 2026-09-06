@@ -222,11 +222,11 @@
             "dependencies": [
               "2.8"
             ],
-            "details": "The second reviewer must not be this contaminated session for sealed work and must not merely accept model suggestions. Record agreement, disagreement, adjudication, and unresolved ambiguity. If only one human is available, use a separated blinded second pass and record that limitation explicitly rather than claiming inter-rater agreement.",
-            "status": "in-progress",
+            "details": "Paused as an explicit pilot after five completed cases: MEV0-004 through MEV0-008. Eleven cases remain in progress with 138 unresolved fields. The recorded blind guard counts are primary_reads 0, gold_draft_reads 0, primary_audit_reads 0, notion_reads 0, and network_calls 0. Do not claim session-level sealed_access 0: a recursive checkpoint search returned one split metadata line from at least one sealed case after the five reviews, and the exact access count was not instrumented. No sealed semantic content was shown, but this session is not eligible as an independent sealed evaluator. Resume at MEV0-010 only in a separately authorized review task. Do not compare, adjudicate, freeze gold, or score while this subtask is deferred.",
+            "status": "deferred",
             "testStrategy": "Every case has second-review provenance; disagreements are enumerated and adjudicated or explicitly ambiguous; no hidden overwrite of primary decisions.",
             "parentId": "undefined",
-            "updatedAt": "2026-08-30T14:31:52.251Z"
+            "updatedAt": "2026-09-06T11:20:50.000Z"
           },
           {
             "id": 10,
@@ -242,13 +242,115 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-08-30T14:31:52.251Z"
+        "updatedAt": "2026-09-06T11:20:50.000Z"
+      },
+      {
+        "id": "3",
+        "title": "Implement gold-independent semantic scorer and regression report",
+        "description": "Build deterministic scoring and regression-report infrastructure now, without waiting for unfinished secondary review and without consuming real development or sealed gold.",
+        "details": "Notion page 3bbf6cd22fd5816f81dfd188dc3dc744 is the authority. Work on codex/semantic-scorer-regression-report from 5b5aeeb. Preserve the existing unscored PredictionArtifact and BenchmarkRunner semantics. The scorer must accept only an explicitly authorized, versioned scorer-ready gold input; all implementation and verification in this task use synthetic typed fixtures. Do not read human-reviews/primary, human-reviews/secondary, human-reviews/gold-draft, sealed payloads, or real development gold. Do not produce a development or holdout score, tune a prompt/model, call an external provider, or invent semantic equivalence with fuzzy text, keywords, or regex.",
+        "testStrategy": "Use synthetic-only zero, perfect, miss, duplicate, over-inference, pending-gold, unauthorized-split, and deterministic-serialization fixtures. Run focused scorer and benchmark tests plus the directly affected app/CLI builds. Report exact numerator/denominator and unavailable states; defer real-corpus scoring until development gold is finalized and explicitly authorized.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit prediction, gold, and report boundaries",
+            "description": "Trace the current unscored prediction pipeline and define the smallest scorer boundary before changing product or benchmark code.",
+            "dependencies": [],
+            "details": "Read PredictionArtifact, BenchmarkRunner, BenchmarkCommandLine, BenchmarkCaseFile/Store, canonical gold schemas, and existing audio-scoring patterns. Identify which fields are stable typed identities and which require a future versioned human matching policy. Record the exact files and contracts that must remain unchanged. Do not open primary, secondary, gold-draft, sealed, or real case payloads. Stop and report if deterministic pairing cannot be defined without semantic inference.",
+            "status": "pending",
+            "testStrategy": "Read-only source audit, synthetic schema inspection, Git baseline, Task Master dependency validation, and explicit forbidden-path counters or static checks. No semantic corpus reads and no product-code mutation.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 2,
+            "title": "Define versioned scorer input and authorization gate",
+            "description": "Add a separate typed scorer input that can represent confirmed gold without weakening the existing unscored artifact contract.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Require an explicit schema version, scorer-ready status, development-only authorization, case identity, four typed output collections, evidence references, responsibility, assignee, due, forbidden-inference, and ambiguity policy fields. Pending, primary-normalized, secondary-in-progress, unknown-version, sealed, and missing-authorization inputs must fail closed before payload evaluation. Keep matching policy injected and versioned; do not provide a fuzzy default.",
+            "status": "pending",
+            "testStrategy": "Synthetic decoding and gate tests for authorized development input plus every refusal path. Assert existing PredictionArtifact bytes/schema and unscored reports remain unchanged.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 3,
+            "title": "Implement deterministic output matching and accounting core",
+            "description": "Compute per-kind TP, FP, FN, and duplicate counts from explicit typed pairings without semantic guesswork.",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Score Decision, Action Item, Open Question, and Next Agenda separately. Consume exact canonical identities or an explicitly supplied versioned matching map; never infer equivalence from title similarity or transcript text. A prediction may match at most one gold item and vice versa. Count duplicate predictions separately while keeping the TP/FP/FN ledger auditable.",
+            "status": "pending",
+            "testStrategy": "Synthetic zero, perfect, one miss, one extra, duplicate, cross-kind, conflicting-map, and order-independence tests with exact ledger assertions.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 4,
+            "title": "Add evidence and policy-sensitive metrics",
+            "description": "Measure evidence attribution, target-speaker responsibility, assignee, due date, and forbidden inference without hiding unavailable denominators.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "For matched outputs only, calculate evidence-utterance attribution accuracy. Report target speaker B Action Item precision/recall/F1 separately. Split assignee and due metrics by explicit, derived proposal, and forbidden inference policy. Preserve unknown, unresolved, and ineligible states instead of coercing them to false or zero. Every metric must expose numerator, denominator, and availability reason.",
+            "status": "pending",
+            "testStrategy": "Synthetic mixed-policy fixtures covering empty denominators, partial evidence, organization versus individual assignee, absent due date, relative due date, forbidden attribution, and scorer-ineligible prior state.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 5,
+            "title": "Build per-case diff and aggregate regression report",
+            "description": "Serialize an auditable report that retains each discrepancy before computing aggregate metrics.",
+            "dependencies": [
+              "3.4"
+            ],
+            "details": "Emit deterministic per-case matched, missed, extra, duplicate, evidence, responsibility, assignee, due, forbidden, ambiguity, and ineligible records, followed by aggregate counts and precision/recall/F1 with numerator and denominator. Do not include transcript text, local absolute paths, credentials, or reviewer notes in the shareable report.",
+            "status": "pending",
+            "testStrategy": "Golden synthetic report fixtures, stable sort rules, repeated-run byte identity, privacy-string scans, and aggregate reconciliation against the per-case ledger.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 6,
+            "title": "Wire an explicit fail-closed CLI scoring mode",
+            "description": "Expose scoring only through a deliberate command while keeping the current unscored benchmark path as the default.",
+            "dependencies": [
+              "3.5"
+            ],
+            "details": "Add a separate CLI mode and output path that requires the scorer authorization contract. Default benchmark execution must remain unscored. Refuse pending gold, unfinished secondary provenance, sealed split without an explicit future sealed authorization, unknown policy versions, and output collisions. Do not add timers, network calls, provider access, or automatic model runs.",
+            "status": "pending",
+            "testStrategy": "CLI synthetic success plus refusal tests; verify default commands never read gold; verify existing prediction/report tests remain green and outputs are not overwritten silently.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          },
+          {
+            "id": 7,
+            "title": "Verify, checkpoint, and synchronize the scorer foundation",
+            "description": "Close the engineering slice with proportional verification and a precise handoff to unfinished human gold.",
+            "dependencies": [
+              "3.6"
+            ],
+            "details": "Run focused synthetic scorer suites, directly affected benchmark suites, Debug app and Benchmark CLI builds, Release/privacy isolation where new test seams exist, and git diff --check. Reconcile all Notion acceptance criteria without claiming a real baseline. Commit and push each coherent implementation checkpoint. Keep actual development scoring, sealed baseline, prompt tuning, PR, merge, tag, release, and publication behind separate approval.",
+            "status": "pending",
+            "testStrategy": "Exact pass/fail/skip counts, deterministic report hashes, forbidden-path/read counts, Git ahead/behind, preserved unrelated untracked files, and Notion re-fetch after updates.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-06T11:20:50.000Z"
+          }
+        ],
+        "updatedAt": "2026-09-06T11:20:50.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-08-30T14:31:52.251Z",
-      "taskCount": 2,
+      "lastModified": "2026-09-06T11:20:50.000Z",
+      "taskCount": 3,
       "completedCount": 1,
       "tags": [
         "master"
