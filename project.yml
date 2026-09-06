@@ -98,6 +98,7 @@ targets:
           - BenchmarkPrivacyTests.swift
           - BenchmarkRepositoryIsolationTests.swift
           - BenchmarkRunnerTests.swift
+          - SemanticScorerInputStoreTests.swift
           - AudioBenchmarkIsolationTests.swift
           - AudioBenchmarkRunnerTests.swift
           - AudioBenchmarkScorerTests.swift
@@ -176,6 +177,7 @@ targets:
       - path: HAENATests/BenchmarkPrivacyTests.swift
       - path: HAENATests/BenchmarkRepositoryIsolationTests.swift
       - path: HAENATests/BenchmarkRunnerTests.swift
+      - path: HAENATests/SemanticScorerInputStoreTests.swift
       - path: HAENATests/AudioBenchmarkIsolationTests.swift
       - path: HAENATests/AudioBenchmarkRunnerTests.swift
       - path: HAENATests/AudioBenchmarkScorerTests.swift
