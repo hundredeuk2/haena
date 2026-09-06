@@ -97,6 +97,7 @@
 		49CDB731811895B1842BDF39 /* Transcription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425F6F0A2791D7F754764AF3 /* Transcription.swift */; };
 		4B564D64111094CBFBFCFD62 /* AgentLedgerRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B98B2B006EED0B09AFA71D /* AgentLedgerRepository.swift */; };
 		4C12F1F05F55A1469F9B9D41 /* RecordingScratchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEE53E0CAE39A2200544C21 /* RecordingScratchStore.swift */; };
+		4DAAB390AD7B8EC2156CA349 /* SemanticScoringAccounting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7964FAC78BA47981693B93E5 /* SemanticScoringAccounting.swift */; };
 		4DE56767BEB17637D2F38191 /* WorkStateContinuityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14196260E32CCD0BA4543306 /* WorkStateContinuityService.swift */; };
 		4F1412958629DBD629FE168F /* WorkStateReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A086222030CFF5C4DC2383 /* WorkStateReviewView.swift */; };
 		4F1C4EEC419196B643A22EDA /* AudioAssetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23BD6FD0E67EF37CA92BE4BB /* AudioAssetStore.swift */; };
@@ -129,6 +130,7 @@
 		5EAD8AC89A2D62E3FDD3704A /* OpenAITranscriptionLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7F1B19B7FC70222D55D617A /* OpenAITranscriptionLiveTests.swift */; };
 		5F226AEC6000E183116CD0B7 /* BenchmarkRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96044E248D4F486A584323C /* BenchmarkRunnerTests.swift */; };
 		62630E25189F0ECB11D7BE3F /* BetaMetricsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8560EC57139E877E320611 /* BetaMetricsSummary.swift */; };
+		628C2EFAD102BCF1F796FD65 /* SemanticScoringAccountingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F385C789E962D5BF11E0F8 /* SemanticScoringAccountingTests.swift */; };
 		62F8E3158AB563E712D633FC /* BetaMetricsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483072632A23F9ED7F40267F /* BetaMetricsDisplay.swift */; };
 		633F1F1AD6DB47F8757B0D1A /* AudioBenchmarkScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0F00E7BAAF8217EAD1E999 /* AudioBenchmarkScorerTests.swift */; };
 		63C84DC447FE1D29932970E9 /* BenchmarkExtractionInputAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ADD66CEB408663537B6784A /* BenchmarkExtractionInputAdapter.swift */; };
@@ -294,6 +296,7 @@
 		D89C3C89DC08E20D3009C341 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B09EF44B431F4D44006E6B9 /* ContentView.swift */; };
 		DA48BF93FF3C423A3030B3F5 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F58341826CA4B29DA56136 /* Decision.swift */; };
 		DA49BCF7490610F83A32E6FB /* MeetingReanalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F8C95F96E4AEBAF00565F4 /* MeetingReanalysis.swift */; };
+		DA64CE3E93715259D3D45F09 /* SemanticScoringAccounting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7964FAC78BA47981693B93E5 /* SemanticScoringAccounting.swift */; };
 		DA8F700C0727D1141B15EAFC /* ActionItemReminderSampleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C90BCCC2363C5DD577AD21 /* ActionItemReminderSampleService.swift */; };
 		DCBDCD029635A7FA1A71BDAF /* OpenAICredentialResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3A46CB0FF6019A49752EDF /* OpenAICredentialResolver.swift */; };
 		DD669815975EF1B01B77AD17 /* BetaMetricsSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2764A0C3E4144B383D6E4874 /* BetaMetricsSummaryTests.swift */; };
@@ -488,6 +491,7 @@
 		74D9499A468F156C67A08308 /* DeletionConfirmationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeletionConfirmationView.swift; sourceTree = "<group>"; };
 		77B7C33FAB52DF62460E1F6E /* MarkdownFileExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFileExporter.swift; sourceTree = "<group>"; };
 		78B98B2B006EED0B09AFA71D /* AgentLedgerRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLedgerRepository.swift; sourceTree = "<group>"; };
+		7964FAC78BA47981693B93E5 /* SemanticScoringAccounting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticScoringAccounting.swift; sourceTree = "<group>"; };
 		7B182395C04138B49C71EC7C /* OpenAILiveTestGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAILiveTestGateTests.swift; sourceTree = "<group>"; };
 		7BBFD2AE326C7CF9AAA8C3FE /* Meeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting.swift; sourceTree = "<group>"; };
 		7DBDDA830F454B02AD78BACE /* WorkStateTransitionScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateTransitionScenarioTests.swift; sourceTree = "<group>"; };
@@ -541,6 +545,7 @@
 		A7F1B19B7FC70222D55D617A /* OpenAITranscriptionLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAITranscriptionLiveTests.swift; sourceTree = "<group>"; };
 		A8245AFE23FFF2E11236B990 /* PasteTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTranscriptView.swift; sourceTree = "<group>"; };
 		A8598F777FE59E2A4BD3DB7C /* SemanticMatchingMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticMatchingMap.swift; sourceTree = "<group>"; };
+		A8F385C789E962D5BF11E0F8 /* SemanticScoringAccountingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticScoringAccountingTests.swift; sourceTree = "<group>"; };
 		ABBE69B098312C0AB4C2720D /* MeetingAudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAudioPlayerView.swift; sourceTree = "<group>"; };
 		ACA22BFF83576F34C80406AE /* ExtractionTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionTestDoubles.swift; sourceTree = "<group>"; };
 		ACEE53E0CAE39A2200544C21 /* RecordingScratchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScratchStore.swift; sourceTree = "<group>"; };
@@ -660,6 +665,7 @@
 				A8598F777FE59E2A4BD3DB7C /* SemanticMatchingMap.swift */,
 				53E76D2971C188E3823483C5 /* SemanticScorerInput.swift */,
 				909246D233E6F89E30A6D145 /* SemanticScorerInputStore.swift */,
+				7964FAC78BA47981693B93E5 /* SemanticScoringAccounting.swift */,
 			);
 			path = SemanticScoring;
 			sourceTree = "<group>";
@@ -896,6 +902,7 @@
 				86071B9E0DFF50654C8A2CE7 /* ProjectStatusSummaryTests.swift */,
 				84CD28F24A0FF4CDEE68AEBC /* ReviewFixtures.swift */,
 				3765324001BC8E0334E4862D /* SemanticScorerInputStoreTests.swift */,
+				A8F385C789E962D5BF11E0F8 /* SemanticScoringAccountingTests.swift */,
 				C15E9739F09845C354FF3E20 /* SpeakerConfirmationDisplayTests.swift */,
 				48D552D079796527B2EF590E /* SpeakerConfirmationServiceTests.swift */,
 				0316D8732C748DAC978A61D3 /* StructuredAssigneeProviderContractTests.swift */,
@@ -1356,6 +1363,7 @@
 				1D477DF6682C03DAB1C2E07D /* SemanticMatchingMap.swift in Sources */,
 				882B82B453E93F0E1C7B5958 /* SemanticScorerInput.swift in Sources */,
 				755C5D5CC86EFC3E2AC4DB7C /* SemanticScorerInputStore.swift in Sources */,
+				DA64CE3E93715259D3D45F09 /* SemanticScoringAccounting.swift in Sources */,
 				1CA4C53F5892648595703C7B /* SpeakerResolution.swift in Sources */,
 				CF7BD46F97787ADD6F82B331 /* TranscriptSegment.swift in Sources */,
 				28DD52C5E55D4F4161137322 /* TranscriptSpeakerMapper.swift in Sources */,
@@ -1515,6 +1523,8 @@
 				8B312162E34CABB6B2C49984 /* SemanticScorerInput.swift in Sources */,
 				F618294274D77AD62504B860 /* SemanticScorerInputStore.swift in Sources */,
 				0B15FB187E9D80B5DFC03DB8 /* SemanticScorerInputStoreTests.swift in Sources */,
+				4DAAB390AD7B8EC2156CA349 /* SemanticScoringAccounting.swift in Sources */,
+				628C2EFAD102BCF1F796FD65 /* SemanticScoringAccountingTests.swift in Sources */,
 				D0E62759184307702B448D9C /* TestFixtures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

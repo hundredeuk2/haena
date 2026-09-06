@@ -64,6 +64,8 @@ struct SemanticScorerAuthorizationRequest: Equatable, Sendable {
 /// so no external caller can forge one from a raw or stale index entry.
 struct AuthorizedSemanticScorerEntry: Equatable, Sendable {
     fileprivate let sourceEntry: SemanticScorerSourceIndexEntry
+    fileprivate let availablePredictions: [SemanticPredictionReference]
+    fileprivate let matchingMap: SemanticMatchingMap
 
     var benchmark: String { sourceEntry.benchmark }
     var caseID: String { sourceEntry.caseID }
@@ -72,6 +74,24 @@ struct AuthorizedSemanticScorerEntry: Equatable, Sendable {
     var predictionArtifactHash: String { sourceEntry.predictionArtifactHash }
     var goldInputHash: String { sourceEntry.goldInputHash }
     var matchingPolicyVersion: String { sourceEntry.matchingPolicyVersion }
+}
+
+/// The only value accepted by the accounting core. Its initializer is file-private, so callers
+/// cannot bypass metadata authorization, raw payload hashing, payload validation, or map checks.
+struct AuthorizedSemanticScoringCase: Equatable, Sendable {
+    let input: SemanticScorerInput
+    let availablePredictions: [SemanticPredictionReference]
+    let matchingMap: SemanticMatchingMap
+
+    fileprivate init(
+        input: SemanticScorerInput,
+        availablePredictions: [SemanticPredictionReference],
+        matchingMap: SemanticMatchingMap
+    ) {
+        self.input = input
+        self.availablePredictions = availablePredictions.sorted()
+        self.matchingMap = matchingMap
+    }
 }
 
 /// Every refusal is a closed code with no payload, path, transcript, identifier, or free-text error.
@@ -98,6 +118,16 @@ enum SemanticScorerRefusal: Error, Codable, CaseIterable, Equatable, Sendable {
     case duplicateGoldReference
     case duplicatePredictionUse
     case duplicateGoldUse
+    case duplicateDeclarationsUnsupported
+    case duplicateDeclarationRepeated
+    case duplicateDeclarationConflict
+    case danglingDuplicatePredictionReference
+    case selfDuplicateDeclaration
+    case crossCaseDuplicateDeclaration
+    case crossKindDuplicateDeclaration
+    case duplicatePredictionIsPaired
+    case duplicateCanonicalNotPaired
+    case duplicateOfDuplicate
     case danglingPredictionReference
     case danglingGoldReference
     case crossCasePair
@@ -224,7 +254,14 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         guard entry.goldInputHash == request.matchingMap.goldInputHash else {
             throw SemanticScorerRefusal.goldInputHashMismatch
         }
-        guard request.matchingMap.schemaVersion == SemanticMatchingMap.schemaVersion else {
+        switch request.matchingMap.schemaVersion {
+        case SemanticMatchingMap.schemaVersion:
+            guard request.matchingMap.duplicatePredictions.isEmpty else {
+                throw SemanticScorerRefusal.duplicateDeclarationsUnsupported
+            }
+        case SemanticMatchingMap.duplicateSchemaVersion:
+            break
+        default:
             throw SemanticScorerRefusal.unknownMatchingMapVersion
         }
         guard entry.matchingPolicyVersion == SemanticMatchingMap.policyVersion,
@@ -234,7 +271,11 @@ struct SemanticScorerInputStore: @unchecked Sendable {
 
         try Self.validateGoldInventory(entry.goldReferences, entry: entry)
         try Self.validateMatchingMap(request.matchingMap, request: request, entry: entry)
-        return AuthorizedSemanticScorerEntry(sourceEntry: entry)
+        return AuthorizedSemanticScorerEntry(
+            sourceEntry: entry,
+            availablePredictions: request.availablePredictions.sorted(),
+            matchingMap: request.matchingMap
+        )
     }
 
     /// Forms and opens the payload path only for a capability returned by `authorize(_:)`.
@@ -260,6 +301,19 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         }
         try Self.validate(input, against: authorizedEntry.sourceEntry)
         return input
+    }
+
+    /// Opens and validates the raw gold payload, then upgrades the metadata capability into the
+    /// unforgeable value accepted by deterministic accounting.
+    func loadScoringCase(
+        for authorizedEntry: AuthorizedSemanticScorerEntry
+    ) throws -> AuthorizedSemanticScoringCase {
+        let input = try loadInput(for: authorizedEntry)
+        return AuthorizedSemanticScoringCase(
+            input: input,
+            availablePredictions: authorizedEntry.availablePredictions,
+            matchingMap: authorizedEntry.matchingMap
+        )
     }
 
     var sourceIndexURL: URL {
@@ -351,6 +405,65 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             guard usedGold.insert(pair.gold).inserted else {
                 throw SemanticScorerRefusal.duplicateGoldUse
             }
+        }
+
+        try validateDuplicateDeclarations(
+            map.duplicatePredictions,
+            map: map,
+            predictions: predictions,
+            pairedPredictions: usedPredictions,
+            request: request
+        )
+    }
+
+    private static func validateDuplicateDeclarations(
+        _ declarations: [SemanticDuplicatePredictionDeclaration],
+        map: SemanticMatchingMap,
+        predictions: Set<SemanticPredictionReference>,
+        pairedPredictions: Set<SemanticPredictionReference>,
+        request: SemanticScorerAuthorizationRequest
+    ) throws {
+        guard Set(declarations).count == declarations.count else {
+            throw SemanticScorerRefusal.duplicateDeclarationRepeated
+        }
+
+        var canonicalByDuplicate: [SemanticPredictionReference: SemanticPredictionReference] = [:]
+        for declaration in declarations {
+            let duplicate = declaration.duplicate
+            let canonical = declaration.canonical
+            guard duplicate != canonical else {
+                throw SemanticScorerRefusal.selfDuplicateDeclaration
+            }
+            guard duplicate.caseID == map.caseID,
+                  canonical.caseID == map.caseID else {
+                throw SemanticScorerRefusal.crossCaseDuplicateDeclaration
+            }
+            guard duplicate.kind == canonical.kind else {
+                throw SemanticScorerRefusal.crossKindDuplicateDeclaration
+            }
+            guard duplicate.artifactFingerprint == request.predictionArtifactFingerprint.rawValue,
+                  canonical.artifactFingerprint == request.predictionArtifactFingerprint.rawValue else {
+                throw SemanticScorerRefusal.predictionArtifactHashMismatch
+            }
+            guard predictions.contains(duplicate), predictions.contains(canonical) else {
+                throw SemanticScorerRefusal.danglingDuplicatePredictionReference
+            }
+            if let existing = canonicalByDuplicate[duplicate], existing != canonical {
+                throw SemanticScorerRefusal.duplicateDeclarationConflict
+            }
+            canonicalByDuplicate[duplicate] = canonical
+        }
+
+        let duplicatePredictions = Set(declarations.map(\.duplicate))
+        let canonicalPredictions = Set(declarations.map(\.canonical))
+        guard duplicatePredictions.isDisjoint(with: canonicalPredictions) else {
+            throw SemanticScorerRefusal.duplicateOfDuplicate
+        }
+        guard duplicatePredictions.isDisjoint(with: pairedPredictions) else {
+            throw SemanticScorerRefusal.duplicatePredictionIsPaired
+        }
+        guard canonicalPredictions.isSubset(of: pairedPredictions) else {
+            throw SemanticScorerRefusal.duplicateCanonicalNotPaired
         }
     }
 

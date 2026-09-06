@@ -104,10 +104,28 @@ struct SemanticMatchingPair: Codable, Comparable, Equatable, Hashable, Sendable 
     }
 }
 
-/// Human-authored exact pairings. This type only records and validates one-to-one identity links;
-/// TP/FP/FN accounting deliberately belongs to TM 3.3.
+/// A reviewer-authored duplicate relationship between two exact prediction identities.
+/// No title, body, transcript, or other semantic surface is available to this declaration.
+struct SemanticDuplicatePredictionDeclaration: Codable, Comparable, Equatable, Hashable, Sendable {
+    let duplicate: SemanticPredictionReference
+    let canonical: SemanticPredictionReference
+
+    static func < (
+        lhs: SemanticDuplicatePredictionDeclaration,
+        rhs: SemanticDuplicatePredictionDeclaration
+    ) -> Bool {
+        if lhs.duplicate != rhs.duplicate {
+            return lhs.duplicate < rhs.duplicate
+        }
+        return lhs.canonical < rhs.canonical
+    }
+}
+
+/// Human-authored exact pairings. v0.1 remains pair-only. v0.2 adds explicit duplicate
+/// declarations without changing pair semantics or inferring equivalence from text.
 struct SemanticMatchingMap: Codable, Equatable, Sendable {
     static let schemaVersion = "haena-semantic-matching-map-v0.1"
+    static let duplicateSchemaVersion = "haena-semantic-matching-map-v0.2"
     static let policyVersion = "haena-explicit-one-to-one-v0.1"
 
     let schemaVersion: String
@@ -118,6 +136,7 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
     /// The digest lives outside that payload so the fingerprint is not self-referential.
     let goldInputHash: String
     let pairs: [SemanticMatchingPair]
+    let duplicatePredictions: [SemanticDuplicatePredictionDeclaration]
 
     init(
         schemaVersion: String = Self.schemaVersion,
@@ -125,7 +144,8 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         caseID: String,
         predictionArtifactHash: String,
         goldInputHash: String,
-        pairs: [SemanticMatchingPair]
+        pairs: [SemanticMatchingPair],
+        duplicatePredictions: [SemanticDuplicatePredictionDeclaration] = []
     ) {
         self.schemaVersion = schemaVersion
         self.policyVersion = policyVersion
@@ -133,6 +153,7 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         self.predictionArtifactHash = predictionArtifactHash
         self.goldInputHash = goldInputHash
         self.pairs = pairs.sorted()
+        self.duplicatePredictions = duplicatePredictions.sorted()
     }
 
     static var encoder: JSONEncoder {
@@ -145,6 +166,33 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         JSONDecoder()
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(String.self, forKey: .schemaVersion)
+        policyVersion = try container.decode(String.self, forKey: .policyVersion)
+        caseID = try container.decode(String.self, forKey: .caseID)
+        predictionArtifactHash = try container.decode(String.self, forKey: .predictionArtifactHash)
+        goldInputHash = try container.decode(String.self, forKey: .goldInputHash)
+        pairs = try container.decode([SemanticMatchingPair].self, forKey: .pairs).sorted()
+        duplicatePredictions = try container.decodeIfPresent(
+            [SemanticDuplicatePredictionDeclaration].self,
+            forKey: .duplicatePredictions
+        )?.sorted() ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(policyVersion, forKey: .policyVersion)
+        try container.encode(caseID, forKey: .caseID)
+        try container.encode(predictionArtifactHash, forKey: .predictionArtifactHash)
+        try container.encode(goldInputHash, forKey: .goldInputHash)
+        try container.encode(pairs, forKey: .pairs)
+        if schemaVersion != Self.schemaVersion || !duplicatePredictions.isEmpty {
+            try container.encode(duplicatePredictions, forKey: .duplicatePredictions)
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case policyVersion = "policy_version"
@@ -152,5 +200,6 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
         case predictionArtifactHash = "prediction_artifact_hash"
         case goldInputHash = "gold_input_hash"
         case pairs
+        case duplicatePredictions = "duplicate_predictions"
     }
 }
