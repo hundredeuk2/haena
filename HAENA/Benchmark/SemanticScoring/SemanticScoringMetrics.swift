@@ -238,10 +238,12 @@ struct SemanticInferenceClassMetrics: Codable, Equatable, Sendable {
 
 struct SemanticForbiddenInferenceMetrics: Codable, Equatable, Sendable {
     let violationPredictionCount: Int
+    let violationRate: SemanticMetricFraction
     let declaredViolations: [SemanticForbiddenPredictionDeclaration]
 
     private enum CodingKeys: String, CodingKey {
         case violationPredictionCount = "violation_prediction_count"
+        case violationRate = "violation_rate"
         case declaredViolations = "declared_violations"
     }
 }
@@ -355,6 +357,11 @@ enum SemanticScoringMetricCore {
             actionItemPolicyMetrics: policyMetrics,
             forbiddenInference: SemanticForbiddenInferenceMetrics(
                 violationPredictionCount: scoringCase.matchingMap.forbiddenPredictions.count,
+                violationRate: .ratio(
+                    numerator: scoringCase.matchingMap.forbiddenPredictions.count,
+                    denominator: scoringCase.availablePredictions.count,
+                    unavailableWhenEmpty: .noPositivePredictions
+                ),
                 declaredViolations: scoringCase.matchingMap.forbiddenPredictions.sorted()
             ),
             scopeExclusions: [

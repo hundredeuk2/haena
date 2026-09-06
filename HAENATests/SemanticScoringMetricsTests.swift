@@ -271,10 +271,80 @@ final class SemanticScoringMetricsTests: XCTestCase {
 
         let result = try measure(fixture)
         XCTAssertEqual(result.forbiddenInference.violationPredictionCount, 1)
+        XCTAssertEqual(result.forbiddenInference.violationRate, fraction(1, 1))
         XCTAssertEqual(result.forbiddenInference.declaredViolations, [declaration])
         XCTAssertEqual(
             result.outputKinds.first { $0.kind == .actionItem }?.ledger.falsePositive,
             1
+        )
+    }
+
+    func testForbiddenViolationRateUsesAllAvailablePredictionsAsDenominator() throws {
+        let violation = prediction(1, .actionItem)
+        let otherPrediction = prediction(2, .decision)
+        let fixture = try makeFixture(
+            gold: [],
+            forbidden: [forbidden("forbidden-1", .actionItem)],
+            predictions: [otherPrediction, violation],
+            pairs: [],
+            forbiddenPredictions: [
+                .init(
+                    prediction: violation,
+                    forbiddenInferenceID: "forbidden-1",
+                    outputKind: .actionItem
+                ),
+            ]
+        )
+
+        let result = try measure(fixture)
+        XCTAssertEqual(result.forbiddenInference.violationPredictionCount, 1)
+        XCTAssertEqual(result.forbiddenInference.violationRate, fraction(1, 2))
+    }
+
+    func testForbiddenViolationRateIsAvailableZeroWhenPredictionsExistWithoutViolations() throws {
+        let predictions = [prediction(1, .decision), prediction(2, .actionItem)]
+        let result = try measure(makeFixture(gold: [], predictions: predictions, pairs: []))
+
+        XCTAssertEqual(result.forbiddenInference.violationPredictionCount, 0)
+        XCTAssertEqual(result.forbiddenInference.violationRate, fraction(0, 2))
+        XCTAssertEqual(result.forbiddenInference.declaredViolations, [])
+    }
+
+    func testForbiddenViolationRateIsUnavailableWhenPredictionInventoryIsEmpty() throws {
+        let result = try measure(makeFixture(gold: [], predictions: [], pairs: []))
+        let rate = result.forbiddenInference.violationRate
+
+        XCTAssertEqual(rate.numerator, 0)
+        XCTAssertEqual(rate.denominator, 0)
+        XCTAssertEqual(rate.availability, .noPositivePredictions)
+        XCTAssertNil(rate.value)
+    }
+
+    func testForbiddenViolationRateDenominatorIncludesDeclaredDuplicates() throws {
+        let canonical = prediction(1, .actionItem)
+        let duplicate = prediction(2, .actionItem)
+        let violation = prediction(3, .actionItem)
+        let fixture = try makeFixture(
+            gold: [gold("g1", .actionItem)],
+            forbidden: [forbidden("forbidden-1", .actionItem)],
+            predictions: [duplicate, violation, canonical],
+            pairs: [pair(canonical, .actionItem, "g1")],
+            duplicatePredictions: [.init(duplicate: duplicate, canonical: canonical)],
+            forbiddenPredictions: [
+                .init(
+                    prediction: violation,
+                    forbiddenInferenceID: "forbidden-1",
+                    outputKind: .actionItem
+                ),
+            ]
+        )
+
+        let result = try measure(fixture)
+        XCTAssertEqual(result.forbiddenInference.violationRate, fraction(1, 3))
+        XCTAssertEqual(result.forbiddenInference.violationPredictionCount, 1)
+        XCTAssertEqual(
+            result.outputKinds.first { $0.kind == .actionItem }?.ledger.falsePositive,
+            2
         )
     }
 
