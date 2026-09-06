@@ -273,10 +273,10 @@
               "3.1"
             ],
             "details": "Require an explicit schema version, scorer-ready status, development-only authorization, case identity, four typed output collections, evidence references, responsibility, assignee, due, forbidden-inference, and ambiguity policy fields. Pending, primary-normalized, secondary-in-progress, unknown-version, sealed, and missing-authorization inputs must fail closed before payload evaluation. Keep matching policy injected and versioned; do not provide a fuzzy default.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Synthetic decoding and gate tests for authorized development input plus every refusal path. Assert existing PredictionArtifact bytes/schema and unscored reports remain unchanged.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-06T12:46:22.824Z"
+            "updatedAt": "2026-09-06T13:05:56.144Z"
           },
           {
             "id": 3,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-06T12:46:22.824Z"
+        "updatedAt": "2026-09-06T13:05:56.144Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-06T12:46:22.827Z",
+      "lastModified": "2026-09-06T13:05:56.146Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
