@@ -111,7 +111,7 @@
         "testStrategy": "Use metadata-only partition checks first. Human-review progress requires explicit evidence gates, not Task Master completion counts. Validate gold schema, evidence references, unresolved count, independent second review, and deterministic scorer handoff before completion.",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "deferred",
         "subtasks": [
           {
             "id": 1,
@@ -242,7 +242,7 @@
             "updatedAt": "2026-08-30T06:04:11.000Z"
           }
         ],
-        "updatedAt": "2026-09-06T11:20:50.000Z"
+        "updatedAt": "2026-09-06T12:17:50.413Z"
       },
       {
         "id": "3",
@@ -260,10 +260,10 @@
             "description": "Trace the current unscored prediction pipeline and define the smallest scorer boundary before changing product or benchmark code.",
             "dependencies": [],
             "details": "Read PredictionArtifact, BenchmarkRunner, BenchmarkCommandLine, BenchmarkCaseFile/Store, canonical gold schemas, and existing audio-scoring patterns. Identify which fields are stable typed identities and which require a future versioned human matching policy. Record the exact files and contracts that must remain unchanged. Do not open primary, secondary, gold-draft, sealed, or real case payloads. Stop and report if deterministic pairing cannot be defined without semantic inference.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Read-only source audit, synthetic schema inspection, Git baseline, Task Master dependency validation, and explicit forbidden-path counters or static checks. No semantic corpus reads and no product-code mutation.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-06T11:20:50.000Z"
+            "updatedAt": "2026-09-06T12:17:49.223Z"
           },
           {
             "id": 2,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-06T11:20:50.000Z"
+        "updatedAt": "2026-09-06T12:17:49.223Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-06T11:20:50.000Z",
+      "lastModified": "2026-09-06T12:17:50.413Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
