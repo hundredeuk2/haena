@@ -1,8 +1,47 @@
+import CryptoKit
 import Foundation
 
 #if BENCHMARK_TEST_TARGET
 @testable import HAENA
 #endif
+
+/// Canonical SHA-256 text used by the semantic scorer boundary.
+///
+/// Digests are always over the supplied raw bytes and always serialize as exactly
+/// `sha256:` followed by 64 lowercase ASCII hexadecimal characters.
+enum SemanticSHA256Digest {
+    static func rawBytes(_ data: Data) -> String {
+        let hex = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return "sha256:" + hex
+    }
+
+    static func isCanonical(_ value: String) -> Bool {
+        let bytes = Array(value.utf8)
+        let prefix = Array("sha256:".utf8)
+        guard bytes.count == prefix.count + 64,
+              bytes.starts(with: prefix) else {
+            return false
+        }
+        return bytes.dropFirst(prefix.count).allSatisfy { byte in
+            (48...57).contains(byte) || (97...102).contains(byte)
+        }
+    }
+}
+
+/// A prediction artifact fingerprint that cannot be initialized from an unverified digest string.
+/// The factory hashes the artifact's exact serialized bytes; artifact file loading and CLI wiring
+/// remain TM 3.6 responsibilities.
+struct PredictionArtifactFingerprint: Equatable, Hashable, Sendable {
+    let rawValue: String
+
+    private init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static func rawArtifactBytes(_ data: Data) -> PredictionArtifactFingerprint {
+        PredictionArtifactFingerprint(rawValue: SemanticSHA256Digest.rawBytes(data))
+    }
+}
 
 /// Exact identity of one mapped prediction. `artifactFingerprint` binds the UUID to the exact
 /// immutable prediction artifact whose bytes were reviewed; the UUID is never reconstructed from
@@ -75,6 +114,8 @@ struct SemanticMatchingMap: Codable, Equatable, Sendable {
     let policyVersion: String
     let caseID: String
     let predictionArtifactHash: String
+    /// SHA-256 of the scorer input's exact raw serialized bytes, including whitespace/newlines.
+    /// The digest lives outside that payload so the fingerprint is not self-referential.
     let goldInputHash: String
     let pairs: [SemanticMatchingPair]
 

@@ -323,7 +323,8 @@ struct SemanticAmbiguityPolicy: Codable, Equatable, Sendable {
 
 /// Confirmed semantic gold admitted only after the metadata-only store has authorized its case.
 /// It intentionally carries no transcript, output title/body, reviewer note, local path, or domain
-/// UUID. Those fields are unnecessary for exact identity validation and create privacy risk.
+/// UUID. Those fields are unnecessary for exact identity validation and create privacy risk. Its
+/// own fingerprint is also absent: the index and matching map hash these exact serialized bytes.
 struct SemanticScorerInput: Codable, Equatable, Sendable {
     static let schemaVersion = "haena-semantic-scorer-input-v0.1"
 
@@ -335,7 +336,6 @@ struct SemanticScorerInput: Codable, Equatable, Sendable {
     let caseID: String
     let split: BenchmarkSplit
     let predictionArtifactHash: String
-    let goldInputHash: String
     let matchingPolicyVersion: String
     let outputs: SemanticGoldOutputCollections
     let forbiddenInferences: [SemanticForbiddenInference]
@@ -350,7 +350,6 @@ struct SemanticScorerInput: Codable, Equatable, Sendable {
         caseID: String,
         split: BenchmarkSplit,
         predictionArtifactHash: String,
-        goldInputHash: String,
         matchingPolicyVersion: String,
         outputs: SemanticGoldOutputCollections,
         forbiddenInferences: [SemanticForbiddenInference],
@@ -364,7 +363,6 @@ struct SemanticScorerInput: Codable, Equatable, Sendable {
         self.caseID = caseID
         self.split = split
         self.predictionArtifactHash = predictionArtifactHash
-        self.goldInputHash = goldInputHash
         self.matchingPolicyVersion = matchingPolicyVersion
         self.outputs = outputs.canonicalized
         self.forbiddenInferences = forbiddenInferences
@@ -392,7 +390,6 @@ struct SemanticScorerInput: Codable, Equatable, Sendable {
         case caseID = "case_id"
         case split
         case predictionArtifactHash = "prediction_artifact_hash"
-        case goldInputHash = "gold_input_hash"
         case matchingPolicyVersion = "matching_policy_version"
         case outputs
         case forbiddenInferences = "forbidden_inferences"

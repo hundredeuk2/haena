@@ -3,9 +3,16 @@ import XCTest
 @testable import HAENA
 
 final class SemanticScorerInputStoreTests: XCTestCase {
-    private static let predictionHash = "sha256:" + String(repeating: "a", count: 64)
-    private static let otherPredictionHash = "sha256:" + String(repeating: "b", count: 64)
-    private static let goldHash = "sha256:" + String(repeating: "c", count: 64)
+    private static let predictionArtifactBytes = Data("synthetic-prediction-artifact".utf8)
+    private static let predictionFingerprint = PredictionArtifactFingerprint.rawArtifactBytes(
+        predictionArtifactBytes
+    )
+    private static let otherPredictionFingerprint = PredictionArtifactFingerprint.rawArtifactBytes(
+        Data("other-synthetic-prediction-artifact".utf8)
+    )
+    private static var predictionHash: String { predictionFingerprint.rawValue }
+    private static var otherPredictionHash: String { otherPredictionFingerprint.rawValue }
+    private static let placeholderGoldHash = "sha256:" + String(repeating: "c", count: 64)
     private static let otherGoldHash = "sha256:" + String(repeating: "d", count: 64)
     private static let caseID = "SYN-SEM-D01"
 
@@ -29,6 +36,10 @@ final class SemanticScorerInputStoreTests: XCTestCase {
 
         XCTAssertFalse(indexText.contains("payload_path"))
         XCTAssertFalse(indexText.contains("semantic-scorer-inputs"))
+        XCTAssertEqual(
+            fixture.goldInputHash,
+            SemanticSHA256Digest.rawBytes(try Data(contentsOf: fixture.payloadURL))
+        )
 
         let authorized = try store.authorize(fixture.request())
 
@@ -40,6 +51,90 @@ final class SemanticScorerInputStoreTests: XCTestCase {
 
         XCTAssertEqual(input, fixture.input)
         XCTAssertEqual(recorder.accessedPaths, [fixture.indexURL.path, fixture.payloadURL.path])
+    }
+
+    func testPredictionFingerprintFactoryMatchesCanonicalABCVector() {
+        let fingerprint = PredictionArtifactFingerprint.rawArtifactBytes(Data("abc".utf8))
+
+        XCTAssertEqual(
+            fingerprint.rawValue,
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+        XCTAssertTrue(SemanticSHA256Digest.isCanonical(fingerprint.rawValue))
+    }
+
+    func testSHA256SyntaxRejectsUnicodeUppercaseShortAndLongDigestsBeforePayloadOpen() throws {
+        let invalidDigests = [
+            "sha256:" + String(repeating: "١", count: 64),
+            "sha256:" + String(repeating: "A", count: 64),
+            "sha256:" + String(repeating: "a", count: 63),
+            "sha256:" + String(repeating: "a", count: 65),
+        ]
+
+        for digest in invalidDigests {
+            XCTAssertFalse(SemanticSHA256Digest.isCanonical(digest))
+
+            let predictionFixture = try makeFixture(
+                predictionArtifactHash: digest,
+                matchingMapPredictionArtifactHash: digest
+            )
+            try assertAuthorizationRefused(
+                .invalidIdentity,
+                fixture: predictionFixture,
+                request: predictionFixture.request()
+            )
+
+            let goldFixture = try makeFixture(
+                goldInputHash: digest,
+                matchingMapGoldInputHash: digest
+            )
+            try assertAuthorizationRefused(
+                .invalidIdentity,
+                fixture: goldFixture,
+                request: goldFixture.request()
+            )
+        }
+    }
+
+    func testGoldPayloadHashUsesExactRawBytesIncludingWhitespace() throws {
+        let fixture = try makeFixture()
+
+        try assertPayloadLoadRefused(.payloadHashMismatch, fixture: fixture) { data in
+            var changed = data
+            changed.append(0x20)
+            return changed
+        }
+    }
+
+    func testMatchingIndexAndMapArbitraryGoldHashStillFailsAtPayloadLoad() throws {
+        let fixture = try makeFixture(
+            goldInputHash: Self.otherGoldHash,
+            matchingMapGoldInputHash: Self.otherGoldHash
+        )
+
+        try assertPayloadLoadRefused(.payloadHashMismatch, fixture: fixture)
+    }
+
+    func testGoldPayloadContentMutationFailsRawByteHash() throws {
+        let fixture = try makeFixture()
+
+        try assertPayloadLoadRefused(.payloadHashMismatch, fixture: fixture) { data in
+            let original = try XCTUnwrap(String(data: data, encoding: .utf8))
+            let changed = original.replacingOccurrences(
+                of: "meeting-execution-v0",
+                with: "meeting-execution-v1"
+            )
+            XCTAssertNotEqual(changed, original)
+            return Data(changed.utf8)
+        }
+    }
+
+    func testPayloadHashMismatchPrecedesShapeDecodeAndSemanticValidation() throws {
+        let fixture = try makeFixture()
+
+        try assertPayloadLoadRefused(.payloadHashMismatch, fixture: fixture) { _ in
+            Data("{".utf8)
+        }
     }
 
     func testPendingPrimaryNormalizedAndUnfinishedSecondaryInputsFailBeforePayloadOpen() throws {
@@ -109,7 +204,7 @@ final class SemanticScorerInputStoreTests: XCTestCase {
             schemaVersion: "haena-semantic-matching-map-v9",
             caseID: Self.caseID,
             predictionArtifactHash: Self.predictionHash,
-            goldInputHash: Self.goldHash,
+            goldInputHash: fixture.goldInputHash,
             pairs: fixture.matchingMap.pairs
         )
         try assertAuthorizationRefused(
@@ -122,7 +217,7 @@ final class SemanticScorerInputStoreTests: XCTestCase {
             policyVersion: "haena-semantic-fuzzy-v9",
             caseID: Self.caseID,
             predictionArtifactHash: Self.predictionHash,
-            goldInputHash: Self.goldHash,
+            goldInputHash: fixture.goldInputHash,
             pairs: fixture.matchingMap.pairs
         )
         try assertAuthorizationRefused(
@@ -138,18 +233,13 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         try assertAuthorizationRefused(
             .predictionArtifactHashMismatch,
             fixture: fixture,
-            request: fixture.request(predictionArtifactHash: Self.otherPredictionHash)
-        )
-        try assertAuthorizationRefused(
-            .goldInputHashMismatch,
-            fixture: fixture,
-            request: fixture.request(goldInputHash: Self.otherGoldHash)
+            request: fixture.request(predictionArtifactFingerprint: Self.otherPredictionFingerprint)
         )
 
         let predictionMap = SemanticMatchingMap(
             caseID: Self.caseID,
             predictionArtifactHash: Self.otherPredictionHash,
-            goldInputHash: Self.goldHash,
+            goldInputHash: fixture.goldInputHash,
             pairs: fixture.matchingMap.pairs
         )
         try assertAuthorizationRefused(
@@ -286,7 +376,7 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         let mismatchedMap = SemanticMatchingMap(
             caseID: "SYN-SEM-D02",
             predictionArtifactHash: Self.predictionHash,
-            goldInputHash: Self.goldHash,
+            goldInputHash: fixture.goldInputHash,
             pairs: fixture.matchingMap.pairs
         )
 
@@ -326,7 +416,7 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         let data = try SemanticScorerInput.encoder.encode(Self.input(outputs: Self.outputs()))
         let json = try XCTUnwrap(String(data: data, encoding: .utf8))
 
-        for forbidden in ["transcript", "reviewer_note", "output_text", "/Users/"] {
+        for forbidden in ["transcript", "reviewer_note", "output_text", "gold_input_hash", "/Users/"] {
             XCTAssertFalse(json.contains(forbidden))
         }
     }
@@ -374,6 +464,33 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         )
     }
 
+    private func assertPayloadLoadRefused(
+        _ expected: SemanticScorerRefusal,
+        fixture: Fixture,
+        mutatePayload: ((Data) throws -> Data)? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        if let mutatePayload {
+            let original = try Data(contentsOf: fixture.payloadURL)
+            try mutatePayload(original).write(to: fixture.payloadURL)
+        }
+
+        let recorder = RecordingSemanticScorerFileManager()
+        let store = SemanticScorerInputStore(root: fixture.root, fileManager: recorder)
+        let authorized = try store.authorize(fixture.request())
+
+        XCTAssertThrowsError(try store.loadInput(for: authorized), file: file, line: line) { error in
+            XCTAssertEqual(error as? SemanticScorerRefusal, expected, file: file, line: line)
+        }
+        XCTAssertEqual(
+            recorder.accessedPaths,
+            [fixture.indexURL.path, fixture.payloadURL.path],
+            file: file,
+            line: line
+        )
+    }
+
     private func makeFixture(
         indexSchemaVersion: String = SemanticScorerInputStore.indexSchemaVersion,
         inputSchemaVersion: String = SemanticScorerInput.schemaVersion,
@@ -382,6 +499,10 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         scorerReady: Bool = true,
         secondaryReviewComplete: Bool = true,
         matchingPolicyVersion: String = SemanticMatchingMap.policyVersion,
+        predictionArtifactHash: String = SemanticScorerInputStoreTests.predictionHash,
+        matchingMapPredictionArtifactHash: String? = nil,
+        goldInputHash: String? = nil,
+        matchingMapGoldInputHash: String? = nil,
         outputs: SemanticGoldOutputCollections = SemanticScorerInputStoreTests.outputs(),
         predictions: [SemanticPredictionReference] = [SemanticScorerInputStoreTests.prediction(id: 1)]
     ) throws -> Fixture {
@@ -398,12 +519,17 @@ final class SemanticScorerInputStoreTests: XCTestCase {
             matchingPolicyVersion: matchingPolicyVersion,
             outputs: outputs
         )
+        let payloadData = try SemanticScorerInput.encoder.encode(input)
+        let rawPayloadHash = SemanticSHA256Digest.rawBytes(payloadData)
+        let indexedGoldInputHash = goldInputHash ?? rawPayloadHash
         let goldReferences = Self.goldReferences(for: input)
         let pairs = zip(predictions, goldReferences).map {
             SemanticMatchingPair(prediction: $0.0, gold: $0.1)
         }
         let matchingMap = Self.matchingMap(
             policyVersion: matchingPolicyVersion,
+            predictionArtifactHash: matchingMapPredictionArtifactHash ?? predictionArtifactHash,
+            goldInputHash: matchingMapGoldInputHash ?? indexedGoldInputHash,
             pairs: pairs
         )
         let entry = SemanticScorerSourceIndexEntry(
@@ -415,8 +541,8 @@ final class SemanticScorerInputStoreTests: XCTestCase {
             status: status,
             scorerReady: scorerReady,
             secondaryReviewComplete: secondaryReviewComplete,
-            predictionArtifactHash: Self.predictionHash,
-            goldInputHash: Self.goldHash,
+            predictionArtifactHash: predictionArtifactHash,
+            goldInputHash: indexedGoldInputHash,
             matchingPolicyVersion: matchingPolicyVersion,
             goldReferences: goldReferences
         )
@@ -429,13 +555,15 @@ final class SemanticScorerInputStoreTests: XCTestCase {
         try indexData.write(to: indexURL)
 
         let payloadURL = payloadRoot.appendingPathComponent("\(Self.caseID).json")
-        try SemanticScorerInput.encoder.encode(input).write(to: payloadURL)
+        try payloadData.write(to: payloadURL)
 
         return Fixture(
             root: root,
             indexURL: indexURL,
             payloadURL: payloadURL,
             input: input,
+            predictionArtifactFingerprint: Self.predictionFingerprint,
+            goldInputHash: indexedGoldInputHash,
             availablePredictions: predictions,
             goldReferences: goldReferences,
             matchingMap: matchingMap
@@ -468,7 +596,6 @@ final class SemanticScorerInputStoreTests: XCTestCase {
             caseID: caseID,
             split: split,
             predictionArtifactHash: predictionHash,
-            goldInputHash: goldHash,
             matchingPolicyVersion: matchingPolicyVersion,
             outputs: outputs,
             forbiddenInferences: [
@@ -538,13 +665,15 @@ final class SemanticScorerInputStoreTests: XCTestCase {
 
     private static func matchingMap(
         policyVersion: String = SemanticMatchingMap.policyVersion,
+        predictionArtifactHash: String = predictionHash,
+        goldInputHash: String = placeholderGoldHash,
         pairs: [SemanticMatchingPair]
     ) -> SemanticMatchingMap {
         SemanticMatchingMap(
             policyVersion: policyVersion,
             caseID: caseID,
-            predictionArtifactHash: predictionHash,
-            goldInputHash: goldHash,
+            predictionArtifactHash: predictionArtifactHash,
+            goldInputHash: goldInputHash,
             pairs: pairs
         )
     }
@@ -555,6 +684,8 @@ private struct Fixture {
     let indexURL: URL
     let payloadURL: URL
     let input: SemanticScorerInput
+    let predictionArtifactFingerprint: PredictionArtifactFingerprint
+    let goldInputHash: String
     let availablePredictions: [SemanticPredictionReference]
     let goldReferences: [SemanticGoldReference]
     let matchingMap: SemanticMatchingMap
@@ -562,8 +693,7 @@ private struct Fixture {
     func request(
         runtimeAuthorization: SemanticScorerRuntimeAuthorization? = .development(),
         requestedSplit: BenchmarkSplit = .development,
-        predictionArtifactHash: String = "sha256:" + String(repeating: "a", count: 64),
-        goldInputHash: String = "sha256:" + String(repeating: "c", count: 64),
+        predictionArtifactFingerprint: PredictionArtifactFingerprint? = nil,
         availablePredictions: [SemanticPredictionReference]? = nil,
         matchingMap: SemanticMatchingMap? = nil
     ) -> SemanticScorerAuthorizationRequest {
@@ -572,8 +702,8 @@ private struct Fixture {
             requestedSplit: requestedSplit,
             benchmark: "meeting-execution-v0",
             caseID: "SYN-SEM-D01",
-            predictionArtifactHash: predictionArtifactHash,
-            goldInputHash: goldInputHash,
+            predictionArtifactFingerprint: predictionArtifactFingerprint
+                ?? self.predictionArtifactFingerprint,
             availablePredictions: availablePredictions ?? self.availablePredictions,
             matchingMap: matchingMap ?? self.matchingMap
         )
@@ -582,8 +712,8 @@ private struct Fixture {
     func map(pairs: [SemanticMatchingPair]) -> SemanticMatchingMap {
         SemanticMatchingMap(
             caseID: "SYN-SEM-D01",
-            predictionArtifactHash: "sha256:" + String(repeating: "a", count: 64),
-            goldInputHash: "sha256:" + String(repeating: "c", count: 64),
+            predictionArtifactHash: matchingMap.predictionArtifactHash,
+            goldInputHash: matchingMap.goldInputHash,
             pairs: pairs
         )
     }

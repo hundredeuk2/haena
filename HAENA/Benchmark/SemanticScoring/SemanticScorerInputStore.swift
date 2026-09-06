@@ -16,6 +16,7 @@ struct SemanticScorerSourceIndexEntry: Codable, Equatable, Sendable {
     let scorerReady: Bool
     let secondaryReviewComplete: Bool
     let predictionArtifactHash: String
+    /// SHA-256 of the exact raw scorer payload bytes, including whitespace/newlines.
     let goldInputHash: String
     let matchingPolicyVersion: String
     let goldReferences: [SemanticGoldReference]
@@ -54,8 +55,7 @@ struct SemanticScorerAuthorizationRequest: Equatable, Sendable {
     let requestedSplit: BenchmarkSplit
     let benchmark: String
     let caseID: String
-    let predictionArtifactHash: String
-    let goldInputHash: String
+    let predictionArtifactFingerprint: PredictionArtifactFingerprint
     let availablePredictions: [SemanticPredictionReference]
     let matchingMap: SemanticMatchingMap
 }
@@ -104,6 +104,7 @@ enum SemanticScorerRefusal: Error, Codable, CaseIterable, Equatable, Sendable {
     case crossKindPair
     case invalidIdentity
     case payloadFileNotFound
+    case payloadHashMismatch
     case malformedPayload
     case payloadMetadataMismatch
     case payloadIdentityMismatch
@@ -186,9 +187,7 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             throw SemanticScorerRefusal.authorizationMissing
         }
         guard Self.isSafeIdentifier(request.benchmark, maximumLength: 80),
-              Self.isSafeIdentifier(request.caseID, maximumLength: 80),
-              Self.isSHA256(request.predictionArtifactHash),
-              Self.isSHA256(request.goldInputHash) else {
+              Self.isSafeIdentifier(request.caseID, maximumLength: 80) else {
             throw SemanticScorerRefusal.invalidIdentity
         }
 
@@ -211,12 +210,18 @@ struct SemanticScorerInputStore: @unchecked Sendable {
               request.matchingMap.caseID == request.caseID else {
             throw SemanticScorerRefusal.caseIdentityMismatch
         }
-        guard entry.predictionArtifactHash == request.predictionArtifactHash,
-              request.matchingMap.predictionArtifactHash == request.predictionArtifactHash else {
+        guard SemanticSHA256Digest.isCanonical(entry.predictionArtifactHash),
+              SemanticSHA256Digest.isCanonical(entry.goldInputHash),
+              SemanticSHA256Digest.isCanonical(request.matchingMap.predictionArtifactHash),
+              SemanticSHA256Digest.isCanonical(request.matchingMap.goldInputHash) else {
+            throw SemanticScorerRefusal.invalidIdentity
+        }
+        let verifiedPredictionHash = request.predictionArtifactFingerprint.rawValue
+        guard entry.predictionArtifactHash == verifiedPredictionHash,
+              request.matchingMap.predictionArtifactHash == verifiedPredictionHash else {
             throw SemanticScorerRefusal.predictionArtifactHashMismatch
         }
-        guard entry.goldInputHash == request.goldInputHash,
-              request.matchingMap.goldInputHash == request.goldInputHash else {
+        guard entry.goldInputHash == request.matchingMap.goldInputHash else {
             throw SemanticScorerRefusal.goldInputHashMismatch
         }
         guard request.matchingMap.schemaVersion == SemanticMatchingMap.schemaVersion else {
@@ -239,6 +244,9 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         }
         guard let data = fileManager.contents(atPath: url.path) else {
             throw SemanticScorerRefusal.payloadFileNotFound
+        }
+        guard SemanticSHA256Digest.rawBytes(data) == authorizedEntry.sourceEntry.goldInputHash else {
+            throw SemanticScorerRefusal.payloadHashMismatch
         }
         guard Self.hasExactPayloadShape(data) else {
             throw SemanticScorerRefusal.malformedPayload
@@ -303,7 +311,7 @@ struct SemanticScorerInputStore: @unchecked Sendable {
     ) throws {
         guard request.availablePredictions.allSatisfy({
             $0.caseID == request.caseID
-                && $0.artifactFingerprint == request.predictionArtifactHash
+                && $0.artifactFingerprint == request.predictionArtifactFingerprint.rawValue
         }) else {
             throw SemanticScorerRefusal.caseIdentityMismatch
         }
@@ -324,7 +332,8 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             guard pair.prediction.kind == pair.gold.kind else {
                 throw SemanticScorerRefusal.crossKindPair
             }
-            guard pair.prediction.artifactFingerprint == request.predictionArtifactHash else {
+            guard pair.prediction.artifactFingerprint
+                == request.predictionArtifactFingerprint.rawValue else {
                 throw SemanticScorerRefusal.predictionArtifactHashMismatch
             }
             guard pair.gold.inputSchemaVersion == entry.inputSchemaVersion else {
@@ -357,7 +366,6 @@ struct SemanticScorerInputStore: @unchecked Sendable {
               input.caseID == entry.caseID,
               input.split == .development,
               input.predictionArtifactHash == entry.predictionArtifactHash,
-              input.goldInputHash == entry.goldInputHash,
               input.matchingPolicyVersion == entry.matchingPolicyVersion else {
             throw SemanticScorerRefusal.payloadMetadataMismatch
         }
@@ -481,12 +489,6 @@ struct SemanticScorerInputStore: @unchecked Sendable {
             && values.allSatisfy { isSafeIdentifier($0, maximumLength: 120) }
     }
 
-    private static func isSHA256(_ value: String) -> Bool {
-        guard value.hasPrefix("sha256:") else { return false }
-        let digest = value.dropFirst("sha256:".count)
-        return digest.count == 64 && digest.allSatisfy { $0.isNumber || ("a"..."f").contains(String($0)) }
-    }
-
     private static func isSafeIdentifier(_ value: String, maximumLength: Int) -> Bool {
         guard !value.isEmpty, value.count <= maximumLength else { return false }
         return value.unicodeScalars.allSatisfy {
@@ -520,7 +522,7 @@ struct SemanticScorerInputStore: @unchecked Sendable {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               Set(root.keys) == [
                   "schema_version", "status", "scorer_ready", "secondary_review_complete",
-                  "benchmark", "case_id", "split", "prediction_artifact_hash", "gold_input_hash",
+                  "benchmark", "case_id", "split", "prediction_artifact_hash",
                   "matching_policy_version", "outputs", "forbidden_inferences", "ambiguity_policy",
               ],
               let outputs = root["outputs"] as? [String: Any],
