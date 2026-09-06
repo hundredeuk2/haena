@@ -286,10 +286,10 @@
               "3.2"
             ],
             "details": "Score Decision, Action Item, Open Question, and Next Agenda separately. Consume exact canonical identities or an explicitly supplied versioned matching map; never infer equivalence from title similarity or transcript text. A prediction may match at most one gold item and vice versa. Count duplicate predictions separately while keeping the TP/FP/FN ledger auditable.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Synthetic zero, perfect, one miss, one extra, duplicate, cross-kind, conflicting-map, and order-independence tests with exact ledger assertions.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-06T13:39:52.408Z"
+            "updatedAt": "2026-09-06T14:07:12.495Z"
           },
           {
             "id": 4,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-06T13:39:52.408Z"
+        "updatedAt": "2026-09-06T14:07:12.495Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-06T13:39:52.409Z",
+      "lastModified": "2026-09-06T14:07:12.495Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
