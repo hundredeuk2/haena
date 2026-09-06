@@ -299,10 +299,10 @@
               "3.3"
             ],
             "details": "For matched outputs only, calculate evidence-utterance attribution accuracy. Report target speaker B Action Item precision/recall/F1 separately. Split assignee and due metrics by explicit, derived proposal, and forbidden inference policy. Preserve unknown, unresolved, and ineligible states instead of coercing them to false or zero. Every metric must expose numerator, denominator, and availability reason.",
-            "status": "pending",
+            "status": "review",
             "testStrategy": "Synthetic mixed-policy fixtures covering empty denominators, partial evidence, organization versus individual assignee, absent due date, relative due date, forbidden attribution, and scorer-ineligible prior state.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-06T11:20:50.000Z"
+            "updatedAt": "2026-09-06T14:37:41.522Z"
           },
           {
             "id": 5,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-06T14:07:12.495Z"
+        "updatedAt": "2026-09-06T14:37:41.522Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-06T14:07:12.495Z",
+      "lastModified": "2026-09-06T14:37:41.524Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
