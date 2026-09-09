@@ -312,10 +312,10 @@
               "3.4"
             ],
             "details": "Emit deterministic per-case matched, missed, extra, duplicate, evidence, responsibility, assignee, due, forbidden, ambiguity, and ineligible records, followed by aggregate counts and precision/recall/F1 with numerator and denominator. Do not include transcript text, local absolute paths, credentials, or reviewer notes in the shareable report.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Golden synthetic report fixtures, stable sort rules, repeated-run byte identity, privacy-string scans, and aggregate reconciliation against the per-case ledger.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-09T14:59:45.372Z"
+            "updatedAt": "2026-09-09T15:08:51.540Z"
           },
           {
             "id": 6,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-09T14:59:45.372Z"
+        "updatedAt": "2026-09-09T15:08:51.540Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-09T14:59:45.372Z",
+      "lastModified": "2026-09-09T15:08:51.543Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
