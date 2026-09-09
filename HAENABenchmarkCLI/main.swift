@@ -239,6 +239,8 @@ let benchmarkArguments = Array(CommandLine.arguments.dropFirst())
 let benchmarkExitCode: Int32
 if benchmarkArguments.first == "audio" {
     benchmarkExitCode = await AudioBenchmarkCLI.run(arguments: Array(benchmarkArguments.dropFirst()))
+} else if benchmarkArguments.first == "score" {
+    benchmarkExitCode = SemanticScoringCLI.run(arguments: Array(benchmarkArguments.dropFirst()))
 } else {
     // Existing meeting-execution invocation intentionally remains the default command.
     benchmarkExitCode = await BenchmarkCLI.run(arguments: benchmarkArguments)

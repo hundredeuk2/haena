@@ -102,6 +102,7 @@ targets:
           - SemanticScoringAccountingTests.swift
           - SemanticScoringMetricsTests.swift
           - SemanticRegressionReportTests.swift
+          - SemanticScoringCLITests.swift
           - Fixtures
           - AudioBenchmarkIsolationTests.swift
           - AudioBenchmarkRunnerTests.swift
@@ -185,6 +186,7 @@ targets:
       - path: HAENATests/SemanticScoringAccountingTests.swift
       - path: HAENATests/SemanticScoringMetricsTests.swift
       - path: HAENATests/SemanticRegressionReportTests.swift
+      - path: HAENATests/SemanticScoringCLITests.swift
       - path: HAENATests/AudioBenchmarkIsolationTests.swift
       - path: HAENATests/AudioBenchmarkRunnerTests.swift
       - path: HAENATests/AudioBenchmarkScorerTests.swift
