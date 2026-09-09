@@ -325,10 +325,10 @@
               "3.5"
             ],
             "details": "Add a separate CLI mode and output path that requires the scorer authorization contract. Default benchmark execution must remain unscored. Refuse pending gold, unfinished secondary provenance, sealed split without an explicit future sealed authorization, unknown policy versions, and output collisions. Do not add timers, network calls, provider access, or automatic model runs.",
-            "status": "pending",
+            "status": "review",
             "testStrategy": "CLI synthetic success plus refusal tests; verify default commands never read gold; verify existing prediction/report tests remain green and outputs are not overwritten silently.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-06T11:20:50.000Z"
+            "updatedAt": "2026-09-09T15:42:34.642Z"
           },
           {
             "id": 7,
@@ -344,12 +344,12 @@
             "updatedAt": "2026-09-06T11:20:50.000Z"
           }
         ],
-        "updatedAt": "2026-09-09T15:08:51.540Z"
+        "updatedAt": "2026-09-09T15:42:34.642Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-09T15:08:51.543Z",
+      "lastModified": "2026-09-09T15:42:34.642Z",
       "taskCount": 3,
       "completedCount": 1,
       "tags": [
