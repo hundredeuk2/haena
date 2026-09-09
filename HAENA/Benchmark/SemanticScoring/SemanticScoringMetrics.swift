@@ -76,7 +76,7 @@ struct SemanticMetricSampleDiagnostics: Codable, Equatable, Sendable {
     let incomparableSampleCount: Int
     let ineligibleSamples: [SemanticMetricIneligibilityCount]
 
-    fileprivate init(
+    init(
         eligibleSampleCount: Int,
         reasonCounts: [SemanticMetricIneligibilityReason: Int]
     ) {
@@ -123,7 +123,7 @@ struct SemanticBinaryMetrics: Codable, Equatable, Sendable {
     let recall: SemanticMetricFraction
     let f1: SemanticMetricFraction
 
-    fileprivate init(truePositive: Int, falsePositive: Int, falseNegative: Int) {
+    init(truePositive: Int, falsePositive: Int, falseNegative: Int) {
         self.truePositive = truePositive
         self.falsePositive = falsePositive
         self.falseNegative = falseNegative
@@ -297,8 +297,18 @@ struct SemanticMetricResult: Codable, Equatable, Sendable {
 /// accepts raw scorer input, a raw matching map, or unvalidated observations.
 enum SemanticScoringMetricCore {
     static func measure(_ metricCase: AuthorizedSemanticMetricScoringCase) -> SemanticMetricResult {
+        measure(
+            metricCase,
+            accounting: SemanticScoringAccountingCore.account(metricCase.scoringCase)
+        )
+    }
+
+    static func measure(
+        _ metricCase: AuthorizedSemanticMetricScoringCase,
+        accounting: SemanticAccountingResult
+    ) -> SemanticMetricResult {
         let scoringCase = metricCase.scoringCase
-        let accounting = SemanticScoringAccountingCore.account(scoringCase)
+        precondition(accounting.caseID == scoringCase.input.caseID)
         let observations = Dictionary(uniqueKeysWithValues: metricCase.predictionObservations.map {
             ($0.predictionReference, $0)
         })

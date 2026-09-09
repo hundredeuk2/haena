@@ -1,0 +1,470 @@
+{
+  "aggregate" : {
+    "action_item_policy_metrics" : [
+      {
+        "assignee" : {
+          "absent_must_stay_empty_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "basis_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "scope_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "value_reference_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "due" : {
+          "absent_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "comparable_value_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "status_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "inference_class" : "explicit",
+        "matched_action_item_count" : 0
+      },
+      {
+        "assignee" : {
+          "absent_must_stay_empty_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "basis_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "scope_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "value_reference_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "due" : {
+          "absent_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "comparable_value_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "status_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "inference_class" : "derived_proposal",
+        "matched_action_item_count" : 0
+      },
+      {
+        "assignee" : {
+          "absent_must_stay_empty_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "basis_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "scope_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "value_reference_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "due" : {
+          "absent_compliance" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "comparable_value_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "diagnostics" : {
+            "eligible_sample_count" : 0,
+            "incomparable_sample_count" : 0,
+            "ineligible_sample_count" : 0,
+            "ineligible_samples" : [
+
+            ],
+            "unresolved_sample_count" : 0
+          },
+          "exact_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "status_accuracy" : {
+            "availability" : "no_eligible_samples",
+            "denominator" : 0,
+            "numerator" : 0
+          }
+        },
+        "inference_class" : "forbidden_inference",
+        "matched_action_item_count" : 0
+      }
+    ],
+    "ambiguity" : [
+
+    ],
+    "case_count" : 0,
+    "evidence" : {
+      "citation" : {
+        "f1" : {
+          "availability" : "no_positive_gold_or_predictions",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "false_negative" : 0,
+        "false_positive" : 0,
+        "precision" : {
+          "availability" : "no_positive_predictions",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "recall" : {
+          "availability" : "no_positive_gold",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "true_positive" : 0
+      },
+      "diagnostics" : {
+        "eligible_sample_count" : 0,
+        "incomparable_sample_count" : 0,
+        "ineligible_sample_count" : 0,
+        "ineligible_samples" : [
+
+        ],
+        "unresolved_sample_count" : 0
+      },
+      "exact_evidence_set_accuracy" : {
+        "availability" : "no_eligible_samples",
+        "denominator" : 0,
+        "numerator" : 0
+      }
+    },
+    "forbidden_inference" : {
+      "declared_violations" : [
+
+      ],
+      "violation_prediction_count" : 0,
+      "violation_rate" : {
+        "availability" : "no_positive_predictions",
+        "denominator" : 0,
+        "numerator" : 0
+      }
+    },
+    "ineligibility_reason_counts" : [
+
+    ],
+    "output_kinds" : [
+      {
+        "classification" : {
+          "f1" : {
+            "availability" : "no_positive_gold_or_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "precision" : {
+            "availability" : "no_positive_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "recall" : {
+            "availability" : "no_positive_gold",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "true_positive" : 0
+        },
+        "kind" : "decision",
+        "ledger" : {
+          "duplicate_prediction_count" : 0,
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "gold_total" : 0,
+          "kind" : "decision",
+          "prediction_total" : 0,
+          "true_positive" : 0
+        }
+      },
+      {
+        "classification" : {
+          "f1" : {
+            "availability" : "no_positive_gold_or_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "precision" : {
+            "availability" : "no_positive_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "recall" : {
+            "availability" : "no_positive_gold",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "true_positive" : 0
+        },
+        "kind" : "action_item",
+        "ledger" : {
+          "duplicate_prediction_count" : 0,
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "gold_total" : 0,
+          "kind" : "action_item",
+          "prediction_total" : 0,
+          "true_positive" : 0
+        }
+      },
+      {
+        "classification" : {
+          "f1" : {
+            "availability" : "no_positive_gold_or_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "precision" : {
+            "availability" : "no_positive_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "recall" : {
+            "availability" : "no_positive_gold",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "true_positive" : 0
+        },
+        "kind" : "open_question",
+        "ledger" : {
+          "duplicate_prediction_count" : 0,
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "gold_total" : 0,
+          "kind" : "open_question",
+          "prediction_total" : 0,
+          "true_positive" : 0
+        }
+      },
+      {
+        "classification" : {
+          "f1" : {
+            "availability" : "no_positive_gold_or_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "precision" : {
+            "availability" : "no_positive_predictions",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "recall" : {
+            "availability" : "no_positive_gold",
+            "denominator" : 0,
+            "numerator" : 0
+          },
+          "true_positive" : 0
+        },
+        "kind" : "next_agenda",
+        "ledger" : {
+          "duplicate_prediction_count" : 0,
+          "false_negative" : 0,
+          "false_positive" : 0,
+          "gold_total" : 0,
+          "kind" : "next_agenda",
+          "prediction_total" : 0,
+          "true_positive" : 0
+        }
+      }
+    ],
+    "target_speaker_b" : {
+      "diagnostics" : {
+        "eligible_sample_count" : 0,
+        "incomparable_sample_count" : 0,
+        "ineligible_sample_count" : 0,
+        "ineligible_samples" : [
+
+        ],
+        "unresolved_sample_count" : 0
+      },
+      "exact_responsibility_state_accuracy" : {
+        "availability" : "no_eligible_samples",
+        "denominator" : 0,
+        "numerator" : 0
+      },
+      "no_responsibility_assigned_prediction_count" : 0,
+      "other_speaker_prediction_count" : 0,
+      "responsibility" : {
+        "f1" : {
+          "availability" : "no_positive_gold_or_predictions",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "false_negative" : 0,
+        "false_positive" : 0,
+        "precision" : {
+          "availability" : "no_positive_predictions",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "recall" : {
+          "availability" : "no_positive_gold",
+          "denominator" : 0,
+          "numerator" : 0
+        },
+        "true_positive" : 0
+      }
+    }
+  },
+  "case_reports" : [
+
+  ],
+  "provenance" : {
+    "case_fingerprints" : [
+
+    ],
+    "schema_inventory" : {
+      "accounting_schema_versions" : [
+
+      ],
+      "input_schema_versions" : [
+
+      ],
+      "matching_map_schema_versions" : [
+
+      ],
+      "matching_policy_versions" : [
+
+      ],
+      "metric_schema_versions" : [
+
+      ],
+      "prediction_observation_schema_versions" : [
+
+      ]
+    }
+  },
+  "schema_version" : "haena-semantic-regression-report-v0.1"
+}

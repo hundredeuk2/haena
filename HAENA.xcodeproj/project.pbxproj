@@ -42,6 +42,7 @@
 		142915CDEDD645D8B3D69BB7 /* BenchmarkCaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB1F1D0D1C359D8EF748F3F /* BenchmarkCaseStore.swift */; };
 		144383B6323940284FE0AD20 /* WorkStateExtractionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833110D4A29E8D1F6346DB90 /* WorkStateExtractionServiceTests.swift */; };
 		145C1A39B9462478E09317A7 /* LocalUserProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA73B2A756E714525EA53907 /* LocalUserProfileService.swift */; };
+		15B02E9B12EE3CEF0013571D /* SemanticRegressionReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3525FC74455033AE5083E5 /* SemanticRegressionReport.swift */; };
 		180EA12135390DB985C7F1C0 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3BA393C98DBAD193F486E3 /* NextAction.swift */; };
 		19637876BE997E39AA4F9AFF /* DeterministicMeetingAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE799FC0529C4C8B0842BF53 /* DeterministicMeetingAudioRecorder.swift */; };
 		1B59B5414FE546910A317AAD /* AudioBenchmarkRunnerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA36129CF2230650F5A050CE /* AudioBenchmarkRunnerModels.swift */; };
@@ -79,6 +80,7 @@
 		388C192A1A8F03A04C4DA66D /* AudioBenchmarkCaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D217BD561F48AEF1EDFD57D /* AudioBenchmarkCaseStore.swift */; };
 		38EC1D1988FEC6E3E234957F /* ProjectExportFilename.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733D895F1DEBF6ABB24848F /* ProjectExportFilename.swift */; };
 		391E14AB92098FC0630EDD6B /* ActionItemReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9171438C4B5D8052DA7E2AA0 /* ActionItemReminderView.swift */; };
+		39A38AF84E5ACFFDB9ADB977 /* SemanticRegressionReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3525FC74455033AE5083E5 /* SemanticRegressionReport.swift */; };
 		3A384C3266FEEA2153B439D1 /* OpenAIResponsesDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4438BA40DDE8667432DFE21 /* OpenAIResponsesDTO.swift */; };
 		3BC74E5C6371A16B1BE2F216 /* HAENAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3BF7D044C442EC779EC8CE /* HAENAApp.swift */; };
 		3BF85FA1E9AAF97CB5C51E0F /* MeetingDateFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B35283C3C236D21899AAFE /* MeetingDateFormatter.swift */; };
@@ -198,6 +200,7 @@
 		91AA42D8D6C31562E5209775 /* AgentLedgerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22D1F09F290E85871D2905E /* AgentLedgerTests.swift */; };
 		91E3B1B15DFBF28264DF5790 /* AssigneeAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F20B1B81A2AFE6BDD502CF7 /* AssigneeAttribution.swift */; };
 		920FDE2BA770BCE751BA434B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4529E096652E7E31385184CF /* HomeView.swift */; };
+		929A915A9BC866EC3721A80C /* SemanticRegressionReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7CE2D60FF94638EE3E2433 /* SemanticRegressionReportTests.swift */; };
 		92F949DCD7973D388D3047BC /* EvidenceReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAC7E87F39DD0690F9FCACC /* EvidenceReference.swift */; };
 		932076AAF3953D1B8576DA38 /* BenchmarkIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169F653660ABF4D53013970F /* BenchmarkIdentity.swift */; };
 		932D0B3B81CBEE6D2DB2317F /* WorkStateReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65BCF799CAB4BB3B60C941F9 /* WorkStateReviewService.swift */; };
@@ -483,6 +486,7 @@
 		6ADD66CEB408663537B6784A /* BenchmarkExtractionInputAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkExtractionInputAdapter.swift; sourceTree = "<group>"; };
 		6B92E95ABB3ACE8E9451AB25 /* TextMeetingCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextMeetingCaptureServiceTests.swift; sourceTree = "<group>"; };
 		6BA19CD9B38591AD7C56D936 /* ProjectStoreFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStoreFile.swift; sourceTree = "<group>"; };
+		6C3525FC74455033AE5083E5 /* SemanticRegressionReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticRegressionReport.swift; sourceTree = "<group>"; };
 		6C608D2AFCF2375D520754B2 /* ProjectBrowserUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectBrowserUITests.swift; sourceTree = "<group>"; };
 		6CDB33BD66CCA35445C867DC /* MeetingAudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAudioPlayer.swift; sourceTree = "<group>"; };
 		6D45E283537770C81AB5CEA3 /* WorkStateDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateDisplay.swift; sourceTree = "<group>"; };
@@ -516,6 +520,7 @@
 		8882B0B2DF7DCE6CBEF3208C /* OpenAITranscriptionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAITranscriptionProvider.swift; sourceTree = "<group>"; };
 		88A346BA98E2BEF2364E5002 /* ManualContinuityBriefUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualContinuityBriefUITests.swift; sourceTree = "<group>"; };
 		89F58341826CA4B29DA56136 /* Decision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Decision.swift; sourceTree = "<group>"; };
+		8A7CE2D60FF94638EE3E2433 /* SemanticRegressionReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticRegressionReportTests.swift; sourceTree = "<group>"; };
 		8B2EF1883428FEBD28A46247 /* BetaMetricsInstrumentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetaMetricsInstrumentationTests.swift; sourceTree = "<group>"; };
 		8C2E24E7278043AF44D79156 /* BenchmarkPrivacyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkPrivacyTests.swift; sourceTree = "<group>"; };
 		8D910C59D3F033383FB986C9 /* WorkStateReviewServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkStateReviewServiceTests.swift; sourceTree = "<group>"; };
@@ -672,6 +677,7 @@
 			children = (
 				A8598F777FE59E2A4BD3DB7C /* SemanticMatchingMap.swift */,
 				9C0E933E88ED76C520CA8B7D /* SemanticPredictionMetricObservation.swift */,
+				6C3525FC74455033AE5083E5 /* SemanticRegressionReport.swift */,
 				53E76D2971C188E3823483C5 /* SemanticScorerInput.swift */,
 				909246D233E6F89E30A6D145 /* SemanticScorerInputStore.swift */,
 				7964FAC78BA47981693B93E5 /* SemanticScoringAccounting.swift */,
@@ -911,6 +917,7 @@
 				CCB030E872DA4146351D7778 /* ProjectModelTests.swift */,
 				86071B9E0DFF50654C8A2CE7 /* ProjectStatusSummaryTests.swift */,
 				84CD28F24A0FF4CDEE68AEBC /* ReviewFixtures.swift */,
+				8A7CE2D60FF94638EE3E2433 /* SemanticRegressionReportTests.swift */,
 				3765324001BC8E0334E4862D /* SemanticScorerInputStoreTests.swift */,
 				A8F385C789E962D5BF11E0F8 /* SemanticScoringAccountingTests.swift */,
 				4998B0A0FF6AE3A094D8D0D4 /* SemanticScoringMetricsTests.swift */,
@@ -1373,6 +1380,7 @@
 				845A025BB999125014855F7F /* Project.swift in Sources */,
 				1D477DF6682C03DAB1C2E07D /* SemanticMatchingMap.swift in Sources */,
 				7643BB00F15F5D2C850DDF7B /* SemanticPredictionMetricObservation.swift in Sources */,
+				15B02E9B12EE3CEF0013571D /* SemanticRegressionReport.swift in Sources */,
 				882B82B453E93F0E1C7B5958 /* SemanticScorerInput.swift in Sources */,
 				755C5D5CC86EFC3E2AC4DB7C /* SemanticScorerInputStore.swift in Sources */,
 				DA64CE3E93715259D3D45F09 /* SemanticScoringAccounting.swift in Sources */,
@@ -1534,6 +1542,8 @@
 				56EBD3535643A493F294D033 /* PredictionArtifact.swift in Sources */,
 				7178919003413EEA97F505C7 /* SemanticMatchingMap.swift in Sources */,
 				ABB0511D4C4DEECC5CE1E3CA /* SemanticPredictionMetricObservation.swift in Sources */,
+				39A38AF84E5ACFFDB9ADB977 /* SemanticRegressionReport.swift in Sources */,
+				929A915A9BC866EC3721A80C /* SemanticRegressionReportTests.swift in Sources */,
 				8B312162E34CABB6B2C49984 /* SemanticScorerInput.swift in Sources */,
 				F618294274D77AD62504B860 /* SemanticScorerInputStore.swift in Sources */,
 				0B15FB187E9D80B5DFC03DB8 /* SemanticScorerInputStoreTests.swift in Sources */,
