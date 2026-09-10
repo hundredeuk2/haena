@@ -252,7 +252,7 @@
         "testStrategy": "Use synthetic-only zero, perfect, miss, duplicate, over-inference, pending-gold, unauthorized-split, and deterministic-serialization fixtures. Run focused scorer and benchmark tests plus the directly affected app/CLI builds. Report exact numerator/denominator and unavailable states; defer real-corpus scoring until development gold is finalized and explicitly authorized.",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -338,20 +338,20 @@
               "3.6"
             ],
             "details": "Run focused synthetic scorer suites, directly affected benchmark suites, Debug app and Benchmark CLI builds, Release/privacy isolation where new test seams exist, and git diff --check. Reconcile all Notion acceptance criteria without claiming a real baseline. Commit and push each coherent implementation checkpoint. Keep actual development scoring, sealed baseline, prompt tuning, PR, merge, tag, release, and publication behind separate approval.",
-            "status": "review",
+            "status": "done",
             "testStrategy": "Exact pass/fail/skip counts, deterministic report hashes, forbidden-path/read counts, Git ahead/behind, preserved unrelated untracked files, and Notion re-fetch after updates.",
             "parentId": "undefined",
-            "updatedAt": "2026-09-10T11:23:42.557Z"
+            "updatedAt": "2026-09-10T11:58:32.303Z"
           }
         ],
-        "updatedAt": "2026-09-10T11:23:42.557Z"
+        "updatedAt": "2026-09-10T11:58:32.303Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-10T11:23:42.559Z",
+      "lastModified": "2026-09-10T11:58:32.305Z",
       "taskCount": 3,
-      "completedCount": 1,
+      "completedCount": 2,
       "tags": [
         "master"
       ]
