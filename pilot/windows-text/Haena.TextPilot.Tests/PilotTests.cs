@@ -185,6 +185,16 @@ public sealed class PilotTests : IDisposable
         Assert.Equal("do not read or mutate", File.ReadAllText(target));
     }
 
+    [Fact] public void DanglingDirectoryLinkIsRejectedBeforeCreatingItsTarget()
+    {
+        Directory.CreateDirectory(root);
+        var target = Path.Combine(root, "missing-target");
+        var link = Path.Combine(root, "linked-root");
+        Directory.CreateSymbolicLink(link, target);
+        Refuses(PilotError.UnsafeStoragePath, () => new JsonPilotRepository(link));
+        Assert.False(Directory.Exists(target));
+    }
+
     private sealed class ForbiddenRepository : IPilotRepository
     {
         public int Accesses { get; private set; }

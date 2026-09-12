@@ -91,7 +91,7 @@ public sealed class JsonPilotRepository : IPilotRepository
     private void CheckPath()
     {
         for (DirectoryInfo? directory = new(root); directory is not null; directory = directory.Parent)
-            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (directory.LinkTarget is not null || (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0))
                 throw new PilotException(PilotError.UnsafeStoragePath);
         foreach (var name in new[] { "text-pilot.json", ".writer.lock" })
         {
