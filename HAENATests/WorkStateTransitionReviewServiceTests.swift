@@ -763,6 +763,27 @@ private actor FailOnceTransitionRepository: WorkStateTransitionRepository {
         try await base.proposals(forProject: projectID)
     }
     func allProposals() async throws -> [WorkStateTransitionProposal] { try await base.allProposals() }
+    func recordMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws {
+        try await base.recordMeetingDeletionIntent(intent)
+    }
+    func pendingMeetingDeletionIntents() async throws -> [MeetingDeletionIntent] {
+        try await base.pendingMeetingDeletionIntents()
+    }
+    func applyMeetingDeletion(_ intent: MeetingDeletionIntent) async throws {
+        try await base.applyMeetingDeletion(intent)
+    }
+    func clearMeetingDeletionIntent(_ intent: MeetingDeletionIntent) async throws {
+        try await base.clearMeetingDeletionIntent(intent)
+    }
+    func recordProjectDeletionIntent(_ intent: ProjectDeletionIntent) async throws {
+        try await base.recordProjectDeletionIntent(intent)
+    }
+    func pendingProjectDeletionIntents() async throws -> [ProjectDeletionIntent] {
+        try await base.pendingProjectDeletionIntents()
+    }
+    func applyProjectDeletion(_ intent: ProjectDeletionIntent) async throws {
+        try await base.applyProjectDeletion(intent)
+    }
     func ambiguousMatchGroups(forProject projectID: UUID) async throws -> [WorkStateAmbiguousMatchGroup] {
         try await base.ambiguousMatchGroups(forProject: projectID)
     }
