@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+TestResults/
+.sdk-home/
+.packages/
