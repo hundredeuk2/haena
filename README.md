@@ -1,236 +1,558 @@
-# HAE.NA — Turn conversations into next actions
+<a id="english"></a>
+
+# HAE.NA
 
 ![HAE.NA — Turn conversations into next actions](docs/banner.png)
 
-**회의를 한 사람의 업무 기억과 실행으로 바꾸는 로컬 우선 macOS 앱입니다.**
+<p align="center">
+  <strong>Local-first Meeting Continuity for macOS.</strong><br>
+  Turn meeting evidence into reviewed work state—and carry it into the next meeting.
+</p>
 
-회의는 여러 사람이 하지만, 회의가 끝난 뒤 내용을 기억하고 실행해야 하는 것은 결국 한 사람입니다.
-HAE.NA는 그 한 사람을 위한 앱입니다. 녹음하거나 음성 파일을 불러오면 전사하고, 결정·업무·미해결
-질문·다음 아젠다를 뽑아 제안하며, 사용자가 승인한 것만 프로젝트 상태로 남깁니다.
+<p align="center">
+  <a href="#english">English</a> · <a href="#korean">한국어</a>
+</p>
 
-**전사는 입력이고, 제품의 핵심은 그 이후입니다.** HAE.NA는 범용 STT·요약기의 기능 수를 따라가기보다,
-회의에서 나온 제안을 근거와 함께 검토하고 승인된 업무 상태로 이어서 다음 회의를 준비하는
-**Meeting Continuity**에 집중합니다.
+<p align="center">
+  <a href="#why-haena">Why HAE.NA</a> ·
+  <a href="#install-the-preview">Install</a> ·
+  <a href="#how-meeting-continuity-works">How it works</a> ·
+  <a href="#privacy-and-cost">Privacy</a> ·
+  <a href="#current-limitations">Limitations</a>
+</p>
 
-> ⚠️ **이 저장소의 배포본은 서명·공증되지 않은 Developer Preview입니다.**
-> 설치 시 macOS 경고가 나타납니다. [설치 방법](#unsigned-빌드-설치)을 반드시 읽어주세요.
+> [!WARNING]
+> HAE.NA is currently an unsigned, unnotarized **Private Developer Preview**. There is no public
+> download yet. Read [Install the preview](#install-the-preview) and
+> [Current limitations](#current-limitations) before using it with real meeting data.
 
-## 제품 정체성 — Solo-first, Share-ready, Team-later
+## Why HAE.NA
 
-- **Solo-first** — 협업 SaaS가 아닙니다. 앱 사용자는 이 Mac을 쓰는 단일 사용자, 즉 "나"입니다.
-- **Share-ready** — 협업은 계정이 아니라 사용자가 통제하는 산출물(Markdown·클립보드)로 지원합니다.
-- **Team-later** — 조직·초대·권한·실시간 동기화는 개인용 제품이 실제로 잘 쓰인 뒤에 검토합니다.
+Most meeting tools stop at a transcript, summary, or list of action items. HAE.NA focuses on what
+happens after that output:
 
-회의 참석자는 앱 계정이 아니라 회의 맥락 속의 사람(Person)입니다. 로그인도, 서버도, 계정도 없습니다.
+```text
+Conversation
+    ↓
+Evidence-backed proposals
+    ↓
+Human review and approval
+    ↓
+Persistent work state
+    ↓
+Next-meeting brief
+    ↓
+Updated work state
+```
 
-## 지금 할 수 있는 것
+**Transcription is an input, not the product.** HAE.NA keeps decisions, action items, open questions,
+and next-agenda items connected to their evidence. AI may propose a change, but only the user can
+approve it into project state.
 
-- **마이크 녹음** — 앱에서 회의를 녹음하고 바로 전사로 넘깁니다
-- **음성 파일 불러오기** — `mp3` `mp4` `mpeg` `mpga` `m4a` `wav` `webm`, 최대 25MB
-- **텍스트 회의록 붙여넣기** — 녹음이 없어도 회의록만으로 시작할 수 있습니다
-- **전사와 화자 구분** — 타임스탬프와 화자가 붙은 원문
-- **화자 확인** — 익명 화자(`Speaker 1`)를 실제 참석자와 연결. 전사·분석을 막지 않는 선택 기능
-- **업무 상태 추출** — 결정 / 업무 / 미해결 질문 / 다음 아젠다. 근거 인용과 확신도가 함께 표시되며,
-  **승인 전에는 확정된 상태로 취급되지 않습니다**
-- **검토와 수정** — 승인·제외, 담당자·마감일 변경
-- **다음 회의 준비** — 프로젝트에서 수동으로 여는 Continuity Brief. 승인된 Decision·진행 업무·
-  미해결 질문·Next Agenda와 새 회의의 완료·지연·차단·해결 후보를 근거와 함께 구분해 보여주며,
-  화면을 여는 것만으로 상태를 바꾸거나 모델을 호출하지 않습니다
-- **회의 결과 화면** — 회의를 열면 **회의 결과**가 먼저 나오고 **원문**은 옆 탭에 있습니다. 녹음·불러오기·
-  붙여넣기가 끝나면 방금 만든 회의의 결과 화면으로 바로 이동합니다
-- **개인 홈** — 모든 프로젝트를 합산해 확인 필요·진행 업무·미해결 질문·다음 아젠다를 한 화면에
-- **지금 할 일** — 홈 맨 위에 지금 해야 할 **한 건만** 강조합니다. 검토를 기다리는 AI 제안이 있으면
-  그것을, 없으면 마감이 지났거나 가장 임박한 내 업무를 제안하고, 누르면 해당 위치로 이동합니다
-- **내 업무** — 이름을 설정하고 본인에 해당하는 참석자를 연결하면 내 업무만 구분해 볼 수 있습니다
-- **내 업무 알림** — 마감일이 있는 확정된 내 업무의 알림 시각을 직접 확인해 macOS 로컬 알림으로
-  예약합니다. 앱을 다시 열어도 유지되며 업무가 끝나면 자동으로 취소됩니다
-- **Agent 기록** — 알림 예약·취소, 화면 표시·열기, 실행 시각 경과, 관련 업무 완료를 이 Mac의
-  최소 로컬 기록으로 확인하고 선택적으로 유용성 피드백을 남길 수 있습니다
-- **Beta 측정** — 회의 처리 수, 서로 다른 사용 날짜 수, 제안 승인율·수정률, 처리 시간 중앙값,
-  알림 피드백 분포를 이 Mac에서만 집계해 보여줍니다. 비율은 항상 분자·분모와 함께 표시하고,
-  표본이 없으면 추정 대신 빈 상태로 둡니다. `측정 초기화`로 측정 기록만 지울 수 있습니다
-- **원본 오디오 재생** — 저장된 녹음을 다시 듣기(재생/일시정지, 처음부터, 현재 시간·전체 길이)
-- **Markdown 내보내기·복사** — 프로젝트 현재 상태, 회의 전사 원문
+## What you can do
 
-## 요구 사항
-
-| 항목 | 버전 |
+| Area | Current capability |
 | --- | --- |
-| macOS | 14.0 이상 |
-| Xcode | Swift 6 툴체인을 포함한 버전 |
-| [XcodeGen](https://github.com/yonaskolb/XcodeGen) | 프로젝트 파일 생성용 |
+| Capture | Record from the microphone, import an audio file, or paste meeting notes |
+| Inspect | Read timestamped, speaker-labelled transcripts and confirm anonymous speakers |
+| Extract | Generate evidence-backed proposals for decisions, action items, open questions, and next agenda |
+| Review | Approve or exclude proposals; edit an owner or due date before approval |
+| Continue | Open a Continuity Brief that separates approved state from new completed, changed, delayed, blocked, or resolved candidates |
+| Act | See one recommended next action and schedule local reminders for confirmed personal action items |
+| Audit | Inspect a local agent event ledger and honest, local-only preview metrics |
+| Share | Export the current project state and transcript as Markdown or copy it to the clipboard |
 
-외부 런타임 의존성은 **없습니다.** Apple 프레임워크(SwiftUI, AVFoundation, Security 등)만 사용합니다.
+Audio import currently accepts `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `wav`, and `webm` files up to
+25MB.
 
-## 소스에서 빌드하기
+Opening a project or Continuity Brief does **not** call a model or change state. There is no automatic
+approval or bulk apply.
 
-```bash
-brew install xcodegen
-```
+## Product boundaries
 
-```bash
-xcodegen generate && open HAENA.xcodeproj
-```
+- **Solo-first** — one person uses the app on one Mac. HAE.NA is not a team workspace today.
+- **Local-first** — project state, transcripts, audio copies, and app records stay on the Mac. Model
+  requests are the explicit exception described under [Privacy and cost](#privacy-and-cost).
+- **Execution-first** — the primary object is reviewed work state, not a growing archive of summaries.
+- **Share-ready** — collaboration currently happens through user-controlled Markdown and clipboard
+  output, not accounts or silent synchronization.
+- **Not a general-purpose agent platform** — HAE.NA does not run arbitrary tools or attempt to replace
+  a personal assistant framework. Its scope is meeting-to-meeting continuity.
 
-Xcode에서 `HAENA` 스킴을 선택해 실행하면 됩니다. 명령줄만으로 빌드하려면:
+## Install the preview
 
-```bash
-xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
-```
+Current candidate: **0.2.4 (8) Private Developer Preview**
 
-`HAENA.xcodeproj`는 `project.yml`에서 생성됩니다. **프로젝트 파일을 직접 편집하지 말고
-`project.yml`을 고친 뒤 다시 생성하세요.**
+| Item | Value |
+| --- | --- |
+| macOS | 14.0 or later |
+| Package | `HAE.NA-0.2.4-8-unsigned.app.zip` |
+| Architecture | universal — Apple silicon + Intel |
+| SHA-256 | `64d85ffc9186f47fffb3d92c450d88297836c0e69235b29a7982ea0522eb1726` |
+| Signing | ad-hoc; no Developer ID signature or notarization |
 
-## unsigned 패키지 만들기
+The package is distributed directly to designated preview users. It is not attached to a public
+GitHub Release. See the [0.2.4 release notes](docs/private-preview-0.2.4.md) for build-specific facts
+and verification status.
 
-```bash
-./scripts/package-unsigned.sh
-```
-
-`dist/` 아래에 `HAE.NA-<버전>-<빌드>-unsigned.app.zip`과 `.sha256` 체크섬 파일이 생깁니다.
-격리된 DerivedData에서 Release 설정으로 빌드하며, 기존 산출물을 조용히 덮어쓰지 않습니다.
-
-## unsigned 빌드 설치
-
-현재 배포 후보는 **0.2.4 (8) Private Developer Preview**입니다. 이 빌드의 체크섬, 외부 전송
-범위, 검증 상태와 알려진 제한은 [릴리스 노트](docs/private-preview-0.2.4.md)에 있습니다.
-
-이 앱은 **Apple Developer ID로 서명되지 않았고 공증(Notarization)도 받지 않았습니다.**
-그래서 macOS가 "확인되지 않은 개발자" 또는 "손상되었기 때문에 열 수 없습니다"라고 경고합니다.
-이는 앱이 위험하다는 뜻이 아니라, **Apple이 이 빌드를 확인한 적이 없다는 뜻**입니다.
-
-설치 전에 반드시 **출처와 SHA-256 체크섬을 확인하세요.**
+Verify the package before opening it:
 
 ```bash
 shasum -a 256 HAE.NA-0.2.4-8-unsigned.app.zip
 ```
 
-출력값이 릴리스 노트의 값과 **한 글자도 다르지 않아야** 합니다.
+Then:
 
-### 여는 방법
+1. Unzip the package and move `HAE.NA.app` to `/Applications`.
+2. In Finder, Control-click the app and choose **Open**.
+3. Confirm **Open** in the macOS warning dialog.
+4. If macOS still blocks it, go to **System Settings → Privacy & Security** and allow this app.
 
-1. 압축을 풀고 `HAE.NA.app`을 `/Applications`로 옮깁니다
-2. **Finder에서 앱을 우클릭 → 열기** (더블클릭이 아니라 우클릭입니다)
-3. 경고 대화상자에서 **열기**를 누릅니다
+Do not disable Gatekeeper globally or remove quarantine attributes recursively just to run HAE.NA.
 
-우클릭 → 열기로도 열리지 않으면:
+### First run
 
-4. **시스템 설정 → 개인정보 보호 및 보안**을 열고, 아래쪽 "HAE.NA이(가) 차단되었습니다" 옆의
-   **확인 없이 열기**를 누른 뒤 다시 실행합니다
+HAE.NA uses your own OpenAI API key. Open **AI Settings**, save the key, and optionally run the
+connection check. The check lists models to verify authentication and does not run a model.
 
-> 🔒 Gatekeeper를 전역으로 끄는 명령(`spctl --master-disable`)이나 `xattr -dr`로 격리 속성을
-> 일괄 제거하는 방법은 **권장하지 않습니다.** 이 앱 하나 때문에 시스템 전체의 보호를 낮출
-> 이유가 없습니다. 위의 우클릭 → 열기로 충분합니다.
+The key is stored in macOS Keychain under `com.haena.HAENA` / `openai-api-key` and is never shown
+again after saving.
 
-## OpenAI API 키 설정 (BYOK)
+Current model configuration: `gpt-4o-transcribe-diarize` for transcription and `gpt-5.6` for work-state
+extraction.
 
-HAE.NA는 **개발자 공용 키를 포함하지 않습니다.** 전사와 AI 추출을 쓰려면 본인의 OpenAI API 키가
-필요합니다(Bring Your Own Key).
+## Build from source
 
-1. 앱 실행 → 홈 화면의 **AI 설정**
-2. API 키를 붙여넣고 **저장**
-3. 선택: **연결 확인** — 모델을 실행하지 않는 목록 조회로 인증만 검사하므로 **사용료가 발생하지
-   않습니다**
+Requirements: macOS 14+, Xcode with the Swift 6 toolchain, and
+[XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
-키는 이 Mac의 **Keychain**에만 저장됩니다(`com.haena.HAENA` / `openai-api-key`).
-저장한 뒤에는 화면에 다시 표시되지 않으며, 상태로 "설정됨"만 보여줍니다.
+```bash
+brew install xcodegen
+xcodegen generate
+open HAENA.xcodeproj
+```
 
-개발·테스트용으로 `OPENAI_API_KEY` 환경변수도 지원하며, **환경변수가 있으면 Keychain보다
-우선합니다.**
+Select the `HAENA` scheme in Xcode. For a command-line build:
 
-### 비용과 데이터에 대해
+```bash
+xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
+```
 
-- **API 사용료는 입력한 키의 OpenAI 계정에서 발생합니다.**
-- **ChatGPT 구독료와 API 사용료는 서로 별개입니다.** ChatGPT Plus를 쓰고 있어도 API는 따로
-  과금됩니다.
-- 본인 계정의 키만 사용하세요.
-- 권한을 제한한 Project API 키를 만들고 OpenAI에서 사용 한도를 설정해두시길 권합니다.
-- **전사와 추출을 실행하면 회의 오디오·전사 내용과 추출에 필요한 최소 승인 상태 문구가
-  OpenAI로 전송됩니다.** 승인 상태의 실제 UUID와 기존 근거 인용문은 보내지 않습니다. 자세한 내용은
-  [PRIVACY.md](PRIVACY.md)를 읽어주세요.
+`HAENA.xcodeproj` is generated from `project.yml`. Change `project.yml` and regenerate the project
+instead of editing generated project settings by hand.
 
-사용 모델: 전사 `gpt-4o-transcribe-diarize`, 추출 `gpt-5.6`
+To create an isolated unsigned package:
 
-## 로컬 데이터가 저장되는 위치
+```bash
+./scripts/package-unsigned.sh
+```
 
-| 내용 | 위치 |
+The script writes a versioned ZIP and `.sha256` file under `dist/` without silently overwriting an
+existing package.
+
+## How Meeting Continuity works
+
+1. **Capture evidence.** HAE.NA stores the meeting before AI extraction begins, so a failed request
+   does not erase the meeting.
+2. **Propose structured state.** The model proposes typed decisions, action items, open questions,
+   and next-agenda items with evidence and confidence.
+3. **Review explicitly.** The user approves, excludes, or edits supported fields. A proposal is not
+   project state before approval.
+4. **Carry state forward.** The next Continuity Brief shows approved state separately from new
+   transition candidates.
+5. **Apply another verdict.** New completion, change, delay, blockage, and resolution candidates
+   remain pending until the user reviews them.
+
+This approval boundary is the product contract. A different prompt, model, internal tool, or future
+MCP interface must not bypass it.
+
+## Privacy and cost
+
+Local-first does not mean fully offline. Network requests occur only when the user explicitly runs
+transcription, extraction, retry, or the connection check.
+
+| Stays on this Mac | Sent to OpenAI when requested |
 | --- | --- |
-| 프로젝트·회의·전사·업무 상태 | `~/Library/Application Support/com.haena.HAENA/projects.json` |
-| 회의 간 상태 전이 제안·검토 상태 | `~/Library/Application Support/com.haena.HAENA/continuity-transitions.json` |
-| 로컬 사용자 프로필 | `~/Library/Application Support/com.haena.HAENA/profile.json` |
-| 로컬 알림 예약·취소 이력 | `~/Library/Application Support/com.haena.HAENA/agent-jobs.json` |
-| Agent 알림 사건·선택적 피드백 | `~/Library/Application Support/com.haena.HAENA/agent-ledger.json` |
-| Beta 측정 이벤트(집계용 최소 기록) | `~/Library/Application Support/com.haena.HAENA/beta-metrics.json` |
-| 앱이 보관하는 오디오 사본 | `~/Library/Application Support/com.haena.HAENA/Audio/` |
-| OpenAI API 키 | macOS Keychain (`com.haena.HAENA` / `openai-api-key`) |
-| 녹음 중 임시 파일 | 시스템 임시 폴더 (앱 시작 시 정리) |
+| Project, meeting, and participant identifiers | Meeting audio for transcription |
+| Local user profile | Meeting title and transcript for extraction |
+| Existing evidence quotations | Minimum approved-state text needed for continuity analysis |
+| Agent ledger and preview metrics | Authentication metadata for the connection check |
 
-### 삭제하는 방법
+- The app contains no shared developer key. API usage is billed to the account behind the key you
+  provide; ChatGPT subscriptions and API billing are separate.
+- Requests use `store: false`.
+- Project, meeting, and participant UUIDs and the local profile are not sent for extraction.
+- An extraction may make up to three HTTP attempts after retryable 429 or 5xx responses. Timeouts and
+  network failures are not retried automatically.
+- Preview metrics are aggregated locally and contain no meeting title, transcript, or participant
+  name.
 
-- **프로젝트·회의** — 앱에서 `프로젝트 보기` → 프로젝트/회의 삭제. 저장된 업무 상태와 연속성 기록을
-  함께 정리한 뒤 연결된 오디오 사본 삭제를 시도합니다. 삭제 도중 앱이 종료되면 오디오 파일이 남을 수
-  있으므로 [현재 릴리스의 삭제 제한](docs/private-preview-0.2.4.md#삭제와-복구)을 확인하세요
-- **API 키** — `AI 설정` → 삭제. 키를 지워도 저장된 프로젝트·녹음·전사는 남습니다
-- **전부** — 앱을 종료하고 위 `com.haena.HAENA` 폴더를 삭제하세요. Keychain 항목은 *키체인 접근*
-  앱에서 `com.haena.HAENA`를 검색해 지울 수 있습니다
+Read [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) before using sensitive data.
 
-## 현재 제한사항
+## Local data and deletion
 
-- **서명·공증되지 않았습니다.** 설치에 위의 수동 절차가 필요합니다
-- 영상 파일에서 오디오 추출은 미구현
-- 영어 등 다른 언어는 전체 회의 기준으로 검증되지 않았습니다(한국어 위주로 확인)
-- 혼합 언어 자동 감지, 회의 후 번역 미구현
-- 전사 품질(WER·화자 분리 정확도)의 정량 측정은 아직 하지 않았습니다
-- Agent 기록은 ActionItem 로컬 알림의 사실 사건만 다룹니다. 범용 Agent 실행 이력·원격 분석은 없습니다
-- 다중 사용자·팀·동기화 없음. 의도된 범위입니다
-- 다음 회의 준비는 수동 진입만 지원합니다. Calendar trigger와 일괄 승인은 포함하지 않습니다
-- 앱이 여러 개 동시에 실행되면 같은 저장 파일을 두고 경합할 수 있습니다
-- 삭제는 일반 파일 삭제이며 secure erase가 아닙니다
-- 삭제가 저장 기록 정리 후 오디오 파일 삭제 전에 중단되면 `Audio/`에 앱에서 찾을 수 없는 파일이
-  남을 수 있습니다. 완전 삭제가 필요하면 앱을 종료한 뒤 데이터 폴더도 확인해야 합니다
+All app data is under:
 
-## 로드맵
+```text
+~/Library/Application Support/com.haena.HAENA/
+```
 
-**약속이 아니라 방향입니다.** 순서와 내용은 실제 사용 결과에 따라 바뀝니다.
+| Data | File or location |
+| --- | --- |
+| Projects, meetings, transcripts, and work state | `projects.json` |
+| Continuity proposals and review state | `continuity-transitions.json` |
+| Local profile | `profile.json` |
+| Reminder jobs | `agent-jobs.json` |
+| Agent events and optional feedback | `agent-ledger.json` |
+| Local preview metrics | `beta-metrics.json` |
+| Stored audio copies | `Audio/` |
+| API key | macOS Keychain |
 
-- 근거·전사 지점으로 오디오 이동
-- 마지막 확인 이후 변화 요약
-- 공유용 회의 브리핑
-- 전사 품질 벤치마크와 언어별 품질 측정
-- 원문·번역·업무 상태 사이의 근거 추적과 승인 경계를 보존하는 회의 후 번역 검토
-- 설치 장벽이 검증을 방해한다고 판단되면 Developer ID 서명·공증
+Deleting a meeting or project also cleans up its persisted work state and continuity records, then
+attempts to remove its stored audio copy. If the process stops after record cleanup but before the
+audio unlink, an orphaned file can remain in `Audio/`. Deletion is ordinary file deletion, not secure
+erase. For complete removal, quit the app, inspect or delete the application-support directory, and
+remove the Keychain item separately.
 
-## 버그 신고와 기여
+## Language status
 
-- 버그·제안은 GitHub Issues로 올려주세요.
-- **이슈에 회의 오디오, 전사 원문, API 키, `projects.json`, `agent-jobs.json`, `agent-ledger.json`, `beta-metrics.json`을 첨부하지 마세요.**
-  무엇을 보내도 되고 안 되는지는 [SECURITY.md](SECURITY.md)에 정리했습니다.
-- 코드 기여는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고해주세요.
+HAE.NA's product model is intended to be language-independent, but the current app is **not yet a
+globally validated build**:
+
+- The interface is Korean-first and has not been localized into English.
+- Korean meetings have received the most hands-on testing.
+- English and other languages have not completed end-to-end quality evaluation.
+- Mixed-language detection and post-meeting translation are not implemented.
+
+The goal is not to win on Korean transcription alone. Future multilingual work must preserve the
+same source evidence, work-state identity, owner, date, and approval boundary across the original and
+translated text.
+
+## Current limitations
+
+- Unsigned and unnotarized; installation requires the manual macOS steps above.
+- No public release channel or automatic updates.
+- No English UI localization yet; language quality is not broadly validated.
+- No mixed-language detection or translation.
+- No quantitative WER or speaker-diarization accuracy report yet.
+- No video-to-audio extraction.
+- No team accounts, permissions, sync, or concurrent multi-user editing.
+- Continuity Briefs are opened manually; there is no Calendar trigger.
+- Multiple app instances can race over the same local files.
+- An interrupted deletion can leave an orphaned audio file as described above.
+
+## Evaluation status
+
+The 0.2.4 deletion lifecycle passed **149/149 focused tests**. Package version, universal architecture,
+ad-hoc signature, SHA-256, and privacy contents were checked. The remaining Private Preview gate is a
+short packaged-app tryout of:
+
+```text
+Save → Extract → Review/Approve → Next Brief → Quit/Reopen
+```
+
+The project also contains development-only benchmark contracts for extraction and audio/STT quality.
+They are not a claim of finished product quality, and sealed evaluation data is not a public corpus.
+See [Benchmark harness](docs/benchmark-harness.md) and
+[Audio/STT benchmark](docs/audio-stt-benchmark.md).
+
+## Direction, not a promise
+
+- Validate repeated real meeting-to-meeting use before expanding the platform.
+- Add English UI localization and multilingual end-to-end evaluation.
+- Explore translation only with traceable original evidence and unchanged approval semantics.
+- Add change-since-last-review summaries, evidence-linked audio navigation, and shareable briefs.
+- Use Calendar context to surface a proven brief—not to auto-start recording or auto-apply state.
+- Consider Developer ID signing and notarization when installation friction blocks testing.
+
+MCP or toolized orchestration may become useful internally, but it is an architecture choice to be
+validated against quality, latency, cost, and recovery—not a feature-count goal.
+
+## Contributing and security
+
+- Use GitHub Issues for bugs and proposals.
+- Never attach meeting audio, raw transcripts, API keys, `projects.json`, agent records, or preview
+  metrics to an issue.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting code and
+  [SECURITY.md](SECURITY.md) before reporting a vulnerability.
 
 ## License
 
-**Apache License 2.0**
+HAE.NA is licensed under [Apache License 2.0](LICENSE). The explicit patent grant and patent-retaliation
+terms are intentional. OpenAI APIs and models are not covered by this license; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+---
+
+<a id="korean"></a>
+
+# 한국어
+
+<p align="center">
+  <strong>macOS를 위한 로컬 우선 Meeting Continuity.</strong><br>
+  회의 근거를 검토된 업무 상태로 바꾸고, 그 상태를 다음 회의까지 이어갑니다.
+</p>
+
+<p align="center">
+  <a href="#english">English</a> · <a href="#korean">한국어</a>
+</p>
+
+<p align="center">
+  <a href="#왜-haena인가">왜 HAE.NA인가</a> ·
+  <a href="#preview-설치">설치</a> ·
+  <a href="#meeting-continuity-작동-방식">작동 방식</a> ·
+  <a href="#개인정보와-비용">개인정보</a> ·
+  <a href="#현재-제한사항">제한사항</a>
+</p>
+
+> [!WARNING]
+> HAE.NA는 현재 서명·공증되지 않은 **Private Developer Preview**입니다. 공개 다운로드는 아직
+> 제공하지 않습니다. 실제 회의 데이터를 사용하기 전에 [Preview 설치](#preview-설치)와
+> [현재 제한사항](#현재-제한사항)을 확인하세요.
+
+## 왜 HAE.NA인가
+
+대부분의 회의 도구는 전사, 요약 또는 액션 아이템 목록에서 끝납니다. HAE.NA는 그 결과 이후에
+집중합니다.
+
+```text
+대화
+  ↓
+근거가 연결된 제안
+  ↓
+사용자 검토와 승인
+  ↓
+지속되는 업무 상태
+  ↓
+다음 회의 Brief
+  ↓
+갱신된 업무 상태
 ```
-Copyright 2026 HAE.NA contributors
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+**전사는 입력이지 제품의 끝이 아닙니다.** HAE.NA는 결정, 업무, 미해결 질문, 다음 아젠다를 원문
+근거와 연결합니다. AI가 변경을 제안할 수는 있지만, 사용자가 승인해야만 프로젝트 상태가 됩니다.
 
-    http://www.apache.org/licenses/LICENSE-2.0
+## 지금 할 수 있는 것
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+| 영역 | 현재 기능 |
+| --- | --- |
+| 입력 | 마이크 녹음, 음성 파일 불러오기, 텍스트 회의록 붙여넣기 |
+| 확인 | 타임스탬프·화자가 표시된 전사와 익명 화자 확인 |
+| 추출 | 결정, 업무, 미해결 질문, 다음 아젠다를 근거·확신도와 함께 제안 |
+| 검토 | 제안 승인·제외, 승인 전 담당자·마감일 수정 |
+| 연속성 | 승인 상태와 새 완료·변경·지연·차단·해결 후보를 구분하는 Continuity Brief |
+| 실행 | 지금 할 한 가지 추천과 확정된 내 업무의 macOS 로컬 알림 |
+| 기록 | Agent 사건 기록과 정직한 로컬 전용 Preview 측정 |
+| 공유 | 프로젝트 현재 상태와 전사 원문을 Markdown으로 내보내거나 복사 |
+
+현재 `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `wav`, `webm` 파일을 최대 25MB까지 불러올 수
+있습니다.
+
+프로젝트나 Continuity Brief를 여는 것만으로는 모델을 호출하거나 상태를 바꾸지 않습니다. 자동 승인과
+일괄 적용도 없습니다.
+
+## 제품 경계
+
+- **Solo-first** — 한 사람이 한 Mac에서 사용합니다. 현재 팀 협업 워크스페이스가 아닙니다.
+- **Local-first** — 프로젝트 상태, 전사, 오디오 사본과 앱 기록은 Mac에 남습니다. 명시적 예외는
+  [개인정보와 비용](#개인정보와-비용)에 설명한 모델 요청입니다.
+- **Execution-first** — 계속 쌓이는 요약문보다 검토된 업무 상태를 중심에 둡니다.
+- **Share-ready** — 협업은 계정이나 자동 동기화가 아니라 사용자가 통제하는 Markdown·클립보드
+  산출물로 지원합니다.
+- **범용 Agent 플랫폼이 아님** — 임의의 도구를 실행하거나 개인 비서 프레임워크를 대체하려는 제품이
+  아닙니다. 범위는 회의와 회의 사이의 연속성입니다.
+
+## Preview 설치
+
+현재 후보: **0.2.4 (8) Private Developer Preview**
+
+| 항목 | 값 |
+| --- | --- |
+| macOS | 14.0 이상 |
+| 패키지 | `HAE.NA-0.2.4-8-unsigned.app.zip` |
+| 아키텍처 | universal — Apple silicon + Intel |
+| SHA-256 | `64d85ffc9186f47fffb3d92c450d88297836c0e69235b29a7982ea0522eb1726` |
+| 서명 | ad-hoc; Developer ID 서명·공증 없음 |
+
+패키지는 지정된 Preview 사용자에게 개별 전달합니다. 공개 GitHub Release에는 첨부하지 않았습니다.
+빌드별 사실과 검증 상태는 [0.2.4 릴리스 노트](docs/private-preview-0.2.4.md)를 확인하세요.
+
+실행 전에 패키지를 검증하세요.
+
+```bash
+shasum -a 256 HAE.NA-0.2.4-8-unsigned.app.zip
 ```
 
-전문은 [LICENSE](LICENSE)를 참고하세요. MIT 대신 Apache-2.0을 선택한 이유는 **명시적인 특허
-라이선스 부여와 기여자 특허 보복 방지 조항** 때문입니다. 이 앱은 회의 데이터 처리와 AI 파이프라인을
-다루고 앞으로 provider·모델이 확장될 수 있어, 기여자와 사용자 양쪽에 그 조항이 있는 편이
-안전합니다.
+그다음:
 
-**OpenAI API와 모델은 이 라이선스의 적용 대상이 아닙니다.** 별도의 OpenAI 약관을 따릅니다 —
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+1. 압축을 풀고 `HAE.NA.app`을 `/Applications`로 옮깁니다.
+2. Finder에서 앱을 Control-클릭하고 **열기**를 선택합니다.
+3. macOS 경고 창에서 **열기**를 확인합니다.
+4. 계속 차단되면 **시스템 설정 → 개인정보 보호 및 보안**에서 이 앱을 허용합니다.
+
+HAE.NA 하나를 실행하기 위해 Gatekeeper를 전역으로 끄거나 격리 속성을 재귀적으로 제거하지 마세요.
+
+### 첫 실행
+
+HAE.NA는 사용자의 OpenAI API 키를 사용합니다. **AI 설정**에서 키를 저장하고 필요하면 연결 확인을
+실행하세요. 연결 확인은 인증을 위해 모델 목록만 조회하며 모델을 실행하지 않습니다.
+
+키는 macOS Keychain의 `com.haena.HAENA` / `openai-api-key`에 저장되고, 저장 후 다시 표시되지
+않습니다.
+
+현재 모델 구성은 전사 `gpt-4o-transcribe-diarize`, 업무 상태 추출 `gpt-5.6`입니다.
+
+## 소스에서 빌드
+
+요구 사항은 macOS 14+, Swift 6 툴체인이 포함된 Xcode,
+[XcodeGen](https://github.com/yonaskolb/XcodeGen)입니다.
+
+```bash
+brew install xcodegen
+xcodegen generate
+open HAENA.xcodeproj
+```
+
+Xcode에서 `HAENA` 스킴을 선택합니다. 명령줄 빌드는 다음과 같습니다.
+
+```bash
+xcodebuild -project HAENA.xcodeproj -scheme HAENA -configuration Debug build
+```
+
+`HAENA.xcodeproj`는 `project.yml`에서 생성됩니다. 생성된 프로젝트 설정을 직접 고치지 말고
+`project.yml`을 수정한 뒤 다시 생성하세요.
+
+격리된 unsigned 패키지를 만들려면:
+
+```bash
+./scripts/package-unsigned.sh
+```
+
+스크립트는 기존 패키지를 조용히 덮어쓰지 않고 `dist/` 아래에 버전이 붙은 ZIP과 `.sha256` 파일을
+만듭니다.
+
+## Meeting Continuity 작동 방식
+
+1. **근거 저장** — AI 추출 전에 회의를 먼저 저장하므로 요청이 실패해도 회의가 사라지지 않습니다.
+2. **구조화된 상태 제안** — 모델이 근거·확신도와 함께 결정, 업무, 미해결 질문, 다음 아젠다를
+   타입이 있는 형태로 제안합니다.
+3. **명시적 검토** — 사용자가 승인·제외하거나 지원되는 필드를 수정합니다. 승인 전 제안은 프로젝트
+   상태가 아닙니다.
+4. **다음 회의로 전달** — Continuity Brief는 승인된 상태와 새로운 전이 후보를 분리해 보여줍니다.
+5. **새 판정 적용** — 완료·변경·지연·차단·해결 후보도 사용자가 검토할 때까지 pending 상태입니다.
+
+이 승인 경계가 제품 계약입니다. 프롬프트, 모델, 내부 도구 또는 향후 MCP 인터페이스가 달라져도 이를
+우회해서는 안 됩니다.
+
+## 개인정보와 비용
+
+Local-first가 완전한 오프라인을 의미하지는 않습니다. 사용자가 전사·추출·재시도 또는 연결 확인을
+명시적으로 실행할 때만 네트워크 요청이 발생합니다.
+
+| 이 Mac에 남는 정보 | 요청 시 OpenAI로 보내는 정보 |
+| --- | --- |
+| 프로젝트·회의·참석자 식별자 | 전사용 회의 오디오 |
+| 로컬 사용자 프로필 | 추출용 회의 제목과 전사 내용 |
+| 기존 근거 인용문 | 연속성 판단에 필요한 최소 승인 상태 문구 |
+| Agent 기록과 Preview 측정 | 연결 확인용 인증 메타데이터 |
+
+- 앱에는 개발자 공용 키가 없습니다. 사용자가 입력한 키의 계정에 API 비용이 발생하며 ChatGPT 구독과
+  API 비용은 별개입니다.
+- 요청은 `store: false`를 사용합니다.
+- 추출에 프로젝트·회의·참석자 UUID와 로컬 프로필을 보내지 않습니다.
+- 추출은 재시도 가능한 429 또는 5xx 응답 뒤 최대 3번의 HTTP 요청을 만들 수 있습니다. 타임아웃과
+  네트워크 실패는 자동 재시도하지 않습니다.
+- Preview 측정은 로컬에서 집계하며 회의 제목, 전사 원문, 참석자 이름을 담지 않습니다.
+
+민감한 데이터를 사용하기 전에 [PRIVACY.md](PRIVACY.md)와 [SECURITY.md](SECURITY.md)를 읽어주세요.
+
+## 로컬 데이터와 삭제
+
+모든 앱 데이터는 다음 폴더 아래에 있습니다.
+
+```text
+~/Library/Application Support/com.haena.HAENA/
+```
+
+| 데이터 | 파일 또는 위치 |
+| --- | --- |
+| 프로젝트·회의·전사·업무 상태 | `projects.json` |
+| 연속성 제안과 검토 상태 | `continuity-transitions.json` |
+| 로컬 프로필 | `profile.json` |
+| 알림 작업 | `agent-jobs.json` |
+| Agent 사건과 선택적 피드백 | `agent-ledger.json` |
+| 로컬 Preview 측정 | `beta-metrics.json` |
+| 보관된 오디오 사본 | `Audio/` |
+| API 키 | macOS Keychain |
+
+회의나 프로젝트를 삭제하면 저장된 업무 상태와 연속성 기록을 정리한 뒤 보관된 오디오 사본 삭제를
+시도합니다. 기록 정리 후 오디오 파일 삭제 전에 프로세스가 중단되면 `Audio/`에 고아 파일이 남을 수
+있습니다. 삭제는 일반 파일 삭제이며 secure erase가 아닙니다. 완전히 제거하려면 앱을 종료하고
+Application Support 폴더를 확인하거나 삭제한 뒤 Keychain 항목을 별도로 제거하세요.
+
+## 언어 지원 상태
+
+HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지만, 현재 앱은 **글로벌 검증이 끝난
+빌드가 아닙니다.**
+
+- UI는 한국어 우선이며 영어로 현지화되지 않았습니다.
+- 한국어 회의를 가장 많이 직접 확인했습니다.
+- 영어와 다른 언어는 전체 흐름의 품질 평가를 마치지 않았습니다.
+- 혼합 언어 감지와 회의 후 번역은 구현되지 않았습니다.
+
+목표는 한국어 전사 성능만으로 경쟁하는 것이 아닙니다. 향후 다국어 기능은 원문과 번역문 사이에서도
+같은 근거, 업무 상태 ID, 담당자, 날짜, 승인 경계를 보존해야 합니다.
+
+## 현재 제한사항
+
+- 서명·공증되지 않아 위의 수동 macOS 설치 절차가 필요합니다.
+- 공개 릴리스 채널과 자동 업데이트가 없습니다.
+- 영어 UI 현지화가 없고 언어별 품질을 폭넓게 검증하지 않았습니다.
+- 혼합 언어 감지와 번역이 없습니다.
+- WER와 화자 분리 정확도의 정량 보고서가 없습니다.
+- 영상에서 오디오를 추출하지 않습니다.
+- 팀 계정, 권한, 동기화, 동시 다중 사용자 편집이 없습니다.
+- Continuity Brief는 수동으로 열며 Calendar trigger가 없습니다.
+- 앱을 여러 개 실행하면 같은 로컬 파일을 두고 경합할 수 있습니다.
+- 삭제가 중단되면 위에서 설명한 고아 오디오 파일이 남을 수 있습니다.
+
+## 검증 상태
+
+0.2.4 삭제 lifecycle은 **focused test 149/149**를 통과했습니다. 패키지 버전, universal 아키텍처,
+ad-hoc 서명, SHA-256과 패키지의 개인정보 포함 여부를 확인했습니다. 남은 Private Preview 관문은
+패키징된 앱에서 다음 실제 흐름을 짧게 사용해보는 것입니다.
+
+```text
+저장 → 추출 → 검토·승인 → 다음 Brief → 종료·재실행
+```
+
+프로젝트에는 추출과 Audio/STT 품질을 위한 개발 전용 benchmark 계약도 있습니다. 이는 완성된 제품
+품질을 주장하는 근거가 아니며 sealed 평가 데이터는 공개 corpus가 아닙니다.
+[Benchmark harness](docs/benchmark-harness.md)와
+[Audio/STT benchmark](docs/audio-stt-benchmark.md)를 참고하세요.
+
+## 방향이며 약속은 아닙니다
+
+- 플랫폼을 넓히기 전에 실제 회의가 반복되는 전체 흐름을 검증합니다.
+- 영어 UI 현지화와 다국어 전체 흐름 평가를 추가합니다.
+- 원문 근거를 추적할 수 있고 승인 의미가 바뀌지 않는 번역만 검토합니다.
+- 마지막 검토 이후 변화 요약, 근거 연결 오디오 이동, 공유용 Brief를 검토합니다.
+- Calendar는 자동 녹음·자동 상태 적용이 아니라 검증된 Brief를 적시에 보여주는 데 사용합니다.
+- 설치 장벽이 테스트를 막을 때 Developer ID 서명·공증을 검토합니다.
+
+MCP나 toolized orchestration은 내부적으로 유용할 수 있지만, 품질·latency·비용·복구 가능성을 비교해
+결정할 아키텍처 선택입니다. 기능 개수를 늘리기 위한 목표가 아닙니다.
+
+## 기여와 보안
+
+- 버그와 제안은 GitHub Issues로 올려주세요.
+- 이슈에 회의 오디오, 전사 원문, API 키, `projects.json`, Agent 기록 또는 Preview 측정을 첨부하지
+  마세요.
+- 코드를 제출하기 전에 [CONTRIBUTING.md](CONTRIBUTING.md), 취약점을 신고하기 전에
+  [SECURITY.md](SECURITY.md)를 확인하세요.
+
+## 라이선스
+
+HAE.NA는 [Apache License 2.0](LICENSE)을 따릅니다. 명시적인 특허 라이선스 부여와 특허 보복 방지
+조항은 의도된 선택입니다. OpenAI API와 모델은 이 라이선스 대상이 아닙니다.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 확인하세요.
