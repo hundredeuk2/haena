@@ -63,7 +63,7 @@ struct WorkStateProposalCard: View {
     /// Nil for kinds with nothing to correct: only an action item carries an assignee and a due date.
     var onEdit: (() -> Void)?
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -72,13 +72,13 @@ struct WorkStateProposalCard: View {
                     WorkStateStatusBadge(text: statusBadge, isProminent: true)
                 }
 
-                Text(WorkStateDisplay.label(for: proposal.kind))
+                Text(UIWorkStateDisplay.label(for: proposal.kind))
                     .font(.caption)
                     .bold()
 
                 Spacer()
 
-                if let confidence = WorkStateDisplay.confidenceLabel(proposal.confidence) {
+                if let confidence = UIWorkStateDisplay.confidenceLabel(proposal.confidence) {
                     Text(confidence)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -107,14 +107,14 @@ struct WorkStateProposalCard: View {
             }
 
             HStack {
-                Button("승인", action: onApprove)
+                Button(L10n.text("승인"), action: onApprove)
                     .accessibilityIdentifier(identifiers.approve)
 
-                Button("제외", action: onExclude)
+                Button(L10n.text("제외"), action: onExclude)
                     .accessibilityIdentifier(identifiers.exclude)
 
                 if let onEdit {
-                    Button("수정", action: onEdit)
+                    Button(L10n.text("수정"), action: onEdit)
                         .accessibilityIdentifier(identifiers.edit)
                 }
 
@@ -167,9 +167,9 @@ struct WorkStateEvidenceQuote: View {
 
     private var label: String {
         guard let timestamp else {
-            return "원문 “\(quote)”"
+            return L10n.format("원문 “%@”", String(describing: quote))
         }
-        return "원문 \(timestamp) “\(quote)”"
+        return L10n.format("원문 %@ “%@”", String(describing: timestamp), String(describing: quote))
     }
 }
 
@@ -179,17 +179,17 @@ struct ActionItemMetaRow: View {
     let participants: [Participant]
     var showsStatus: Bool = false
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         HStack(spacing: 12) {
             if showsStatus {
-                Text(WorkStateDisplay.label(for: actionItem.status))
+                Text(UIWorkStateDisplay.label(for: actionItem.status))
             }
 
-            Text(WorkStateDisplay.assigneeLabel(actionItem.assigneeID, participants: participants))
+            Text(UIWorkStateDisplay.assigneeLabel(actionItem.assigneeID, participants: participants))
 
-            if let due = WorkStateDisplay.dueDateLabel(actionItem.dueDate, formatter: dateFormatter) {
+            if let due = UIWorkStateDisplay.dueDateLabel(actionItem.dueDate, formatter: dateFormatter) {
                 Text(due)
             }
         }

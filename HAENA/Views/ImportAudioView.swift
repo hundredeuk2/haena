@@ -13,7 +13,7 @@ struct ImportAudioView: View {
     /// this screen is unchanged.
     var preselectedFile: ValidatedAudioFile?
     var sourceType: MeetingSourceType = .audioFile
-    var heading: String = "오디오 파일 불러오기"
+    var heading: String = L10n.text("오디오 파일 불러오기")
     /// Called once the audio has been handed to the capture service successfully, so the owner of
     /// a temporary recording knows it is safe to delete.
     var onTranscribed: (() -> Void)?
@@ -82,7 +82,7 @@ struct ImportAudioView: View {
                 .font(.title2)
                 .bold()
 
-            TextField("회의 제목", text: $meetingTitle)
+            TextField(L10n.text("회의 제목"), text: $meetingTitle)
                 .accessibilityIdentifier("audio-meeting-title-field")
                 .disabled(phase.isBusy)
 
@@ -90,7 +90,7 @@ struct ImportAudioView: View {
             projectSection
 
             if let validationMessage {
-                Text(validationMessage)
+                Text(L10n.text(validationMessage))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("audio-import-validation-message")
             }
@@ -98,7 +98,7 @@ struct ImportAudioView: View {
             phaseSection
 
             HStack {
-                Button("닫기") {
+                Button(L10n.text("닫기")) {
                     dismiss()
                 }
                 .accessibilityIdentifier("cancel-audio-import-button")
@@ -106,7 +106,7 @@ struct ImportAudioView: View {
 
                 Spacer()
 
-                Button("전사 시작") {
+                Button(L10n.text("전사 시작")) {
                     importAudio()
                 }
                 .accessibilityIdentifier("start-audio-import-button")
@@ -140,7 +140,7 @@ struct ImportAudioView: View {
             // A recording is already chosen; offering a file picker here would let the user
             // silently swap it for something else and orphan the recording.
             if preselectedFile == nil {
-                Button("오디오 파일 선택") {
+                Button(L10n.text("오디오 파일 선택")) {
                     chooseFile()
                 }
                 .accessibilityIdentifier("choose-audio-file-button")
@@ -153,7 +153,7 @@ struct ImportAudioView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("selected-audio-file-label")
             } else {
-                Text("지원 형식: mp3, mp4, mpeg, mpga, m4a, wav, webm · 최대 25MB")
+                Text(L10n.text("지원 형식: mp3, mp4, mpeg, mpga, m4a, wav, webm · 최대 25MB"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -163,13 +163,13 @@ struct ImportAudioView: View {
     /// A recording has no filename the user chose, so the date stands in — better than an empty
     /// field they must fill before the button becomes usable.
     private func defaultRecordingTitle() -> String {
-        "\(MeetingDateFormatter().string(from: Date())) 녹음"
+        L10n.format("%@ 녹음", MeetingDateFormatter(locale: AppLanguageSettings.shared.locale).string(from: Date()))
     }
 
     private var projectSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("프로젝트", selection: $selectedProjectID) {
-                Text("선택 안 함").tag(UUID?.none)
+            Picker(L10n.text("프로젝트"), selection: $selectedProjectID) {
+                Text(L10n.text("선택 안 함")).tag(UUID?.none)
                 ForEach(projects) { project in
                     Text(project.name).tag(Optional(project.id))
                 }
@@ -177,7 +177,7 @@ struct ImportAudioView: View {
             .accessibilityIdentifier("audio-project-picker")
             .disabled(phase.isBusy)
 
-            Button("새 프로젝트") {
+            Button(L10n.text("새 프로젝트")) {
                 isAddingNewProject = true
             }
             .accessibilityIdentifier("audio-new-project-button")
@@ -185,10 +185,10 @@ struct ImportAudioView: View {
 
             if isAddingNewProject {
                 HStack {
-                    TextField("새 프로젝트 이름", text: $newProjectName)
+                    TextField(L10n.text("새 프로젝트 이름"), text: $newProjectName)
                         .accessibilityIdentifier("audio-new-project-name-field")
 
-                    Button("만들기") {
+                    Button(L10n.text("만들기")) {
                         createProject()
                     }
                     .accessibilityIdentifier("audio-create-project-button")
@@ -204,16 +204,16 @@ struct ImportAudioView: View {
         case .idle:
             EmptyView()
         case .transcribing:
-            ProgressView("음성을 전사하는 중… 회의 길이에 따라 몇 분이 걸릴 수 있습니다.")
+            ProgressView(L10n.text("음성을 전사하는 중… 회의 길이에 따라 몇 분이 걸릴 수 있습니다."))
                 .accessibilityIdentifier("audio-transcribing-progress")
         case .saving:
-            ProgressView("저장하고 AI가 분석하는 중…")
+            ProgressView(L10n.text("저장하고 AI가 분석하는 중…"))
                 .accessibilityIdentifier("audio-saving-progress")
         case .completed:
             // The whole screen is the completion view by then; see `body`.
             EmptyView()
         case .failed(let message):
-            Text(message)
+            Text(L10n.text(message))
                 .foregroundStyle(.red)
                 .accessibilityIdentifier("audio-import-failed-message")
         }
@@ -441,12 +441,12 @@ struct ImportAudioView: View {
         case .notReadable:
             return "파일을 읽을 수 없습니다. 권한을 확인해주세요."
         case .unsupportedFormat(let fileExtension):
-            let name = fileExtension.isEmpty ? "확장자 없음" : ".\(fileExtension)"
-            return "지원하지 않는 형식입니다(\(name)). mp3, mp4, mpeg, mpga, m4a, wav, webm만 사용할 수 있습니다."
+            let name = fileExtension.isEmpty ? L10n.text("확장자 없음") : ".\(fileExtension)"
+            return L10n.format("지원하지 않는 형식입니다(%@). mp3, mp4, mpeg, mpga, m4a, wav, webm만 사용할 수 있습니다.", String(describing: name))
         case .emptyFile:
             return "빈 파일입니다."
         case .fileTooLarge(let byteSize, let limit):
-            return "파일이 너무 큽니다(\(byteCountText(byteSize))). 최대 \(byteCountText(limit))까지 보낼 수 있습니다."
+            return L10n.format("파일이 너무 큽니다(%@). 최대 %@까지 보낼 수 있습니다.", String(describing: byteCountText(byteSize)), String(describing: byteCountText(limit)))
         }
     }
 
@@ -456,17 +456,17 @@ struct ImportAudioView: View {
         let suffix = "오디오는 앱에 저장되어 있어 다시 시도할 수 있습니다."
         switch error {
         case .missingCredential:
-            return "전사를 사용하려면 OPENAI_API_KEY 환경변수가 필요합니다. \(suffix)"
+            return L10n.format("전사를 사용하려면 OPENAI_API_KEY 환경변수가 필요합니다. %@", String(describing: suffix))
         case .unauthorized:
-            return "전사 인증에 실패했습니다. \(suffix)"
+            return L10n.format("전사 인증에 실패했습니다. %@", String(describing: suffix))
         case .rateLimited:
-            return "전사 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요. \(suffix)"
+            return L10n.format("전사 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요. %@", String(describing: suffix))
         case .timedOut, .networkUnavailable:
-            return "전사 서버에 연결하지 못했습니다. \(suffix)"
+            return L10n.format("전사 서버에 연결하지 못했습니다. %@", String(describing: suffix))
         case .emptyTranscript:
-            return "전사 결과가 비어 있습니다. 음성이 들어 있는 파일인지 확인해주세요. \(suffix)"
+            return L10n.format("전사 결과가 비어 있습니다. 음성이 들어 있는 파일인지 확인해주세요. %@", String(describing: suffix))
         case .serverError, .requestRejected, .malformedResponse, .invalidConfiguration:
-            return "전사에 실패했습니다. \(suffix)"
+            return L10n.format("전사에 실패했습니다. %@", String(describing: suffix))
         }
     }
 

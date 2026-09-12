@@ -46,7 +46,7 @@ struct HomeView: View {
         let hasEligibleReminderTask: Bool
     }
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -56,14 +56,14 @@ struct HomeView: View {
 
             switch loadState {
             case .loading:
-                ProgressView("불러오는 중…")
+                ProgressView(L10n.text("불러오는 중…"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             case .failed(let message):
                 VStack(spacing: 12) {
-                    Text(message)
+                    Text(L10n.text(message))
                         .accessibilityIdentifier("home-error-message")
-                    Button("다시 시도") {
+                    Button(L10n.text("다시 시도")) {
                         Task { await load() }
                     }
                     .accessibilityIdentifier("home-retry-button")
@@ -97,24 +97,24 @@ struct HomeView: View {
                 .accessibilityIdentifier("product-name")
 
             HStack(spacing: 12) {
-                Button("녹음 시작") {
+                Button(L10n.text("녹음 시작")) {
                     onRecord()
                 }
                 .accessibilityIdentifier("record-button")
 
-                Button("파일 불러오기") {
+                Button(L10n.text("파일 불러오기")) {
                     onImportAudio()
                 }
                 .accessibilityIdentifier("import-button")
 
-                Button("텍스트 회의록 붙여넣기") {
+                Button(L10n.text("텍스트 회의록 붙여넣기")) {
                     onPasteTranscript()
                 }
                 .accessibilityIdentifier("paste-transcript-button")
 
                 Spacer(minLength: 0)
 
-                Button("프로젝트 보기") {
+                Button(L10n.text("프로젝트 보기")) {
                     onBrowseProjects()
                 }
                 .accessibilityIdentifier("browse-projects-button")
@@ -148,12 +148,12 @@ struct HomeView: View {
     private var profileSummary: some View {
         if case .loaded(let loaded) = loadState, let name = loaded.summary.localUserName {
             let summary = loaded.summary
-            Text(summary.isPersonalised ? "내 이름: \(name)" : "내 이름: \(name) · 연결된 참석자 없음")
+            Text(summary.isPersonalised ? L10n.format("내 이름: %@", String(describing: name)) : L10n.format("내 이름: %@ · 연결된 참석자 없음", String(describing: name)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("home-profile-name")
         } else {
-            Text("프로필 미설정")
+            Text(L10n.text("프로필 미설정"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("home-profile-unset")
@@ -162,13 +162,13 @@ struct HomeView: View {
 
     private var profileButtons: some View {
         Group {
-            Button("내 프로필") { onOpenProfile() }
+            Button(L10n.text("내 프로필")) { onOpenProfile() }
                 .accessibilityIdentifier("open-profile-button")
-            Button("AI 설정") { onOpenAISettings() }
+            Button(L10n.text("AI 설정")) { onOpenAISettings() }
                 .accessibilityIdentifier("open-ai-settings-button")
-            Button("Agent 기록") { onOpenAgentLedger() }
+            Button(L10n.text("Agent 기록")) { onOpenAgentLedger() }
                 .accessibilityIdentifier("open-agent-ledger-button")
-            Button("베타 측정") { onOpenBetaMetrics() }
+            Button(L10n.text("베타 측정")) { onOpenBetaMetrics() }
                 .accessibilityIdentifier("open-beta-metrics-button")
         }
     }
@@ -183,8 +183,8 @@ struct HomeView: View {
     ) -> some View {
         if summary.projectCount == 0 {
             VStack(spacing: 12) {
-                Text("아직 저장된 프로젝트가 없습니다.")
-                Text("회의를 녹음하거나 음성 파일을 불러오면 여기에 확인할 내용이 모입니다.")
+                Text(L10n.text("아직 저장된 프로젝트가 없습니다."))
+                Text(L10n.text("회의를 녹음하거나 음성 파일을 불러오면 여기에 확인할 내용이 모입니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 #if DEBUG
@@ -221,9 +221,9 @@ struct HomeView: View {
     #if DEBUG
     private var reminderSampleCallout: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("알림을 검증할 확정된 내 업무가 없습니다.")
+            Text(L10n.text("알림을 검증할 확정된 내 업무가 없습니다."))
                 .font(.headline)
-            Text("기존 데이터는 그대로 두고, 내 프로필과 연결된 마감일 있는 샘플 업무 한 건을 추가합니다.")
+            Text(L10n.text("기존 데이터는 그대로 두고, 내 프로필과 연결된 마감일 있는 샘플 업무 한 건을 추가합니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             reminderSampleButton
@@ -237,14 +237,14 @@ struct HomeView: View {
 
     @ViewBuilder
     private var reminderSampleButton: some View {
-        Button(isCreatingReminderSample ? "샘플 만드는 중…" : "알림 검증 샘플 만들기") {
+        Button(isCreatingReminderSample ? L10n.text("샘플 만드는 중…") : L10n.text("알림 검증 샘플 만들기")) {
             Task { await createReminderSample() }
         }
         .disabled(isCreatingReminderSample)
         .accessibilityIdentifier("create-reminder-sample-button")
 
         if let reminderSampleError {
-            Text(reminderSampleError)
+            Text(L10n.text(reminderSampleError))
                 .font(.caption)
                 .foregroundStyle(.red)
                 .accessibilityIdentifier("reminder-sample-error")
@@ -265,7 +265,7 @@ struct HomeView: View {
         reminders: [UUID: ActionItemReminder]
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("지금 할 일")
+            Text(L10n.text("지금 할 일"))
                 .font(.headline)
                 .accessibilityIdentifier("home-next-action-title")
 
@@ -297,7 +297,7 @@ struct HomeView: View {
     /// review screen this leads to.
     private func reviewRecommendation(_ review: NextAction.Review) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("결과 검토 \(review.pendingCount)건")
+            Text(L10n.format("결과 검토 %@건", String(describing: review.pendingCount)))
                 .font(.title3)
                 .accessibilityIdentifier("home-next-action-headline")
 
@@ -306,7 +306,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("home-next-action-project")
 
-            Button("검토하기") {
+            Button(L10n.text("검토하기")) {
                 onOpen(BrowserDestination.nextAction(.review(review)))
             }
             .accessibilityIdentifier("home-next-action-button")
@@ -326,12 +326,12 @@ struct HomeView: View {
                 // Named even though this is by definition the user's own work: the card sits above
                 // a list that names everybody, and a row that quietly omits the assignee reads as
                 // unassigned rather than as mine.
-                Text(work.assigneeName ?? "담당자 미정")
+                Text(work.assigneeName ?? L10n.text("담당자 미정"))
                     .accessibilityIdentifier("home-next-action-assignee")
 
                 // Colour alone does not survive being unable to see it, so a passed deadline says
                 // so in words as well — the same 지남 wording the project status screen uses.
-                Text(work.isOverdue ? "\(work.dueDateLabel) · 지남" : work.dueDateLabel)
+                Text(work.isOverdue ? L10n.format("%@ · 지남", dueLabel(for: work)) : dueLabel(for: work))
                     .foregroundStyle(work.isOverdue ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .accessibilityIdentifier("home-next-action-due")
             }
@@ -339,13 +339,13 @@ struct HomeView: View {
             .foregroundStyle(.secondary)
 
             if let reminder, reminder.status == .scheduled {
-                Text("알림 · \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                Text(L10n.format("알림 · %@", ReminderDateDisplay(locale: AppLanguageSettings.shared.locale).string(from: reminder.fireAt)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-next-action-reminder")
             }
 
-            Button("업무 보기") {
+            Button(L10n.text("업무 보기")) {
                 onOpen(BrowserDestination.nextAction(.work(work)))
             }
             .accessibilityIdentifier("home-next-action-button")
@@ -357,14 +357,14 @@ struct HomeView: View {
     /// work, and offering somebody else's instead is the one thing it must not do.
     @ViewBuilder
     private func emptyRecommendation(_ summary: HomeSummary) -> some View {
-        Text("지금 확인할 일이 없습니다")
+        Text(L10n.text("지금 확인할 일이 없습니다"))
             .font(.title3)
             .accessibilityIdentifier("home-next-action-empty")
 
         if !summary.isPersonalised {
             HStack(spacing: 6) {
-                Text("프로필에 참석자를 연결하면 내 업무를 추천할 수 있습니다.")
-                Button("내 프로필") {
+                Text(L10n.text("프로필에 참석자를 연결하면 내 업무를 추천할 수 있습니다."))
+                Button(L10n.text("내 프로필")) {
                     onOpenProfile()
                 }
                 .buttonStyle(.link)
@@ -381,12 +381,12 @@ struct HomeView: View {
     /// unable to tell "nothing to review" from "this app does not track that".
     private func pendingSection(_ summary: HomeSummary) -> some View {
         HomeSection(
-            title: "확인 필요",
-            countLabel: "\(summary.pendingProposalCount)건",
+            title: L10n.text("확인 필요"),
+            countLabel: L10n.format("%@건", String(describing: summary.pendingProposalCount)),
             identifier: "home-pending"
         ) {
             if summary.pendingProposalCount == 0 {
-                Text("확인이 필요한 AI 제안이 없습니다.")
+                Text(L10n.text("확인이 필요한 AI 제안이 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-pending-empty")
@@ -398,14 +398,14 @@ struct HomeView: View {
                         HStack {
                             Text(entry.projectName)
                             Spacer(minLength: 12)
-                            Text("\(entry.count)건")
+                            Text(L10n.format("%@건", String(describing: entry.count)))
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
                 hiddenCountLabel(
                     summary.pendingProposalsByProject.hiddenCount,
-                    unit: "개 프로젝트",
+                    unit: L10n.text("개 프로젝트"),
                     identifier: "home-pending-more"
                 )
             }
@@ -423,12 +423,12 @@ struct HomeView: View {
         let section = showingMine ? (summary.myActionItems ?? summary.activeActionItems) : summary.activeActionItems
 
         return HomeSection(
-            title: showingMine ? "내 업무" : "진행 업무",
-            countLabel: "\(section.totalCount)건",
+            title: showingMine ? L10n.text("내 업무") : L10n.text("진행 업무"),
+            countLabel: L10n.format("%@건", String(describing: section.totalCount)),
             identifier: "home-work"
         ) {
             if summary.isPersonalised {
-                Button(showingAllWork ? "내 업무만 보기" : "전체 진행 업무 보기") {
+                Button(showingAllWork ? L10n.text("내 업무만 보기") : L10n.text("전체 진행 업무 보기")) {
                     showingAllWork.toggle()
                 }
                 .buttonStyle(.link)
@@ -438,10 +438,10 @@ struct HomeView: View {
                 // Non-blocking: it says what is missing and where to fix it, and the list below is
                 // unaffected either way.
                 HStack(spacing: 6) {
-                    Text("내 업무를 보려면 프로필과 참석자를 연결하세요.")
+                    Text(L10n.text("내 업무를 보려면 프로필과 참석자를 연결하세요."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("내 프로필") {
+                    Button(L10n.text("내 프로필")) {
                         onOpenProfile()
                     }
                     .buttonStyle(.link)
@@ -452,7 +452,7 @@ struct HomeView: View {
             }
 
             if section.isEmpty {
-                Text(showingMine ? "나에게 배정된 진행 업무가 없습니다." : "진행 중인 업무가 없습니다.")
+                Text(showingMine ? L10n.text("나에게 배정된 진행 업무가 없습니다.") : L10n.text("진행 중인 업무가 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-work-empty")
@@ -467,8 +467,8 @@ struct HomeView: View {
                             HStack(spacing: 12) {
                                 // Named rather than assumed: there is no signed-in user, so this
                                 // list is everyone's work and each row has to say whose.
-                                Text(entry.assigneeName ?? "담당자 미정")
-                                if let dueLabel = WorkStateDisplay.dueDateLabel(
+                                Text(entry.assigneeName ?? L10n.text("담당자 미정"))
+                                if let dueLabel = UIWorkStateDisplay.dueDateLabel(
                                     entry.actionItem.dueDate,
                                     formatter: dateFormatter
                                 ) {
@@ -481,7 +481,7 @@ struct HomeView: View {
                                 }
                                 Text(entry.projectName)
                                 if let reminder = reminders[entry.id], reminder.status == .scheduled {
-                                    Text("알림 \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                                    Text(L10n.format("알림 %@", ReminderDateDisplay(locale: AppLanguageSettings.shared.locale).string(from: reminder.fireAt)))
                                         .accessibilityIdentifier("home-work-reminder-\(entry.id.uuidString)")
                                 }
                             }
@@ -492,7 +492,7 @@ struct HomeView: View {
                 }
                 hiddenCountLabel(
                     section.hiddenCount,
-                    unit: "건",
+                    unit: L10n.text("건"),
                     identifier: "home-work-more"
                 )
             }
@@ -501,12 +501,12 @@ struct HomeView: View {
 
     private func questionSection(_ summary: HomeSummary) -> some View {
         HomeSection(
-            title: "미해결 질문",
-            countLabel: "\(summary.unresolvedQuestions.totalCount)건",
+            title: L10n.text("미해결 질문"),
+            countLabel: L10n.format("%@건", String(describing: summary.unresolvedQuestions.totalCount)),
             identifier: "home-questions"
         ) {
             if summary.unresolvedQuestions.isEmpty {
-                Text("미해결 질문이 없습니다.")
+                Text(L10n.text("미해결 질문이 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-questions-empty")
@@ -525,7 +525,7 @@ struct HomeView: View {
                 }
                 hiddenCountLabel(
                     summary.unresolvedQuestions.hiddenCount,
-                    unit: "건",
+                    unit: L10n.text("건"),
                     identifier: "home-questions-more"
                 )
             }
@@ -534,12 +534,12 @@ struct HomeView: View {
 
     private func agendaSection(_ summary: HomeSummary) -> some View {
         HomeSection(
-            title: "다음 아젠다",
-            countLabel: "\(summary.upcomingAgendaItems.totalCount)건",
+            title: L10n.text("다음 아젠다"),
+            countLabel: L10n.format("%@건", String(describing: summary.upcomingAgendaItems.totalCount)),
             identifier: "home-agenda"
         ) {
             if summary.upcomingAgendaItems.isEmpty {
-                Text("다음 아젠다가 없습니다.")
+                Text(L10n.text("다음 아젠다가 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home-agenda-empty")
@@ -558,7 +558,7 @@ struct HomeView: View {
                 }
                 hiddenCountLabel(
                     summary.upcomingAgendaItems.hiddenCount,
-                    unit: "건",
+                    unit: L10n.text("건"),
                     identifier: "home-agenda-more"
                 )
             }
@@ -568,11 +568,20 @@ struct HomeView: View {
     @ViewBuilder
     private func hiddenCountLabel(_ hidden: Int, unit: String, identifier: String) -> some View {
         if hidden > 0 {
-            Text("외 \(hidden)\(unit)")
+            Text(L10n.format("추가 항목: %@", String(hidden)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier(identifier)
         }
+    }
+
+    private func dueLabel(for work: NextAction.Work) -> String {
+        if case .loaded(let loaded) = loadState,
+           let item = (loaded.summary.myActionItems?.items ?? loaded.summary.activeActionItems.items)
+            .first(where: { $0.actionItem.id == work.actionItemID && $0.projectID == work.projectID }) {
+            return UIWorkStateDisplay.dueDateLabel(item.actionItem.dueDate, formatter: dateFormatter) ?? L10n.text("마감일 없음")
+        }
+        return L10n.text(work.dueDateLabel)
     }
 
     // MARK: - Loading

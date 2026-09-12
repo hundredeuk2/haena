@@ -38,15 +38,15 @@ struct AgentLedgerView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Agent 기록")
+            Text(L10n.text("Agent 기록"))
                 .font(.title2)
                 .bold()
-            Text("이 Mac에서 앱이 확인한 예약·변경·완료 기록입니다. 표시 콜백은 시스템이 앱을 호출했다는 사실이며, 사람이 알림을 봤다는 보장은 아닙니다.")
+            Text(L10n.text("이 Mac에서 앱이 확인한 예약·변경·완료 기록입니다. 표시 콜백은 시스템이 앱을 호출했다는 사실이며, 사람이 알림을 봤다는 보장은 아닙니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("agent-ledger-truthfulness-guidance")
-            Text("Agent 기록과 피드백은 외부 분석 서비스로 전송하지 않습니다.")
+            Text(L10n.text("Agent 기록과 피드백은 외부 분석 서비스로 전송하지 않습니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("agent-ledger-privacy-guidance")
@@ -57,25 +57,25 @@ struct AgentLedgerView: View {
     private var content: some View {
         switch loadState {
         case .loading:
-            ProgressView("기록 불러오는 중…")
+            ProgressView(L10n.text("기록 불러오는 중…"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("agent-ledger-loading")
 
         case .failed:
             VStack(spacing: 12) {
-                Text("Agent 기록을 불러오지 못했습니다. 저장된 프로젝트와 알림은 변경되지 않았습니다.")
+                Text(L10n.text("Agent 기록을 불러오지 못했습니다. 저장된 프로젝트와 알림은 변경되지 않았습니다."))
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("agent-ledger-load-error")
-                Button("다시 시도") { Task { await load() } }
+                Button(L10n.text("다시 시도")) { Task { await load() } }
                     .accessibilityIdentifier("retry-agent-ledger-button")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .loaded(let rows) where rows.isEmpty:
             VStack(spacing: 8) {
-                Text("아직 Agent 기록이 없습니다.")
+                Text(L10n.text("아직 Agent 기록이 없습니다."))
                     .font(.headline)
-                Text("알림을 예약하거나 업무를 완료하면 이곳에 로컬 기록이 쌓입니다.")
+                Text(L10n.text("알림을 예약하거나 업무를 완료하면 이곳에 로컬 기록이 쌓입니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -126,7 +126,7 @@ struct AgentLedgerView: View {
 
     private func feedbackControls(for row: AgentLedgerRow) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("이 알림은 어땠나요?")
+            Text(L10n.text("이 알림은 어땠나요?"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -143,13 +143,13 @@ struct AgentLedgerView: View {
                     .tint(row.feedback == choice ? Color.accentColor : Color.secondary)
                     .disabled(feedbackTargetInFlight != nil || isDeleting)
                     .accessibilityIdentifier("agent-ledger-feedback-\(choice.rawValue)")
-                    .accessibilityValue(row.feedback == choice ? "선택됨" : "선택 안 됨")
+                    .accessibilityValue(row.feedback == choice ? L10n.text("선택됨") : L10n.text("선택 안 됨"))
                     .frame(maxWidth: .infinity)
                 }
             }
 
             if let message = feedbackFailure?.message(for: row), feedbackTargetInFlight == nil {
-                Text(message)
+                Text(L10n.text(message))
                     .font(.caption)
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("agent-ledger-feedback-error")
@@ -160,7 +160,7 @@ struct AgentLedgerView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let deleteError {
-                Text(deleteError)
+                Text(L10n.text(deleteError))
                     .font(.caption)
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("agent-ledger-delete-error")
@@ -181,7 +181,7 @@ struct AgentLedgerView: View {
     }
 
     private var deleteButton: some View {
-        Button("전체 기록 삭제", role: .destructive) {
+        Button(L10n.text("전체 기록 삭제"), role: .destructive) {
             deleteError = nil
             showsDeleteConfirmation = true
         }
@@ -190,7 +190,7 @@ struct AgentLedgerView: View {
     }
 
     private var closeButton: some View {
-        Button("닫기") { onClose() }
+        Button(L10n.text("닫기")) { onClose() }
             .keyboardShortcut(.defaultAction)
             .disabled(isDeleting)
             .accessibilityIdentifier("close-agent-ledger-button")
@@ -198,18 +198,18 @@ struct AgentLedgerView: View {
 
     private var deleteConfirmation: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("전체 기록을 삭제할까요?")
+            Text(L10n.text("전체 기록을 삭제할까요?"))
                 .font(.headline)
-            Text("Agent 기록과 알림 피드백만 삭제합니다. 프로젝트, 업무, 현재 알림 예약은 그대로 유지됩니다. 삭제한 기록은 복구할 수 없습니다.")
+            Text(L10n.text("Agent 기록과 알림 피드백만 삭제합니다. 프로젝트, 업무, 현재 알림 예약은 그대로 유지됩니다. 삭제한 기록은 복구할 수 없습니다."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Spacer()
-                Button("취소") { showsDeleteConfirmation = false }
+                Button(L10n.text("취소")) { showsDeleteConfirmation = false }
                     .disabled(isDeleting)
-                Button("전체 기록 삭제", role: .destructive) {
+                Button(L10n.text("전체 기록 삭제"), role: .destructive) {
                     Task { await deleteAll() }
                 }
                 .disabled(isDeleting)

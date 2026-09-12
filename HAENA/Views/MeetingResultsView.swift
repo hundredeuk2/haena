@@ -20,7 +20,7 @@ struct MeetingResultsView: View {
     /// results are kept so they can be found, not so they compete with live ones.
     @State private var expandedProcessedSections: Set<String> = []
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     private var summary: MeetingWorkStateSummary {
         MeetingWorkStateSummary(project: project, meetingID: meeting.id)
@@ -30,7 +30,7 @@ struct MeetingResultsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let errorMessage {
-                    Text(errorMessage)
+                    Text(L10n.text(errorMessage))
                         .foregroundStyle(.red)
                         .accessibilityIdentifier("meeting-results-error-message")
                 }
@@ -76,26 +76,26 @@ struct MeetingResultsView: View {
 
     private var decisionSection: some View {
         resultSection(
-            title: "결정 사항",
+            title: L10n.text("결정 사항"),
             identifier: "meeting-result-decision-section",
             area: summary.decisions,
-            emptyMessage: "아직 확인된 결정 사항이 없습니다."
+            emptyMessage: L10n.text("아직 확인된 결정 사항이 없습니다.")
         ) { decision in
             VStack(alignment: .leading, spacing: 4) {
                 Text(decision.statement)
                     .fixedSize(horizontal: false, vertical: true)
                 evidenceQuote(decision.evidence)
-                WorkStateStatusBadge(text: WorkStateDisplay.label(for: decision.status))
+                WorkStateStatusBadge(text: UIWorkStateDisplay.label(for: decision.status))
             }
         }
     }
 
     private var actionItemSection: some View {
         resultSection(
-            title: "실행 항목",
+            title: L10n.text("실행 항목"),
             identifier: "meeting-result-action-item-section",
             area: summary.actionItems,
-            emptyMessage: "아직 확인된 실행 항목이 없습니다."
+            emptyMessage: L10n.text("아직 확인된 실행 항목이 없습니다.")
         ) { item in
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
@@ -104,7 +104,7 @@ struct MeetingResultsView: View {
 
                     Spacer(minLength: 12)
 
-                    Button("수정") {
+                    Button(L10n.text("수정")) {
                         editingActionItem = item
                     }
                     .accessibilityIdentifier("meeting-result-edit-\(item.id.uuidString)")
@@ -123,26 +123,26 @@ struct MeetingResultsView: View {
 
     private var openQuestionSection: some View {
         resultSection(
-            title: "미해결 질문",
+            title: L10n.text("미해결 질문"),
             identifier: "meeting-result-open-question-section",
             area: summary.openQuestions,
-            emptyMessage: "아직 확인된 미해결 질문이 없습니다."
+            emptyMessage: L10n.text("아직 확인된 미해결 질문이 없습니다.")
         ) { question in
             VStack(alignment: .leading, spacing: 4) {
                 Text(question.question)
                     .fixedSize(horizontal: false, vertical: true)
                 evidenceQuote(question.evidence)
-                WorkStateStatusBadge(text: WorkStateDisplay.label(for: question.status))
+                WorkStateStatusBadge(text: UIWorkStateDisplay.label(for: question.status))
             }
         }
     }
 
     private var agendaSection: some View {
         resultSection(
-            title: "다음 아젠다",
+            title: L10n.text("다음 아젠다"),
             identifier: "meeting-result-next-agenda-section",
             area: summary.agendaItems,
-            emptyMessage: "아직 확인된 다음 아젠다가 없습니다."
+            emptyMessage: L10n.text("아직 확인된 다음 아젠다가 없습니다.")
         ) { item in
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
@@ -152,7 +152,7 @@ struct MeetingResultsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 evidenceQuote(item.evidence)
-                WorkStateStatusBadge(text: WorkStateDisplay.label(for: item.status))
+                WorkStateStatusBadge(text: UIWorkStateDisplay.label(for: item.status))
             }
         }
     }
@@ -197,7 +197,7 @@ struct MeetingResultsView: View {
                 WorkStateProposalCard(
                     proposal: proposal,
                     participants: meeting.displayRoster,
-                    statusBadge: "확인 필요",
+                    statusBadge: L10n.text("확인 필요"),
                     evidenceTimestamp: MeetingWorkStateSummary.evidenceTimestamp(
                         proposal.evidence,
                         in: meeting
@@ -228,7 +228,7 @@ struct MeetingResultsView: View {
                     }
                     .padding(.top, 6)
                 } label: {
-                    Text("처리됨 \(area.processed.count)건")
+                    Text(L10n.format("처리됨 %@건", String(describing: area.processed.count)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

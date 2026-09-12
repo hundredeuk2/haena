@@ -75,7 +75,7 @@ struct RecordAudioView: View {
                     extractionService: extractionService,
                     preselectedFile: file,
                     sourceType: .microphone,
-                    heading: "녹음 저장",
+                    heading: L10n.text("녹음 저장"),
                     onTranscribed: {
                         // The capture service has its own copy now.
                         discardScratchFile()
@@ -109,7 +109,7 @@ struct RecordAudioView: View {
 
     private var recordingScreen: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("마이크 녹음")
+            Text(L10n.text("마이크 녹음"))
                 .font(.title2)
                 .bold()
 
@@ -118,7 +118,7 @@ struct RecordAudioView: View {
                     // Text and a symbol, not colour alone: colour is not available to every user.
                     Image(systemName: "record.circle.fill")
                         .foregroundStyle(.red)
-                    Text("녹음 중")
+                    Text(L10n.text("녹음 중"))
                         .bold()
                     Text(Self.elapsedText(elapsed))
                         .monospacedDigit()
@@ -126,20 +126,20 @@ struct RecordAudioView: View {
                 }
                 .accessibilityIdentifier("recording-indicator")
             } else {
-                Text("회의를 녹음한 뒤 제목과 프로젝트를 선택하면 전사가 시작됩니다.")
+                Text(L10n.text("회의를 녹음한 뒤 제목과 프로젝트를 선택하면 전사가 시작됩니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if case .failed(let message) = phase {
-                Text(message)
+                Text(L10n.text(message))
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("recording-error-message")
             }
 
             if phase == .requestingPermission {
-                ProgressView("마이크 권한을 확인하는 중…")
+                ProgressView(L10n.text("마이크 권한을 확인하는 중…"))
                     .accessibilityIdentifier("recording-permission-progress")
             }
 
@@ -153,7 +153,7 @@ struct RecordAudioView: View {
 
     private var controls: some View {
         HStack {
-            Button("닫기") {
+            Button(L10n.text("닫기")) {
                 dismiss()
             }
             .accessibilityIdentifier("close-recording-button")
@@ -162,13 +162,13 @@ struct RecordAudioView: View {
             Spacer()
 
             if phase.isRecording {
-                Button("취소") {
+                Button(L10n.text("취소")) {
                     cancelRecording()
                 }
                 .accessibilityIdentifier("cancel-recording-button")
                 .disabled(phase.isBusy)
 
-                Button("녹음 종료") {
+                Button(L10n.text("녹음 종료")) {
                     stopRecording()
                 }
                 .accessibilityIdentifier("stop-recording-button")
@@ -185,9 +185,9 @@ struct RecordAudioView: View {
 
     private var startButtonTitle: String {
         if case .failed = phase {
-            return "다시 시도"
+            return L10n.text("다시 시도")
         }
-        return "녹음 시작"
+        return L10n.text("녹음 시작")
     }
 
     /// `mm:ss`, widening past an hour — the same shape as transcript timestamps.

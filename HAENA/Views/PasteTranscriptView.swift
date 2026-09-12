@@ -6,10 +6,10 @@ private enum PastedTranscriptInputMode: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var label: String {
+    @MainActor var label: String {
         switch self {
-        case .freeform: return "자유 형식"
-        case .structured: return "화자 구조화"
+        case .freeform: return L10n.text("자유 형식")
+        case .structured: return L10n.text("화자 구조화")
         }
     }
 }
@@ -85,16 +85,16 @@ struct PasteTranscriptView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("텍스트 회의록 붙여넣기")
+                        Text(L10n.text("텍스트 회의록 붙여넣기"))
                             .font(.title2)
                             .bold()
 
-                        TextField("회의 제목", text: $meetingTitle)
+                        TextField(L10n.text("회의 제목"), text: $meetingTitle)
                             .accessibilityIdentifier("meeting-title-field")
 
                         projectSection
 
-                        Picker("입력 방식", selection: $inputMode) {
+                        Picker(L10n.text("입력 방식"), selection: $inputMode) {
                             ForEach(PastedTranscriptInputMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
                             }
@@ -111,13 +111,13 @@ struct PasteTranscriptView: View {
                         }
 
                         if let validationMessage {
-                            Text(validationMessage)
+                            Text(L10n.text(validationMessage))
                                 .foregroundStyle(.red)
                                 .accessibilityIdentifier("text-meeting-validation-message")
                         }
 
                         if isExtracting {
-                            ProgressView("AI 분석 중…")
+                            ProgressView(L10n.text("AI 분석 중…"))
                                 .accessibilityIdentifier("work-state-extraction-progress")
                         }
                     }
@@ -129,13 +129,13 @@ struct PasteTranscriptView: View {
 
                 HStack {
                     if inputMode == .structured {
-                        Button("발언 입력") {
+                        Button(L10n.text("발언 입력")) {
                             scrollProxy.scrollTo("pasted-turns", anchor: .top)
                         }
                         .accessibilityIdentifier("show-pasted-turns-button")
                         .keyboardShortcut("t", modifiers: [.command, .option])
 
-                        Button("화자 연결 확인") {
+                        Button(L10n.text("화자 연결 확인")) {
                             scrollProxy.scrollTo("pasted-speaker-linking", anchor: .top)
                         }
                         .accessibilityIdentifier("show-pasted-speaker-links-button")
@@ -144,12 +144,12 @@ struct PasteTranscriptView: View {
 
                     Spacer()
 
-                    Button("취소") {
+                    Button(L10n.text("취소")) {
                         dismiss()
                     }
                     .accessibilityIdentifier("cancel-text-meeting-button")
 
-                    Button("저장") {
+                    Button(L10n.text("저장")) {
                         saveMeeting()
                     }
                     .accessibilityIdentifier("save-text-meeting-button")
@@ -173,18 +173,18 @@ struct PasteTranscriptView: View {
 
     private var structuredTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("참석자 명부") {
+            GroupBox(L10n.text("참석자 명부")) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        TextField("새 참석자 이름", text: $newParticipantName)
+                        TextField(L10n.text("새 참석자 이름"), text: $newParticipantName)
                             .accessibilityIdentifier("pasted-participant-name-field")
                             .onSubmit { addUserEnteredParticipant() }
-                        Button("추가") { addUserEnteredParticipant() }
+                        Button(L10n.text("추가")) { addUserEnteredParticipant() }
                             .accessibilityIdentifier("add-pasted-participant-button")
                     }
 
                     if !participantCandidates.isEmpty {
-                        Text("이 프로젝트의 이전 회의 이름 후보")
+                        Text(L10n.text("이 프로젝트의 이전 회의 이름 후보"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         ForEach(Array(participantCandidates.enumerated()), id: \.element.id) { index, candidate in
@@ -196,25 +196,25 @@ struct PasteTranscriptView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button("명부에 추가") { addCandidate(candidate) }
+                                Button(L10n.text("명부에 추가")) { addCandidate(candidate) }
                                     .accessibilityIdentifier("add-pasted-candidate-\(index)")
                             }
                         }
                     }
 
                     if participantDrafts.isEmpty {
-                        Text("참석자를 추가해도 화자 연결은 자동으로 이루어지지 않습니다.")
+                        Text(L10n.text("참석자를 추가해도 화자 연결은 자동으로 이루어지지 않습니다."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(Array(participantDrafts.enumerated()), id: \.element.id) { index, participant in
                             HStack {
                                 Text("\(index + 1). \(participant.displayName)")
-                                Text(participant.provenance == .userEntered ? "직접 입력" : "후보 직접 선택")
+                                Text(participant.provenance == .userEntered ? L10n.text("직접 입력") : L10n.text("후보 직접 선택"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Button("제거") { removeParticipant(participant.id) }
+                                Button(L10n.text("제거")) { removeParticipant(participant.id) }
                                     .accessibilityIdentifier("remove-pasted-participant-\(index)")
                             }
                         }
@@ -223,16 +223,16 @@ struct PasteTranscriptView: View {
                 .padding(.vertical, 4)
             }
 
-            GroupBox("화자 라벨 연결") {
+            GroupBox(L10n.text("화자 라벨 연결")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if structuredSpeakerLabels.isEmpty {
-                        Text("발언 블록에 라벨을 입력하면 연결 항목이 나타납니다.")
+                        Text(L10n.text("발언 블록에 라벨을 입력하면 연결 항목이 나타납니다."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     ForEach(Array(structuredSpeakerLabels.enumerated()), id: \.element) { index, label in
                         Picker(label, selection: speakerLinkBinding(for: label)) {
-                            Text("미연결").tag(UUID?.none)
+                            Text(L10n.text("미연결")).tag(UUID?.none)
                             ForEach(participantDrafts) { participant in
                                 Text(participant.displayName).tag(Optional(participant.id))
                             }
@@ -245,25 +245,25 @@ struct PasteTranscriptView: View {
             }
             .id("pasted-speaker-linking")
 
-            GroupBox("저장 전 연결 미리보기") {
+            GroupBox(L10n.text("저장 전 연결 미리보기")) {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(structuredSpeakerLabels, id: \.self) { label in
-                        Text("\(label) → \(participantName(for: speakerLinks[label]) ?? "미연결")")
+                        Text("\(label) → \(participantName(for: speakerLinks[label]) ?? L10n.text("미연결"))")
                     }
                 }
                 .padding(.vertical, 4)
                 .accessibilityIdentifier("pasted-speaker-link-preview")
             }
 
-            GroupBox("발언 블록") {
+            GroupBox(L10n.text("발언 블록")) {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(structuredTurns.indices), id: \.self) { index in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                TextField("정확한 화자 라벨", text: $structuredTurns[index].sourceSpeakerLabel)
+                                TextField(L10n.text("정확한 화자 라벨"), text: $structuredTurns[index].sourceSpeakerLabel)
                                     .accessibilityIdentifier("pasted-speaker-label-field-\(index)")
                                 if structuredTurns.count > 1 {
-                                    Button("블록 제거") { structuredTurns.remove(at: index) }
+                                    Button(L10n.text("블록 제거")) { structuredTurns.remove(at: index) }
                                         .accessibilityIdentifier("remove-pasted-turn-\(index)")
                                 }
                             }
@@ -273,7 +273,7 @@ struct PasteTranscriptView: View {
                         }
                     }
 
-                    Button("발언 블록 추가") { addTurn() }
+                    Button(L10n.text("발언 블록 추가")) { addTurn() }
                         .accessibilityIdentifier("add-pasted-turn-button")
                         .keyboardShortcut("n", modifiers: [.command, .option])
                 }
@@ -285,26 +285,26 @@ struct PasteTranscriptView: View {
 
     private var projectSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("프로젝트", selection: $selectedProjectID) {
-                Text("선택 안 함").tag(UUID?.none)
+            Picker(L10n.text("프로젝트"), selection: $selectedProjectID) {
+                Text(L10n.text("선택 안 함")).tag(UUID?.none)
                 ForEach(projects) { project in
                     Text(project.name).tag(Optional(project.id))
                 }
             }
             .accessibilityIdentifier("project-picker")
 
-            Button("새 프로젝트") {
+            Button(L10n.text("새 프로젝트")) {
                 isAddingNewProject = true
             }
             .accessibilityIdentifier("new-project-button")
 
             if isAddingNewProject {
                 HStack {
-                    TextField("새 프로젝트 이름", text: $newProjectName)
+                    TextField(L10n.text("새 프로젝트 이름"), text: $newProjectName)
                         .accessibilityIdentifier("new-project-name-field")
                         .onSubmit { createProject() }
 
-                    Button("만들기") {
+                    Button(L10n.text("만들기")) {
                         createProject()
                     }
                     .accessibilityIdentifier("create-project-button")

@@ -16,18 +16,18 @@ struct DeletionConfirmationView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
                 .font(.headline)
-            Text(message)
+            Text(L10n.text(message))
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button("취소") {
+                Button(L10n.text("취소")) {
                     onCancel()
                 }
                 .accessibilityIdentifier(cancelButtonIdentifier)
 
                 Spacer()
 
-                Button("삭제", role: .destructive) {
+                Button(L10n.text("삭제"), role: .destructive) {
                     Task { await onConfirm() }
                 }
                 .accessibilityIdentifier(confirmButtonIdentifier)

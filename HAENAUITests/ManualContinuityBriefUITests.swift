@@ -163,6 +163,7 @@ final class ManualContinuityBriefUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launchEnvironment["HAENA_UI_TESTING_MANUAL_BRIEF"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
         app.launch()
         return app
     }

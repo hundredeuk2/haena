@@ -81,21 +81,21 @@ struct ManualContinuityBriefView: View {
         VStack(spacing: 0) {
             switch loadState {
             case .idle, .loading:
-                ProgressView("브리프를 불러오는 중…")
+                ProgressView(L10n.text("브리프를 불러오는 중…"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier(ManualContinuityBriefAccessibility.loading)
 
             case .projectNotFound:
                 errorState(
-                    title: "프로젝트를 찾을 수 없습니다.",
-                    guidance: "프로젝트 목록으로 돌아가 다시 선택해주세요.",
+                    title: L10n.text("프로젝트를 찾을 수 없습니다."),
+                    guidance: L10n.text("프로젝트 목록으로 돌아가 다시 선택해주세요."),
                     canRetry: false
                 )
 
             case .projectUnavailable:
                 errorState(
-                    title: "연속성 브리프를 불러오지 못했습니다.",
-                    guidance: "저장 상태를 확인한 뒤 다시 시도해주세요.",
+                    title: L10n.text("연속성 브리프를 불러오지 못했습니다."),
+                    guidance: L10n.text("저장 상태를 확인한 뒤 다시 시도해주세요."),
                     canRetry: true
                 )
 
@@ -108,7 +108,7 @@ struct ManualContinuityBriefView: View {
         .accessibilityIdentifier(ManualContinuityBriefAccessibility.screen)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("닫기", action: onClose)
+                Button(L10n.text("닫기"), action: onClose)
                     .accessibilityIdentifier(ManualContinuityBriefAccessibility.close)
             }
         }
@@ -143,7 +143,7 @@ struct ManualContinuityBriefView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             if canRetry {
-                Button("다시 시도") {
+                Button(L10n.text("다시 시도")) {
                     Task { await load() }
                 }
                 .buttonStyle(.borderedProminent)
@@ -188,19 +188,19 @@ struct ManualContinuityBriefView: View {
             !ambiguityTransitionIDs.contains($0.proposal.id)
         }.count + brief.ambiguousMatches.count
         return VStack(alignment: .leading, spacing: 6) {
-            Text("회의 연속성 브리프")
+            Text(L10n.text("회의 연속성 브리프"))
                 .font(.title2.bold())
             Text(brief.project.name)
                 .font(.headline)
-            Text("확정된 상태와 검토할 변화를 분리해 보여드립니다.")
+            Text(L10n.text("확정된 상태와 검토할 변화를 분리해 보여드립니다."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             if let latestMeeting {
-                Text("최근 회의 · \(latestMeeting.title)")
+                Text(L10n.format("최근 회의 · %@", String(describing: latestMeeting.title)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("검토 후보 \(reviewCount)건 · 확정 아젠다 \(brief.approvedNextAgenda.count)건")
+            Text(L10n.format("검토 후보 %@건 · 확정 아젠다 %@건", String(describing: reviewCount), String(describing: brief.approvedNextAgenda.count)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.headerSummary)
@@ -212,17 +212,17 @@ struct ManualContinuityBriefView: View {
     private func warnings(_ brief: ManualContinuityBrief) -> some View {
         if brief.transitionAvailability == .unavailable {
             warningCard(
-                "확정된 상태는 볼 수 있지만, 회의 간 변화는 지금 불러올 수 없습니다. 변경 후보가 0건이라는 뜻이 아닙니다.",
+                L10n.text("확정된 상태는 볼 수 있지만, 회의 간 변화는 지금 불러올 수 없습니다. 변경 후보가 0건이라는 뜻이 아닙니다."),
                 identifier: ManualContinuityBriefAccessibility.transitionUnavailable
             )
         }
         if brief.personalisation == .notConfigured {
-            warningCard("내 프로필이 없어 모든 업무를 팀 업무로 표시합니다.")
+            warningCard(L10n.text("내 프로필이 없어 모든 업무를 팀 업무로 표시합니다."))
         } else if brief.personalisation == .unavailable {
-            warningCard("내 프로필을 불러오지 못해 모든 업무를 팀 업무로 표시합니다.")
+            warningCard(L10n.text("내 프로필을 불러오지 못해 모든 업무를 팀 업무로 표시합니다."))
         }
         if let feedback {
-            Text(feedback.message)
+            Text(L10n.text(feedback.message))
                 .font(.callout)
                 .foregroundStyle(feedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.feedback)
@@ -243,18 +243,18 @@ struct ManualContinuityBriefView: View {
 
     private func confirmedState(_ brief: ManualContinuityBrief) -> some View {
         briefSection(
-            "확정된 상태",
-            subtitle: "이미 검토를 마친 프로젝트 상태입니다.",
+            L10n.text("확정된 상태"),
+            subtitle: L10n.text("이미 검토를 마친 프로젝트 상태입니다."),
             identifier: ManualContinuityBriefAccessibility.confirmedSection
         ) {
-            confirmedGroup("결정", values: brief.confirmedDecisions.map(\.statement))
+            confirmedGroup(L10n.text("결정"), values: brief.confirmedDecisions.map(\.statement))
 
             if brief.personalisation == .personalised {
-                confirmedGroup("내가 맡은 일", values: brief.myActiveCommitments.map(\.title))
+                confirmedGroup(L10n.text("내가 맡은 일"), values: brief.myActiveCommitments.map(\.title))
             }
-            confirmedGroup("팀의 진행 업무", values: brief.otherCommitments.map(\.title))
-            confirmedGroup("완료된 업무", values: brief.completedCommitments.map(\.title))
-            confirmedGroup("미해결 질문", values: brief.unresolvedQuestions.map(\.question))
+            confirmedGroup(L10n.text("팀의 진행 업무"), values: brief.otherCommitments.map(\.title))
+            confirmedGroup(L10n.text("완료된 업무"), values: brief.completedCommitments.map(\.title))
+            confirmedGroup(L10n.text("미해결 질문"), values: brief.unresolvedQuestions.map(\.question))
         }
     }
 
@@ -263,10 +263,10 @@ struct ManualContinuityBriefView: View {
             HStack(spacing: 8) {
                 Text(title)
                     .font(.headline)
-                BriefBadge(text: "확정", tone: .confirmed)
+                BriefBadge(text: L10n.text("확정"), tone: .confirmed)
             }
             if values.isEmpty {
-                Text("없음")
+                Text(L10n.text("없음"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -288,8 +288,8 @@ struct ManualContinuityBriefView: View {
     private func delayedState(_ brief: ManualContinuityBrief) -> some View {
         if !brief.delayedOrBlockedItems.isEmpty {
             briefSection(
-                "막히거나 늦어진 일",
-                subtitle: "지연, 차단, 기한 초과는 서로 다른 근거로 표시합니다.",
+                L10n.text("막히거나 늦어진 일"),
+                subtitle: L10n.text("지연, 차단, 기한 초과는 서로 다른 근거로 표시합니다."),
                 identifier: ManualContinuityBriefAccessibility.delaySection
             ) {
                 ForEach(brief.delayedOrBlockedItems, id: \.transition.proposal.id) { item in
@@ -321,12 +321,12 @@ struct ManualContinuityBriefView: View {
                 && !plainAgendaIDs.contains($0.proposal.id)
         }
         return briefSection(
-            "검토할 변화",
-            subtitle: "한 항목씩 근거를 확인한 뒤 승인하거나 거절하세요.",
+            L10n.text("검토할 변화"),
+            subtitle: L10n.text("한 항목씩 근거를 확인한 뒤 승인하거나 거절하세요."),
             identifier: ManualContinuityBriefAccessibility.reviewSection
         ) {
             if remaining.isEmpty {
-                Text("검토할 변화가 없습니다.")
+                Text(L10n.text("검토할 변화가 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -356,21 +356,21 @@ struct ManualContinuityBriefView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(transition.currentState?.displayText ?? transition.previousState?.displayText ?? "대상을 찾을 수 없음")
+            Text(transition.currentState?.displayText ?? transition.previousState?.displayText ?? L10n.text("대상을 찾을 수 없음"))
                 .font(.headline)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let sourceMeetingTitle = transition.sourceMeetingTitle {
-                Text("출처 회의 · \(sourceMeetingTitle)")
+                Text(L10n.format("출처 회의 · %@", String(describing: sourceMeetingTitle)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if delayKind != nil {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("담당 · \(assigneeDisplayName ?? "미지정")")
+                    Text(L10n.format("담당 · %@", assigneeDisplayName ?? L10n.text("미지정")))
                     if let dueDate = transition.relevantDueDate {
-                        Text("기한 · \(dueDate.formatted(date: .abbreviated, time: .omitted))")
+                        Text(L10n.format("기한 · %@", MeetingDateFormatter(locale: AppLanguageSettings.shared.locale).dateOnlyString(from: dueDate)))
                     }
                 }
                 .font(.caption)
@@ -381,8 +381,8 @@ struct ManualContinuityBriefView: View {
                let current = transition.currentState,
                previous.displayText != current.displayText {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("이전 · \(previous.displayText)")
-                    Text("이번 회의 · \(current.displayText)")
+                    Text(L10n.format("이전 · %@", String(describing: previous.displayText)))
+                    Text(L10n.format("이번 회의 · %@", String(describing: current.displayText)))
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -392,7 +392,7 @@ struct ManualContinuityBriefView: View {
             if proposal.relations.contains(where: {
                 $0.kind == .derivedFrom && $0.relatedKind == .decision
             }) {
-                Label("이 Decision에서 파생", systemImage: "arrow.turn.down.right")
+                Label(L10n.text("이 Decision에서 파생"), systemImage: "arrow.turn.down.right")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("manual-brief-derived-from-decision")
@@ -401,7 +401,7 @@ struct ManualContinuityBriefView: View {
             if !proposal.reasons.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(proposal.reasons, id: \.rawValue) { reason in
-                        Text("확인 이유 · \(reasonLabel(reason))")
+                        Text(L10n.format("확인 이유 · %@", String(describing: reasonLabel(reason))))
                     }
                 }
                 .font(.caption)
@@ -435,8 +435,8 @@ struct ManualContinuityBriefView: View {
 
     private func reviewActions(
         for transition: ManualContinuityBriefTransition,
-        approveLabel: String = "승인하고 반영",
-        rejectLabel: String = "거절"
+        approveLabel: String = L10n.text("승인하고 반영"),
+        rejectLabel: String = L10n.text("거절")
     ) -> some View {
         let id = transition.proposal.id
         let approveDisabled: Bool
@@ -478,8 +478,8 @@ struct ManualContinuityBriefView: View {
     private func ambiguityCandidates(_ brief: ManualContinuityBrief) -> some View {
         if !brief.ambiguousMatches.isEmpty {
             briefSection(
-                "연결 확인",
-                subtitle: "비슷한 항목 중 하나를 직접 고르거나 새 항목으로 유지하세요.",
+                L10n.text("연결 확인"),
+                subtitle: L10n.text("비슷한 항목 중 하나를 직접 고르거나 새 항목으로 유지하세요."),
                 identifier: ManualContinuityBriefAccessibility.ambiguitySection
             ) {
                 ForEach(brief.ambiguousMatches, id: \.group.id) { match in
@@ -492,13 +492,13 @@ struct ManualContinuityBriefView: View {
     private func ambiguityCard(_ match: ManualContinuityBriefAmbiguousMatch) -> some View {
         let groupID = match.group.id
         return VStack(alignment: .leading, spacing: 12) {
-            BriefBadge(text: "연결 확인 필요", tone: .review)
-            Text(match.incomingState?.displayText ?? "이번 회의 항목을 찾을 수 없음")
+            BriefBadge(text: L10n.text("연결 확인 필요"), tone: .review)
+            Text(match.incomingState?.displayText ?? L10n.text("이번 회의 항목을 찾을 수 없음"))
                 .font(.headline)
                 .fixedSize(horizontal: false, vertical: true)
 
             if match.selections.isEmpty {
-                Text("연결할 수 있는 기존 항목이 없습니다.")
+                Text(L10n.text("연결할 수 있는 기존 항목이 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -542,7 +542,7 @@ struct ManualContinuityBriefView: View {
                 Button {
                     Task { await resolveAmbiguity(match, selection: value.selection) }
                 } label: {
-                    Text("이 기존 항목과 연결")
+                    Text(L10n.text("이 기존 항목과 연결"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -563,7 +563,7 @@ struct ManualContinuityBriefView: View {
                 Button {
                     Task { await resolveAmbiguity(match, selection: value.selection) }
                 } label: {
-                    Text("기존 항목과 연결하지 않고 새 항목으로 유지")
+                    Text(L10n.text("기존 항목과 연결하지 않고 새 항목으로 유지"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -586,23 +586,23 @@ struct ManualContinuityBriefView: View {
 
     private func agenda(_ brief: ManualContinuityBrief) -> some View {
         briefSection(
-            "다음 아젠다",
-            subtitle: "확정된 항목과 아직 검토가 필요한 후보를 구분합니다.",
+            L10n.text("다음 아젠다"),
+            subtitle: L10n.text("확정된 항목과 아직 검토가 필요한 후보를 구분합니다."),
             identifier: ManualContinuityBriefAccessibility.agendaSection
         ) {
             if brief.approvedNextAgenda.isEmpty && brief.agendaCandidates.isEmpty {
-                Text("다음 아젠다가 없습니다.")
+                Text(L10n.text("다음 아젠다가 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
             ForEach(brief.approvedNextAgenda) { item in
-                agendaRow(item, badge: "확정", tone: .confirmed)
+                agendaRow(item, badge: L10n.text("확정"), tone: .confirmed)
             }
 
             ForEach(brief.agendaCandidates, id: \.agendaItem.id) { candidate in
                 VStack(alignment: .leading, spacing: 8) {
-                    agendaRow(candidate.agendaItem, badge: "아젠다 후보", tone: .review)
+                    agendaRow(candidate.agendaItem, badge: L10n.text("아젠다 후보"), tone: .review)
                     if let source = candidate.sources.first {
                         Text(agendaSourceLabel(source.kind))
                             .font(.caption)
@@ -633,7 +633,7 @@ struct ManualContinuityBriefView: View {
     private func agendaActions(for item: AgendaItem) -> some View {
         let isBusy = busyAgendaIDs.contains(item.id)
         VStack(spacing: 6) {
-            Button("다음 아젠다 승인") {
+            Button(L10n.text("다음 아젠다 승인")) {
                 Task { await reviewAgenda(item, approve: true) }
             }
             .buttonStyle(.borderedProminent)
@@ -641,7 +641,7 @@ struct ManualContinuityBriefView: View {
             .disabled(isBusy)
             .accessibilityIdentifier(ManualContinuityBriefAccessibility.approve(item.id))
 
-            Button("다음 아젠다 제외") {
+            Button(L10n.text("다음 아젠다 제외")) {
                 Task { await reviewAgenda(item, approve: false) }
             }
             .buttonStyle(.bordered)
@@ -681,18 +681,18 @@ struct ManualContinuityBriefView: View {
     ) -> some View {
         switch state {
         case .resolved(let segment):
-            Button("회의 근거 보기") {
+            Button(L10n.text("회의 근거 보기")) {
                 evidenceSheet = EvidenceSheet(id: ownerID, title: fallbackTitle, segment: segment)
             }
             .buttonStyle(.link)
             .accessibilityIdentifier(ManualContinuityBriefAccessibility.evidence(ownerID))
         case .dangling:
-            Label("회의 근거를 찾을 수 없음", systemImage: "exclamationmark.triangle")
+            Label(L10n.text("회의 근거를 찾을 수 없음"), systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(.red)
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.evidence(ownerID))
         case .notRequired:
-            Text("별도 회의 근거가 필요하지 않은 상태입니다.")
+            Text(L10n.text("별도 회의 근거가 필요하지 않은 상태입니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -701,10 +701,10 @@ struct ManualContinuityBriefView: View {
     private func evidenceView(_ evidence: EvidenceSheet) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("회의 근거")
+                Text(L10n.text("회의 근거"))
                     .font(.title2.bold())
                 Spacer()
-                Button("닫기") {
+                Button(L10n.text("닫기")) {
                     evidenceSheet = nil
                 }
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.closeEvidence)
@@ -784,7 +784,7 @@ struct ManualContinuityBriefView: View {
             return
         }
         feedback = Feedback(
-            message: approve ? "다음 아젠다로 승인했습니다." : "다음 아젠다에서 제외했습니다.",
+            message: approve ? L10n.text("다음 아젠다로 승인했습니다.") : L10n.text("다음 아젠다에서 제외했습니다."),
             isError: false
         )
         await onChanged()
@@ -846,29 +846,29 @@ struct ManualContinuityBriefView: View {
 
     private func transitionLabel(_ kind: WorkStateTransitionKind) -> String {
         switch kind {
-        case .new: return "새 항목 후보"
-        case .same: return "같은 항목 후보"
-        case .changed: return "변경 후보"
-        case .completed: return "완료 후보"
-        case .delayed: return "진행 확인 후보"
-        case .resolved: return "해결 후보"
+        case .new: return L10n.text("새 항목 후보")
+        case .same: return L10n.text("같은 항목 후보")
+        case .changed: return L10n.text("변경 후보")
+        case .completed: return L10n.text("완료 후보")
+        case .delayed: return L10n.text("진행 확인 후보")
+        case .resolved: return L10n.text("해결 후보")
         }
     }
 
     private func workStateLabel(_ kind: WorkStateKind) -> String {
         switch kind {
-        case .decision: return "결정"
-        case .actionItem: return "실행 항목"
-        case .openQuestion: return "미해결 질문"
-        case .agendaItem: return "다음 아젠다"
+        case .decision: return L10n.text("결정")
+        case .actionItem: return L10n.text("실행 항목")
+        case .openQuestion: return L10n.text("미해결 질문")
+        case .agendaItem: return L10n.text("다음 아젠다")
         }
     }
 
     private func delayLabel(_ kind: ManualContinuityBriefDelayKind) -> String {
         switch kind {
-        case .deferred: return "지연 후보"
-        case .blocked: return "차단 후보"
-        case .overdue: return "기한 초과"
+        case .deferred: return L10n.text("지연 후보")
+        case .blocked: return L10n.text("차단 후보")
+        case .overdue: return L10n.text("기한 초과")
         }
     }
 
@@ -881,30 +881,30 @@ struct ManualContinuityBriefView: View {
 
     private func applyBlockLabel(_ reason: ManualContinuityBriefApplyBlockReason) -> String {
         switch reason {
-        case .danglingEvidence: return "회의 근거가 사라져 승인할 수 없습니다."
-        case .missingRequiredEvidence: return "승인에 필요한 회의 근거가 없습니다."
+        case .danglingEvidence: return L10n.text("회의 근거가 사라져 승인할 수 없습니다.")
+        case .missingRequiredEvidence: return L10n.text("승인에 필요한 회의 근거가 없습니다.")
         }
     }
 
     private func agendaSourceLabel(_ kind: ManualContinuityBriefAgendaCandidateSource.Kind) -> String {
         switch kind {
-        case .pendingAgendaItem: return "이번 회의에서 제안된 아젠다"
-        case .carriedToAgenda: return "다음 회의로 이월"
+        case .pendingAgendaItem: return L10n.text("이번 회의에서 제안된 아젠다")
+        case .carriedToAgenda: return L10n.text("다음 회의로 이월")
         }
     }
 
     private func reasonLabel(_ reason: WorkStateTransitionReason) -> String {
         switch reason {
-        case .ambiguousPriorCandidates: return "연결 가능한 기존 항목이 여러 개입니다."
-        case .similarityOnly: return "텍스트 유사성만으로는 같은 항목인지 확정할 수 없습니다."
-        case .missingEvidence: return "승인에 필요한 회의 근거가 없습니다."
-        case .evidenceNotInSourceMeeting: return "근거가 이 변화를 만든 회의에 속하지 않습니다."
-        case .crossProjectCandidate: return "다른 프로젝트의 항목과 연결할 수 없습니다."
-        case .unresolvedAssigneeAttribution: return "담당자 연결을 먼저 확인해야 합니다."
-        case .unsupportedTransitionForKind: return "이 업무 상태에는 적용할 수 없는 변화입니다."
-        case .priorItemNotApproved: return "기존 항목이 승인된 상태가 아닙니다."
-        case .stateChangeRequiresApproval: return "확정된 상태를 바꾸려면 승인이 필요합니다."
-        case .unknownReferencedObject: return "연결된 항목을 찾을 수 없습니다."
+        case .ambiguousPriorCandidates: return L10n.text("연결 가능한 기존 항목이 여러 개입니다.")
+        case .similarityOnly: return L10n.text("텍스트 유사성만으로는 같은 항목인지 확정할 수 없습니다.")
+        case .missingEvidence: return L10n.text("승인에 필요한 회의 근거가 없습니다.")
+        case .evidenceNotInSourceMeeting: return L10n.text("근거가 이 변화를 만든 회의에 속하지 않습니다.")
+        case .crossProjectCandidate: return L10n.text("다른 프로젝트의 항목과 연결할 수 없습니다.")
+        case .unresolvedAssigneeAttribution: return L10n.text("담당자 연결을 먼저 확인해야 합니다.")
+        case .unsupportedTransitionForKind: return L10n.text("이 업무 상태에는 적용할 수 없는 변화입니다.")
+        case .priorItemNotApproved: return L10n.text("기존 항목이 승인된 상태가 아닙니다.")
+        case .stateChangeRequiresApproval: return L10n.text("확정된 상태를 바꾸려면 승인이 필요합니다.")
+        case .unknownReferencedObject: return L10n.text("연결된 항목을 찾을 수 없습니다.")
         }
     }
 

@@ -683,6 +683,9 @@ struct HAENAApp: App {
                 showingRecordAudio: $showingRecordAudio
             )
             .environment(\.locale, AppLanguageSettings.shared.locale)
+            #if DEBUG
+            .background(UITestWindowPlacement(resizeMainWindow: true).frame(width: 0, height: 0))
+            #endif
         }
         .commands {
             CommandGroup(replacing: .appSettings) {
@@ -706,6 +709,9 @@ struct HAENAApp: App {
         Settings {
             GeneralSettingsView()
                 .environment(\.locale, AppLanguageSettings.shared.locale)
+                #if DEBUG
+                .background(UITestWindowPlacement().frame(width: 0, height: 0))
+                #endif
         }
     }
 

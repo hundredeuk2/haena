@@ -28,7 +28,7 @@ struct WorkStateReviewView: View {
     /// which would yank the user back mid-review.
     @State private var didScrollToHighlight = false
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     private var proposals: [WorkStateProposal] {
         WorkStateInbox.pendingProposals(in: project)
@@ -39,7 +39,7 @@ struct WorkStateReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if let errorMessage {
-                        Text(errorMessage)
+                        Text(L10n.text(errorMessage))
                             .foregroundStyle(.red)
                             .accessibilityIdentifier("work-state-review-error-message")
                     }
@@ -99,17 +99,17 @@ struct WorkStateReviewView: View {
     @ViewBuilder
     private var proposalsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("AI 제안 \(proposals.count)건")
+            Text(L10n.format("AI 제안 %@건", String(describing: proposals.count)))
                 .font(.headline)
                 .accessibilityIdentifier("pending-proposal-count")
 
             if proposals.isEmpty {
-                Text("검토할 AI 제안이 없습니다.")
+                Text(L10n.text("검토할 AI 제안이 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("no-pending-proposals")
             } else {
-                Text("승인하기 전까지는 제안 상태로만 저장됩니다.")
+                Text(L10n.text("승인하기 전까지는 제안 상태로만 저장됩니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -153,12 +153,12 @@ struct WorkStateReviewView: View {
 
         Divider()
 
-        section("결정 로그", identifier: "decision-log-section", isEmpty: decisions.isEmpty) {
+        section(L10n.text("결정 로그"), identifier: "decision-log-section", isEmpty: decisions.isEmpty) {
             ForEach(decisions) { decision in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(decision.statement)
                     if let evidence = decision.evidence {
-                        Text("원문 “\(evidence.quote)”")
+                        Text(L10n.format("원문 “%@”", String(describing: evidence.quote)))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -167,7 +167,7 @@ struct WorkStateReviewView: View {
             }
         }
 
-        section("진행 중인 업무", identifier: "active-work-section", isEmpty: actionItems.isEmpty) {
+        section(L10n.text("진행 중인 업무"), identifier: "active-work-section", isEmpty: actionItems.isEmpty) {
             ForEach(actionItems) { item in
                 VStack(alignment: .leading, spacing: 8) {
                     // The project browser's middle column can be narrow. Giving the title its own
@@ -178,9 +178,9 @@ struct WorkStateReviewView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("상태 · \(WorkStateDisplay.label(for: item.status))")
-                        Text(WorkStateDisplay.assigneeLabel(item.assigneeID, participants: participants(forMeeting: item.meetingID)))
-                        if let due = WorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
+                        Text(L10n.format("상태 · %@", String(describing: UIWorkStateDisplay.label(for: item.status))))
+                        Text(UIWorkStateDisplay.assigneeLabel(item.assigneeID, participants: participants(forMeeting: item.meetingID)))
+                        if let due = UIWorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
                             Text(due)
                         }
                     }
@@ -191,7 +191,7 @@ struct WorkStateReviewView: View {
                     if reminderService != nil,
                        ActionItemReminderService.eligibility(of: item, profile: profile) == .eligible {
                         if item.id == highlightedActionItemID {
-                            Text("이 업무의 알림은 아래 버튼에서 설정하세요.")
+                            Text(L10n.text("이 업무의 알림은 아래 버튼에서 설정하세요."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .accessibilityIdentifier("highlighted-reminder-guidance")
@@ -201,7 +201,7 @@ struct WorkStateReviewView: View {
                             reminderActionItem = item
                         } label: {
                             Label(
-                                remindersByActionItem[item.id]?.status == .scheduled ? "알림 변경" : "알림 설정",
+                                remindersByActionItem[item.id]?.status == .scheduled ? L10n.text("알림 변경") : L10n.text("알림 설정"),
                                 systemImage: "bell"
                             )
                             .frame(maxWidth: .infinity)
@@ -211,7 +211,7 @@ struct WorkStateReviewView: View {
                     }
 
                     if let reminder = remindersByActionItem[item.id], reminder.status == .scheduled {
-                        Text("알림 예정 · \(ReminderDateDisplay().string(from: reminder.fireAt))")
+                        Text(L10n.format("알림 예정 · %@", ReminderDateDisplay(locale: AppLanguageSettings.shared.locale).string(from: reminder.fireAt)))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("action-item-reminder-status-\(item.id.uuidString)")
@@ -221,17 +221,17 @@ struct WorkStateReviewView: View {
                     // compete with the title or the primary reminder action for horizontal space.
                     HStack(spacing: 8) {
                         if item.status == .confirmed {
-                            Button("진행 시작") {
+                            Button(L10n.text("진행 시작")) {
                                 Task { await setStatus(.inProgress, for: item) }
                             }
                             .accessibilityIdentifier("start-action-item-\(item.id.uuidString)")
                         }
-                        Button("완료") {
+                        Button(L10n.text("완료")) {
                             Task { await setStatus(.completed, for: item) }
                         }
                         .accessibilityIdentifier("complete-action-item-\(item.id.uuidString)")
 
-                        Button("수정") {
+                        Button(L10n.text("수정")) {
                             editingActionItem = item
                         }
                         .accessibilityIdentifier("edit-action-item-\(item.id.uuidString)")
@@ -239,7 +239,7 @@ struct WorkStateReviewView: View {
                         Spacer(minLength: 0)
 
                         Menu {
-                            Button("업무 취소", role: .destructive) {
+                            Button(L10n.text("업무 취소"), role: .destructive) {
                                 Task { await setStatus(.cancelled, for: item) }
                             }
                         } label: {
@@ -247,7 +247,7 @@ struct WorkStateReviewView: View {
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
-                        .accessibilityLabel("업무 더보기")
+                        .accessibilityLabel(L10n.text("업무 더보기"))
                         .accessibilityIdentifier("action-item-more-\(item.id.uuidString)")
                     }
                     .controlSize(.small)
@@ -269,14 +269,14 @@ struct WorkStateReviewView: View {
             }
         }
 
-        section("미해결 질문", identifier: "open-questions-section", isEmpty: questions.isEmpty) {
+        section(L10n.text("미해결 질문"), identifier: "open-questions-section", isEmpty: questions.isEmpty) {
             ForEach(questions) { question in
                 Text(question.question)
                     .accessibilityIdentifier("open-question-\(question.id.uuidString)")
             }
         }
 
-        section("다음 아젠다", identifier: "agenda-section", isEmpty: agenda.isEmpty) {
+        section(L10n.text("다음 아젠다"), identifier: "agenda-section", isEmpty: agenda.isEmpty) {
             ForEach(agenda) { item in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
@@ -300,7 +300,7 @@ struct WorkStateReviewView: View {
             Text(title)
                 .font(.headline)
             if isEmpty {
-                Text("아직 없습니다.")
+                Text(L10n.text("아직 없습니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

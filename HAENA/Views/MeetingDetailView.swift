@@ -70,7 +70,7 @@ struct MeetingDetailView: View {
     /// again for as long as any voice is still unidentified.
     @State private var isBannerDismissed = false
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -95,7 +95,7 @@ struct MeetingDetailView: View {
 
                 reanalysisControl
 
-                Button("회의 삭제", role: .destructive) {
+                Button(L10n.text("회의 삭제"), role: .destructive) {
                     isConfirmingDeletion = true
                 }
                 .accessibilityIdentifier("delete-meeting-button")
@@ -103,7 +103,7 @@ struct MeetingDetailView: View {
 
             HStack(spacing: 16) {
                 Text(dateFormatter.string(from: meeting.occurredAt))
-                Text(MeetingSourceTypeDisplay.label(for: meeting.sourceType))
+                Text(L10n.text(MeetingSourceTypeDisplay.label(for: meeting.sourceType)))
                     .accessibilityIdentifier("meeting-detail-source-type")
             }
             .font(.caption)
@@ -113,7 +113,7 @@ struct MeetingDetailView: View {
                 // Bounded for the same reason as the title: a meeting with many participants must
                 // not be able to grow this header without limit.
                 let roster = meeting.assignableParticipants.map(\.displayName).joined(separator: ", ")
-                Text("참석자 " + roster)
+                Text(L10n.format("참석자: %@", roster))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -122,7 +122,7 @@ struct MeetingDetailView: View {
             }
 
             if let deletionErrorMessage {
-                Text(deletionErrorMessage)
+                Text(L10n.text(deletionErrorMessage))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("meeting-deletion-error-message")
             }
@@ -135,9 +135,9 @@ struct MeetingDetailView: View {
 
             Divider()
 
-            Picker("표시", selection: $pane) {
-                Text("회의 결과").tag(MeetingDetailPane.results)
-                Text("원문").tag(MeetingDetailPane.transcript)
+            Picker(L10n.text("표시"), selection: $pane) {
+                Text(L10n.text("회의 결과")).tag(MeetingDetailPane.results)
+                Text(L10n.text("원문")).tag(MeetingDetailPane.transcript)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -176,7 +176,7 @@ struct MeetingDetailView: View {
         }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
-                title: "“\(meeting.title)” 회의를 삭제할까요?",
+                title: L10n.format("“%@” 회의를 삭제할까요?", String(describing: meeting.title)),
                 message: "이 회의와 연결된 추출 결과가 함께 삭제됩니다.\n이 작업은 앱에서 복구할 수 없습니다.",
                 confirmButtonIdentifier: "confirm-delete-meeting-button",
                 cancelButtonIdentifier: "cancel-delete-meeting-button",
@@ -227,11 +227,11 @@ struct MeetingDetailView: View {
     private var reanalysisControl: some View {
         if reanalysis != nil, reanalysisEligibility == .eligible {
             HStack(spacing: 6) {
-                Button(MeetingReanalysisCopy.button) {
+                Button(UIMeetingReanalysisCopy.button) {
                     Task { await reanalyse() }
                 }
                 .disabled(isReanalysing)
-                .help(MeetingReanalysisCopy.availability)
+                .help(UIMeetingReanalysisCopy.availability)
                 .accessibilityIdentifier("retry-meeting-analysis-button")
 
                 if isReanalysing {
@@ -248,7 +248,7 @@ struct MeetingDetailView: View {
     @ViewBuilder
     private var reanalysisNotice: some View {
         if let reanalysisMessage {
-            Text(reanalysisMessage)
+            Text(L10n.text(reanalysisMessage))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -305,20 +305,20 @@ struct MeetingDetailView: View {
     private var transcriptPane: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Button("원문 복사") {
+                Button(L10n.text("원문 복사")) {
                     copyTranscript()
                 }
                 .accessibilityIdentifier("copy-transcript-button")
                 .disabled(!hasExportableTranscript)
 
-                Button("원문 내보내기") {
+                Button(L10n.text("원문 내보내기")) {
                     exportTranscript()
                 }
                 .accessibilityIdentifier("export-transcript-button")
                 .disabled(!hasExportableTranscript)
 
                 if let exportFeedback {
-                    Text(exportFeedback.message)
+                    Text(L10n.text(exportFeedback.message))
                         .font(.callout)
                         .foregroundStyle(exportFeedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                         .accessibilityIdentifier("transcript-export-feedback-message")
@@ -434,16 +434,16 @@ struct MeetingDetailView: View {
         let unconfirmed = meeting.unconfirmedSpeakers
         if speakerConfirmation != nil, !unconfirmed.isEmpty, !isBannerDismissed {
             HStack(spacing: 12) {
-                Text("확인되지 않은 화자 \(unconfirmed.count)명")
+                Text(L10n.format("확인되지 않은 화자 %@명", String(describing: unconfirmed.count)))
                     .font(.caption)
                     .accessibilityIdentifier("unconfirmed-speaker-banner")
 
-                Button("화자 확인") {
+                Button(L10n.text("화자 확인")) {
                     isConfirmingSpeakers = true
                 }
                 .accessibilityIdentifier("confirm-speakers-button")
 
-                Button("나중에") {
+                Button(L10n.text("나중에")) {
                     isBannerDismissed = true
                 }
                 .accessibilityIdentifier("dismiss-speaker-banner-button")

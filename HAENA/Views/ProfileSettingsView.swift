@@ -22,11 +22,11 @@ struct ProfileSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("내 프로필")
+            Text(L10n.text("내 프로필"))
                 .font(.title2)
                 .bold()
 
-            Text("이 Mac에서 앱을 쓰는 사람을 설정합니다. 계정이나 로그인이 아니며, 입력한 내용은 이 기기에만 저장됩니다.")
+            Text(L10n.text("이 Mac에서 앱을 쓰는 사람을 설정합니다. 계정이나 로그인이 아니며, 입력한 내용은 이 기기에만 저장됩니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -38,7 +38,7 @@ struct ProfileSettingsView: View {
             participantSection
 
             if let message {
-                Text(message)
+                Text(L10n.text(message))
                     .font(.callout)
                     .foregroundStyle(isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .accessibilityIdentifier("profile-feedback-message")
@@ -46,7 +46,7 @@ struct ProfileSettingsView: View {
 
             HStack {
                 Spacer()
-                Button("닫기") {
+                Button(L10n.text("닫기")) {
                     dismiss()
                 }
                 .accessibilityIdentifier("close-profile-button")
@@ -66,15 +66,15 @@ struct ProfileSettingsView: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("이름")
+            Text(L10n.text("이름"))
                 .font(.headline)
 
             HStack {
-                TextField("이름을 입력하세요", text: $name)
+                TextField(L10n.text("이름을 입력하세요"), text: $name)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("profile-name-field")
 
-                Button(profile == nil ? "저장" : "이름 수정") {
+                Button(profile == nil ? L10n.text("저장") : L10n.text("이름 수정")) {
                     Task { await saveName() }
                 }
                 .accessibilityIdentifier("save-profile-name-button")
@@ -88,10 +88,10 @@ struct ProfileSettingsView: View {
     @ViewBuilder
     private var participantSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("나와 연결된 참석자")
+            Text(L10n.text("나와 연결된 참석자"))
                 .font(.headline)
 
-            Text("회의마다 참석자가 따로 기록되므로, 같은 사람이 여러 번 나타납니다. 본인에 해당하는 항목을 모두 선택해 연결하세요. 이름이 같다는 이유로 자동 연결되지는 않습니다.")
+            Text(L10n.text("회의마다 참석자가 따로 기록되므로, 같은 사람이 여러 번 나타납니다. 본인에 해당하는 항목을 모두 선택해 연결하세요. 이름이 같다는 이유로 자동 연결되지는 않습니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -100,19 +100,19 @@ struct ProfileSettingsView: View {
                 ProgressView()
                     .controlSize(.small)
             } else if profile == nil {
-                Text("먼저 이름을 저장하면 참석자를 연결할 수 있습니다.")
+                Text(L10n.text("먼저 이름을 저장하면 참석자를 연결할 수 있습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("profile-name-required-notice")
             } else if entries.isEmpty {
-                Text("아직 저장된 참석자가 없습니다. 회의를 먼저 기록해주세요.")
+                Text(L10n.text("아직 저장된 참석자가 없습니다. 회의를 먼저 기록해주세요."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("participant-directory-empty")
             } else {
                 participantList
 
-                Button("선택한 참석자를 나로 연결") {
+                Button(L10n.text("선택한 참석자를 나로 연결")) {
                     Task { await linkSelected() }
                 }
                 .accessibilityIdentifier("link-selected-participants-button")
@@ -128,7 +128,7 @@ struct ProfileSettingsView: View {
                     HStack(spacing: 12) {
                         if entry.isLinkedToMe {
                             // Already answered, so it is stated rather than offered again.
-                            Text("나")
+                            Text(L10n.text("나"))
                                 .font(.caption)
                                 .bold()
                                 .accessibilityIdentifier("linked-badge-\(entry.participantID.uuidString)")
@@ -152,7 +152,7 @@ struct ProfileSettingsView: View {
                         Spacer(minLength: 8)
 
                         if entry.isLinkedToMe {
-                            Button("연결 해제") {
+                            Button(L10n.text("연결 해제")) {
                                 Task { await unlink(entry.participantID) }
                             }
                             .accessibilityIdentifier("unlink-participant-\(entry.participantID.uuidString)")

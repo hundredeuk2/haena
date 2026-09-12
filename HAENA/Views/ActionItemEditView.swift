@@ -34,7 +34,7 @@ struct ActionItemEditView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("업무 수정")
+            Text(L10n.text("업무 수정"))
                 .font(.headline)
 
             Text(actionItem.title)
@@ -42,31 +42,31 @@ struct ActionItemEditView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("edit-action-item-title")
 
-            Picker("담당자", selection: $selectedAssigneeID) {
-                Text("미지정").tag(UUID?.none)
+            Picker(L10n.text("담당자"), selection: $selectedAssigneeID) {
+                Text(L10n.text("미지정")).tag(UUID?.none)
                 ForEach(participants) { participant in
                     Text(participant.displayName).tag(Optional(participant.id))
                 }
             }
             .accessibilityIdentifier("action-item-assignee-picker")
 
-            Toggle("마감일 지정", isOn: $hasDueDate)
+            Toggle(L10n.text("마감일 지정"), isOn: $hasDueDate)
                 .accessibilityIdentifier("action-item-due-date-toggle")
 
             if hasDueDate {
-                DatePicker("마감일", selection: $dueDate, displayedComponents: .date)
+                DatePicker(L10n.text("마감일"), selection: $dueDate, displayedComponents: .date)
                     .accessibilityIdentifier("action-item-due-date-picker")
             }
 
             HStack {
-                Button("취소") {
+                Button(L10n.text("취소")) {
                     onCancel()
                 }
                 .accessibilityIdentifier("cancel-edit-action-item-button")
 
                 Spacer()
 
-                Button("저장") {
+                Button(L10n.text("저장")) {
                     isSaving = true
                     Task {
                         await onSave(selectedAssigneeID, hasDueDate ? dueDate : nil)
