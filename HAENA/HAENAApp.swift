@@ -431,6 +431,7 @@ private struct AppComponentAssembly {
 
 @main
 struct HAENAApp: App {
+    @Environment(\.openSettings) private var openSettings
     private let repository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let manualBriefService: ManualContinuityBriefService
@@ -681,8 +682,13 @@ struct HAENAApp: App {
                 showingImportAudio: $showingImportAudio,
                 showingRecordAudio: $showingRecordAudio
             )
+            .environment(\.locale, AppLanguageSettings.shared.locale)
         }
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.text("설정…")) { openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
             // AppKit's own handling of `NSApp.terminate(_:)` silently declines whenever a SwiftUI
             // `.sheet` is still attached to the window (SwiftUI owns the sheet's presentation
             // state, so nothing outside these bindings can clear that attachment). Every sheet
@@ -691,11 +697,15 @@ struct HAENAApp: App {
             // dismiss it through the same SwiftUI state that presented it, then let the dismissal
             // finish before asking AppKit to terminate on the next run loop turn.
             CommandGroup(replacing: .appTermination) {
-                Button("Quit \(AppInfo.name)") {
+                Button(L10n.text("종료")) {
                     terminate()
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }
+        }
+        Settings {
+            GeneralSettingsView()
+                .environment(\.locale, AppLanguageSettings.shared.locale)
         }
     }
 

@@ -1,0 +1,8 @@
+"설정" = "Settings";
+"일반" = "General";
+"앱 언어" = "App Language";
+"시스템 설정 사용" = "Use System Setting";
+"앱의 표시 언어만 바뀝니다. 회의 원문과 분석 결과는 번역하지 않습니다." = "Only the app’s display language changes. Meeting text and analysis results are not translated.";
+"현재 표시 언어: %@" = "Display language: %@";
+"설정…" = "Settings…";
+"종료" = "Quit HAE.NA";

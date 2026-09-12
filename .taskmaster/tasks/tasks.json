@@ -1,0 +1,56 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "English UI v0 and local app language selection",
+        "description": "Product-only graph created after confirming origin/main has no Task Master graph. No human-gold tasks imported.",
+        "status": "in-progress",
+        "priority": "high",
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "A: Local language policy, resources and General settings",
+            "status": "done",
+            "dependencies": [],
+            "details": "system/ko/en. Settings only; preserve screen identity.",
+            "updatedAt": "2026-09-12T12:19:12.822Z",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "B: Core Korean and English UI surfaces",
+            "status": "in-progress",
+            "dependencies": [
+              1
+            ],
+            "details": "Presentation copy only. No prompt/schema/domain mutation.",
+            "parentId": "undefined",
+            "updatedAt": "2026-09-12T12:19:14.008Z"
+          },
+          {
+            "id": 3,
+            "title": "Final isolated regression and bundle verification",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Synthetic tests, both languages, Debug and Release universal; private candidate untouched.",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2026-09-12T12:19:14.008Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-09-12T12:19:14.008Z",
+      "taskCount": 1,
+      "completedCount": 0,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}
