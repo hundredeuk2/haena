@@ -1,7 +1,11 @@
-# HAE.NA 0.2.4 (8) — Private Developer Preview
+# HAE.NA 0.2.4 (8) — Experimental Developer Preview
 
-**Public 배포가 아닙니다.** 지정된 사람에게 개별 전달하는 비공개 후보이며, GitHub Release·태그·
-공개 저장소 전환은 이 문서의 범위 밖입니다.
+2026-09-13 사용자 승인으로 저장소와 기존 동결 후보를 공개합니다. **공개 다운로드는 제품 검증 완료를 뜻하지 않습니다.**
+서명·공증 없는 실험적 prerelease이며, 패키징된 앱의 실제 핵심 루프 tryout은 아직 대기 중입니다.
+
+[macOS ZIP 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip) ·
+[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip.sha256) ·
+[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.4-preview.1)
 
 설치 절차, Gatekeeper 경고 대응, BYOK 키 등록은 [README](../README.md)에 있습니다. 이 문서는
 **이 빌드에만 해당하는 사실**만 담습니다.
@@ -12,15 +16,17 @@
 | --- | --- |
 | 버전 | `0.2.4 (8)` |
 | 패키지 기준 commit | `19728e50…` (`codex/private-preview-0.2.4`) |
-| `main` 통합 commit | `0dbf9fb4…` |
+| 최초 `main` 제품 통합 commit | `0dbf9fb4…` |
+| 공개 태그 | `v0.2.4-preview.1` — source commit `19728e50…` |
 | 파일 | `HAE.NA-0.2.4-8-unsigned.app.zip` |
 | 크기 | 3,626,075 bytes (3.5M) |
 | SHA-256 | `64d85ffc9186f47fffb3d92c450d88297836c0e69235b29a7982ea0522eb1726` |
 | 아키텍처 | universal — arm64 + x86_64 |
 | 서명 | ad-hoc (**Developer ID 서명·공증 없음**) |
 
-패키지 기준 commit과 `main` 통합 commit은 commit ID가 다르지만 소스 트리가 같습니다. 설치 전에
-체크섬을 확인하세요.
+패키지 기준 commit과 최초 `main` 제품 통합 commit의 소스 트리는 같습니다. 이후 `main`에는
+릴리스 노트·영한 README·다운로드 안내가 추가됐으므로 **최신 main 전체 트리가 ZIP source와 같다는 뜻은 아닙니다.**
+이번 공개에서 제품 코드 변경·재빌드·재패키징은 하지 않았습니다. 설치 전에 체크섬을 확인하세요.
 
 ```bash
 shasum -a 256 HAE.NA-0.2.4-8-unsigned.app.zip
@@ -79,12 +85,14 @@ Keychain의 API 키는 별도입니다. *키체인 접근* 앱에서 `com.haena.
 
 아직 남은 확인은 **패키징된 앱으로 실제 핵심 루프를 짧게 사용해보는 것**입니다. 저장 → 추출 → 사용자
 검토·승인 → 다음 Continuity Brief → 종료·재실행을 확인하고, 실패 후 재시도와 승인 전 자동 적용이
-없음을 함께 봅니다. 이 확인 전에는 Public-ready로 간주하지 않습니다.
+없음을 함께 봅니다. 이 확인 전에는 제품 검증 완료 또는 안정 배포로 간주하지 않습니다.
+공개 다운로드 경로 검증과 이 실제 앱 사용 검증을 구분합니다.
 
 ## 알려진 제한
 
 - **서명·공증 없음.** 첫 실행에 우클릭 → 열기가 필요합니다.
 - **자동 업데이트 없음.** 새 빌드는 직접 받아 교체해야 합니다.
+- **영어 UI·Windows 앱 미포함.** 영어 UI는 별도 검증 대기 작업이며 Windows는 합성 텍스트 pilot 소스만 공개합니다.
 - 삭제가 오디오 unlink 직전에 중단되면 위에 설명한 고아 파일이 남을 수 있습니다.
 - 회의록을 수정해 다시 분석하거나, 이미 결과가 나온 회의를 다시 분석하는 기능은 없습니다.
 - 오디오 전사 품질은 잡음·다화자·전체 언어 범위에서 정량 검증되지 않았습니다.
@@ -95,4 +103,4 @@ Keychain의 API 키는 별도입니다. *키체인 접근* 앱에서 `com.haena.
 ## 이전 빌드
 
 `0.2.3 (7)` 패키지는 재현과 회귀 비교를 위해 보존합니다. 0.2.4는 삭제 lifecycle 수정이 포함된 최신
-Private Preview 후보이며, 이전 ZIP을 덮어쓰지 않습니다.
+Developer Preview 후보이며, 이전 ZIP을 덮어쓰지 않습니다. 기존 `v0.1.0` Draft Release도 공개하거나 변경하지 않습니다.
