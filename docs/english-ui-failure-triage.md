@@ -89,3 +89,33 @@ an open gate irrespective of whether its cause predates localization.
 The combined 9+6 UI run and any code-related unit rerun are deferred by the explicit environment
 stop condition. This checkpoint changes evidence documentation only; no product fix, timeout
 increase, weakened assertion, push, merge, or frozen-candidate change is claimed.
+
+## Resumption after Antigravity exit (2026-09-12)
+
+The user closed Antigravity. Preflight confirmed its process and visible window were absent,
+Accessibility was trusted, no xcodebuild was running, and both displays retained the same 1x
+geometry. Feature HEAD was `dca031b`, clean; its product/test source still matched `0a3a80f`.
+The unchanged baseline comparison assembly was run once, serially, with the same four selections.
+Actual Korean and window `(80,110,1000,800)` were confirmed at runtime.
+
+| Scenario | Result in this resumption | Interpretation |
+| --- | --- | --- |
+| Ambiguity `new` | Original disappearance assertion failed, 53.091 s. Target `(389,846,365,24)`, enabled/hittable true, foreground guard passed. | Still an unpaired baseline observation; no localization regression or exemption established |
+| Freeform save | At t=17.27, `ENVIRONMENT_INVALID_UI_INTERRUPTION`; save target `(859,812,47,24)`, enabled=true/hittable=false. Interrupters were Terminal `(569,390,877,499)` and Chrome `(0,30,1280,1320)`. | Environment invalid. Actual save execution/result not established |
+| No-project validation | Passed, 7.494 s; runner advanced while the external guard observer was stopping it. | Partial-run evidence only, not a completed baseline/current comparison |
+| Structured paste | Started, then interrupted | No completed result |
+
+On observing the guard failure, the exact owned xcodebuild PID was verified and sent SIGINT;
+the command exited 75. No retry or current-implementation run followed. Terminal and Chrome
+were not inspected for content, closed, or modified. The initial preflight did not establish an
+exclusive click region: it checked the previous interrupter, not every unrelated visible window.
+Foreground activation alone also did not prove the save target was unobstructed.
+
+Resumption log SHA-256:
+`74951a31ed9793e6be26cec579965c643996e8f22640daccd60d8df95236af6e`.
+No successful all-four aggregate is claimed for the interrupted run; the combined existing 9 +
+language 6 run remains unexecuted. Product/scenario-test changes: zero. No related unit rerun was
+needed or performed. The next required environmental action is an unobstructed, dedicated UI
+session (including Terminal/Chrome windows); do not keep retrying the same desktop condition.
+All four functional gates remain open. No push, merge, package, frozen 0.2.4 change, or completion
+claim follows from this evidence-only checkpoint.
