@@ -28,6 +28,8 @@ struct UITestWindowPlacement: NSViewRepresentable {
                 }
                 window.setFrameTopLeftPoint(NSPoint(x: screen.visibleFrame.minX + 80,
                                                    y: screen.visibleFrame.maxY - 80))
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
             }
         }
     }

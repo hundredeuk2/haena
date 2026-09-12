@@ -9,6 +9,7 @@ final class PasteTranscriptUITests: XCTestCase {
     func testPasteTranscriptButtonOpensInputScreen() {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
@@ -21,8 +22,11 @@ final class PasteTranscriptUITests: XCTestCase {
     func testSavingWithoutProjectShowsValidationMessage() {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
+        XCTAssertTrue(app.buttons["paste-transcript-button"].waitForExistence(timeout: 5))
         app.buttons["paste-transcript-button"].click()
 
         XCTAssertTrue(app.buttons["save-text-meeting-button"].waitForExistence(timeout: 5))
@@ -34,8 +38,11 @@ final class PasteTranscriptUITests: XCTestCase {
     func testCreatingProjectAndSavingMeetingShowsSavedConfirmation() {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
+        XCTAssertTrue(app.buttons["paste-transcript-button"].waitForExistence(timeout: 5))
         app.buttons["paste-transcript-button"].click()
 
         // Each element is re-queried fresh immediately before use (no cached `let` bindings
@@ -76,6 +83,7 @@ final class PasteTranscriptUITests: XCTestCase {
     func testStructuredPasteLinksOneSpeakerKeepsAnotherUnlinkedAndReachesCompletion() {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
 
@@ -115,17 +123,16 @@ final class PasteTranscriptUITests: XCTestCase {
         app.textViews["pasted-turn-text-editor-0"].typeText("I will prepare the draft.")
 
         XCTAssertTrue(scrollTo(app.buttons["add-pasted-turn-button"], in: app))
-        app.typeKey("n", modifierFlags: [.command, .option])
-        app.typeKey("t", modifierFlags: [.command, .option])
+        app.buttons["add-pasted-turn-button"].click()
+        app.buttons["show-pasted-turns-button"].click()
         XCTAssertTrue(scrollTo(app.textFields["pasted-speaker-label-field-1"], in: app))
         app.textFields["pasted-speaker-label-field-1"].click()
         app.textFields["pasted-speaker-label-field-1"].typeText("C")
-        app.typeKey(.tab, modifierFlags: [])
-        app.typeKey(.tab, modifierFlags: [])
-        app.typeText("This speaker remains unlinked.")
+        app.textViews["pasted-turn-text-editor-1"].click()
+        app.textViews["pasted-turn-text-editor-1"].typeText("This speaker remains unlinked.")
 
         XCTAssertTrue(app.buttons["show-pasted-speaker-links-button"].waitForExistence(timeout: 5))
-        app.typeKey("l", modifierFlags: [.command, .option])
+        app.buttons["show-pasted-speaker-links-button"].click()
 
         XCTAssertTrue(selectPopup(
             "Participant A",
@@ -136,7 +143,7 @@ final class PasteTranscriptUITests: XCTestCase {
         XCTAssertTrue(staticText("C → 미연결", in: app).waitForExistence(timeout: 5))
 
         XCTAssertTrue(app.buttons["save-text-meeting-button"].waitForExistence(timeout: 5))
-        app.typeKey("s", modifierFlags: .command)
+        app.buttons["save-text-meeting-button"].click()
 
         XCTAssertTrue(app.staticTexts["text-meeting-saved-message"].waitForExistence(timeout: 8))
     }
@@ -181,8 +188,9 @@ final class PasteTranscriptUITests: XCTestCase {
         app.activate()
         let scrollView = app.scrollViews["paste-transcript-scroll"]
         guard scrollView.waitForExistence(timeout: 2) else { return target.exists }
-        for _ in 0..<12 {
-            scrollView.swipeUp()
+        for _ in 0..<24 {
+            let delta = target.exists && target.frame.midY < scrollView.frame.midY ? 200.0 : -200.0
+            scrollView.scroll(byDeltaX: 0, deltaY: delta)
             if target.waitForExistence(timeout: 0.5), target.isHittable { return true }
         }
         return target.exists && target.isHittable

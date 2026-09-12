@@ -164,6 +164,7 @@ final class ManualContinuityBriefUITests: XCTestCase {
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launchEnvironment["HAENA_UI_TESTING_MANUAL_BRIEF"] = "1"
         app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         return app
     }
@@ -272,8 +273,11 @@ final class ManualContinuityBriefUITests: XCTestCase {
         guard scrollView.waitForExistence(timeout: 2) else {
             return target.exists
         }
-        for _ in 0..<12 {
-            scrollView.swipeUp()
+        for _ in 0..<24 {
+            // A high-velocity swipe can jump over a short review row. Scroll toward the
+            // actual target in bounded increments, including back up after an overshoot.
+            let delta = target.exists && target.frame.midY < scrollView.frame.midY ? 200.0 : -200.0
+            scrollView.scroll(byDeltaX: 0, deltaY: delta)
             if target.waitForExistence(timeout: 0.5), target.isHittable {
                 return true
             }
