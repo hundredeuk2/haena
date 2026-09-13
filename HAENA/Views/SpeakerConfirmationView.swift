@@ -21,23 +21,23 @@ struct SpeakerConfirmationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("화자 확인")
+            Text(L10n.text("화자 확인"))
                 .font(.title2)
                 .bold()
 
-            Text("목소리마다 누구인지 알려주면 이 회의 전체에 반영됩니다. 모르는 화자는 그대로 두어도 됩니다.")
+            Text(L10n.text("목소리마다 누구인지 알려주면 이 회의 전체에 반영됩니다. 모르는 화자는 그대로 두어도 됩니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             if let errorMessage {
-                Text(errorMessage)
+                Text(L10n.text(errorMessage))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("speaker-confirmation-error-message")
             }
 
             if let overview {
                 if overview.unconfirmed.isEmpty {
-                    Text("확인되지 않은 화자가 없습니다.")
+                    Text(L10n.text("확인되지 않은 화자가 없습니다."))
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("speaker-confirmation-empty")
                 } else {
@@ -60,7 +60,7 @@ struct SpeakerConfirmationView: View {
                 Spacer()
                 // "Later" and "close" are the same action on purpose: leaving is always allowed
                 // and never destructive.
-                Button("나중에") {
+                Button(L10n.text("나중에")) {
                     dismiss()
                 }
                 .accessibilityIdentifier("speaker-confirmation-later-button")
@@ -85,7 +85,7 @@ struct SpeakerConfirmationView: View {
             HStack {
                 Text(speaker.displayName)
                     .font(.headline)
-                Text("발언 \(speaker.utteranceCount)개")
+                Text(L10n.format("발언 %@개", String(describing: speaker.utteranceCount)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -106,7 +106,7 @@ struct SpeakerConfirmationView: View {
 
             if !candidates.isEmpty {
                 HStack(spacing: 8) {
-                    Text("기존 참석자")
+                    Text(L10n.text("기존 참석자"))
                         .font(.caption)
                     ForEach(candidates) { candidate in
                         Button(candidate.displayName) {
@@ -120,7 +120,7 @@ struct SpeakerConfirmationView: View {
 
             HStack(spacing: 8) {
                 TextField(
-                    "새 참석자 이름",
+                    L10n.text("새 참석자 이름"),
                     text: Binding(
                         get: { newNames[speaker.id] ?? "" },
                         set: { newNames[speaker.id] = $0 }
@@ -128,7 +128,7 @@ struct SpeakerConfirmationView: View {
                 )
                 .accessibilityIdentifier("speaker-new-name-field-\(speaker.id.uuidString)")
 
-                Button("연결") {
+                Button(L10n.text("연결")) {
                     linkToNewName(speaker: speaker)
                 }
                 .accessibilityIdentifier("speaker-link-new-button-\(speaker.id.uuidString)")

@@ -119,7 +119,7 @@ struct ProjectBrowserView: View {
                     requestedActionItemID: selectedProjectID == initialProjectID ? initialActionItemID : nil
                 )
             } else {
-                Text("프로젝트를 선택해주세요.")
+                Text(L10n.text("프로젝트를 선택해주세요."))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -160,7 +160,7 @@ struct ProjectBrowserView: View {
                 // — same meeting, new `Project` — leaves the pane exactly where the user left it.
                 .id(meeting.id)
             } else {
-                Text("회의를 선택해주세요.")
+                Text(L10n.text("회의를 선택해주세요."))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -170,7 +170,7 @@ struct ProjectBrowserView: View {
         .accessibilityIdentifier("project-browser-screen")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("닫기") {
+                Button(L10n.text("닫기")) {
                     dismiss()
                 }
                 .accessibilityIdentifier("close-project-browser-button")
@@ -200,14 +200,14 @@ struct ProjectBrowserView: View {
     private var sidebar: some View {
         switch loadState {
         case .idle, .loading:
-            ProgressView("불러오는 중…")
+            ProgressView(L10n.text("불러오는 중…"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .failed(let message):
             VStack(spacing: 12) {
-                Text(message)
+                Text(L10n.text(message))
                     .accessibilityIdentifier("project-browser-error-message")
-                Button("다시 시도") {
+                Button(L10n.text("다시 시도")) {
                     Task { await load() }
                 }
                 .accessibilityIdentifier("project-browser-retry-button")
@@ -216,11 +216,11 @@ struct ProjectBrowserView: View {
 
         case .empty:
             VStack(spacing: 12) {
-                Text("아직 저장된 프로젝트가 없습니다.")
-                Text("텍스트 회의록을 추가해 첫 프로젝트를 만들어보세요.")
+                Text(L10n.text("아직 저장된 프로젝트가 없습니다."))
+                Text(L10n.text("텍스트 회의록을 추가해 첫 프로젝트를 만들어보세요."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("텍스트 회의록 붙여넣기") {
+                Button(L10n.text("텍스트 회의록 붙여넣기")) {
                     showingPasteTranscript = true
                 }
             }
@@ -352,7 +352,7 @@ private enum ProjectBrowserLoadState: Equatable {
 private struct ProjectRowView: View {
     let project: Project
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -367,7 +367,7 @@ private struct ProjectRowView: View {
             }
 
             HStack {
-                Text(MeetingCountDisplay.label(count: project.meetings.count))
+                Text(UIMeetingCountDisplay.label(count: project.meetings.count))
                     .accessibilityIdentifier("project-meeting-count-\(project.id.uuidString)")
                 Spacer()
                 Text(dateFormatter.string(from: project.updatedAt))

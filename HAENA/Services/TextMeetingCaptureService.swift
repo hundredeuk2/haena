@@ -93,7 +93,8 @@ struct TextMeetingCaptureService: Sendable {
     /// Validates the inputs, builds a `.pastedText` `Meeting` with exactly one `TranscriptSegment`
     /// holding the full pasted body, appends it to the selected project, and saves the project.
     @discardableResult
-    func saveTextMeeting(projectID: UUID?, title: String, transcript: String) async throws -> Meeting {
+    func saveTextMeeting(projectID: UUID?, title: String, transcript: String,
+                         onProgress: (@MainActor @Sendable (CaptureProgressPhase) -> Void)? = nil) async throws -> Meeting {
         let draft = PastedTranscriptDraft(
             participants: [],
             turns: [
@@ -109,7 +110,8 @@ struct TextMeetingCaptureService: Sendable {
             projectID: projectID,
             title: title,
             draft: draft,
-            allowsUnlabeledSingleTurn: true
+            allowsUnlabeledSingleTurn: true,
+            onProgress: onProgress
         )
     }
 
@@ -119,13 +121,15 @@ struct TextMeetingCaptureService: Sendable {
     func saveTextMeeting(
         projectID: UUID?,
         title: String,
-        draft: PastedTranscriptDraft
+        draft: PastedTranscriptDraft,
+        onProgress: (@MainActor @Sendable (CaptureProgressPhase) -> Void)? = nil
     ) async throws -> Meeting {
         try await save(
             projectID: projectID,
             title: title,
             draft: draft,
-            allowsUnlabeledSingleTurn: false
+            allowsUnlabeledSingleTurn: false,
+            onProgress: onProgress
         )
     }
 
@@ -133,8 +137,10 @@ struct TextMeetingCaptureService: Sendable {
         projectID: UUID?,
         title: String,
         draft: PastedTranscriptDraft,
-        allowsUnlabeledSingleTurn: Bool
+        allowsUnlabeledSingleTurn: Bool,
+        onProgress: (@MainActor @Sendable (CaptureProgressPhase) -> Void)?
     ) async throws -> Meeting {
+        await onProgress?(.validating)
         guard let projectID else {
             throw TextMeetingCaptureError.noProjectSelected
         }
@@ -257,6 +263,7 @@ struct TextMeetingCaptureService: Sendable {
 
         project.meetings.append(meeting)
         project.updatedAt = timestamp
+        await onProgress?(.saving)
         try await repository.save(project)
 
         return meeting

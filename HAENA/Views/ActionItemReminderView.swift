@@ -14,7 +14,7 @@ struct ActionItemReminderView: View {
     @State private var errorMessage: String?
     @State private var showsNotificationSettings = false
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     init(
         project: Project,
@@ -44,7 +44,7 @@ struct ActionItemReminderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(existingReminder?.status == .scheduled ? "알림 변경" : "알림 설정")
+            Text(existingReminder?.status == .scheduled ? L10n.text("알림 변경") : L10n.text("알림 설정"))
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -54,36 +54,36 @@ struct ActionItemReminderView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let dueDate = actionItem.dueDate {
-                    Text("마감 \(dateFormatter.string(from: dueDate))")
+                    Text(L10n.format("마감 %@", String(describing: dateFormatter.string(from: dueDate))))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if let meeting = project.meetings.first(where: { $0.id == actionItem.meetingID }) {
-                    Text("근거 회의 · \(meeting.title)")
+                    Text(L10n.format("근거 회의 · %@", String(describing: meeting.title)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
             DatePicker(
-                "알림 시각",
+                L10n.text("알림 시각"),
                 selection: $fireAt,
                 displayedComponents: [.date, .hourAndMinute]
             )
             .accessibilityIdentifier("action-item-reminder-date-picker")
 
-            Text("추천 시각은 규칙으로 계산되며, 이 화면에서 확인한 시각만 예약됩니다. 임박했거나 지난 시각은 변경하지 않고 다시 선택하도록 알려드립니다.")
+            Text(L10n.text("추천 시각은 규칙으로 계산되며, 이 화면에서 확인한 시각만 예약됩니다. 임박했거나 지난 시각은 변경하지 않고 다시 선택하도록 알려드립니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             if let errorMessage {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(errorMessage)
+                    Text(L10n.text(errorMessage))
                         .font(.callout)
                         .foregroundStyle(.red)
                         .accessibilityIdentifier("action-item-reminder-error")
                     if showsNotificationSettings {
-                        Button("시스템 알림 설정 열기") {
+                        Button(L10n.text("시스템 알림 설정 열기")) {
                             openNotificationSettings()
                         }
                         .buttonStyle(.link)
@@ -94,7 +94,7 @@ struct ActionItemReminderView: View {
 
             HStack {
                 if existingReminder?.status == .scheduled {
-                    Button("알림 취소", role: .destructive) {
+                    Button(L10n.text("알림 취소"), role: .destructive) {
                         Task { await cancel() }
                     }
                     .disabled(isWorking)
@@ -103,10 +103,10 @@ struct ActionItemReminderView: View {
 
                 Spacer()
 
-                Button("닫기") { onClose() }
+                Button(L10n.text("닫기")) { onClose() }
                     .disabled(isWorking)
 
-                Button(existingReminder?.status == .scheduled ? "변경" : "예약") {
+                Button(existingReminder?.status == .scheduled ? L10n.text("변경") : L10n.text("예약")) {
                     Task { await schedule() }
                 }
                 .keyboardShortcut(.defaultAction)
@@ -176,7 +176,7 @@ struct ReminderDateDisplay {
         formatter = DateFormatter()
         formatter.locale = locale
         formatter.timeZone = timeZone
-        formatter.dateFormat = "M월 d일 a h:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdjm")
     }
 
     func string(from date: Date) -> String {

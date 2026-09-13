@@ -6,10 +6,9 @@ final class HAENAUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testHomeScreenShowsRecordAndImportButtons() {
-        let app = XCUIApplication()
-        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
-        app.launch()
+    func testHomeScreenShowsRecordAndImportButtons() throws {
+        let app = try AppShellUITests.guardedLaunch(for: self)
+        defer { app.terminate() }
 
         let recordButton = app.buttons["record-button"]
         let importButton = app.buttons["import-button"]
@@ -18,12 +17,12 @@ final class HAENAUITests: XCTestCase {
         XCTAssertTrue(importButton.waitForExistence(timeout: 5))
         XCTAssertTrue(recordButton.isHittable)
         XCTAssertTrue(importButton.isHittable)
+        try AppShellUITests.validateEnvironment(app)
     }
 
-    func testHomeScreenShowsProductName() {
-        let app = XCUIApplication()
-        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
-        app.launch()
+    func testHomeScreenShowsProductName() throws {
+        let app = try AppShellUITests.guardedLaunch(for: self)
+        defer { app.terminate() }
 
         let productName = app.staticTexts["product-name"]
 
@@ -31,5 +30,6 @@ final class HAENAUITests: XCTestCase {
         // On macOS, AXStaticText exposes its text via the `value` attribute rather than `label`.
         let displayedText = productName.label.isEmpty ? (productName.value as? String ?? "") : productName.label
         XCTAssertEqual(displayedText, "HAE.NA")
+        try AppShellUITests.validateEnvironment(app)
     }
 }

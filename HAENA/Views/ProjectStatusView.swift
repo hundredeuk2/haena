@@ -20,10 +20,12 @@ struct ProjectStatusView: View {
     let exportFilename: String
     let pasteboardWriter: any PasteboardWriter
     let fileExporter: any MarkdownFileExporter
+    var onOpenReview: (() -> Void)?
+    var onOpenObject: ((ProjectWorkStateSelection) -> Void)?
 
     @State private var feedback: Feedback?
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     private struct Feedback: Equatable {
         let message: String
@@ -51,18 +53,18 @@ struct ProjectStatusView: View {
 
     private var exportBar: some View {
         HStack(spacing: 12) {
-            Button("Markdown 내보내기") {
+            Button(L10n.text("Markdown 내보내기")) {
                 exportToFile()
             }
             .accessibilityIdentifier("export-markdown-button")
 
-            Button("클립보드 복사") {
+            Button(L10n.text("클립보드 복사")) {
                 copyToClipboard()
             }
             .accessibilityIdentifier("copy-markdown-button")
 
             if let feedback {
-                Text(feedback.message)
+                Text(L10n.text(feedback.message))
                     .font(.callout)
                     .foregroundStyle(feedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .accessibilityIdentifier("export-feedback-message")
@@ -113,9 +115,9 @@ struct ProjectStatusView: View {
     private var reviewCallout: some View {
         if summary.pendingProposalCount == 0 {
             HStack(spacing: 8) {
-                Text("확인 필요")
+                Text(L10n.text("확인 필요"))
                     .font(.headline)
-                Text("검토할 AI 제안이 없습니다.")
+                Text(L10n.text("검토할 AI 제안이 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -125,14 +127,14 @@ struct ProjectStatusView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("status-review-callout-empty")
         } else {
-            Button(action: onOpenWorkState) {
+            Button { onOpenReview?() } label: {
                 HStack(spacing: 8) {
-                    Text("확인 필요")
+                    Text(L10n.text("확인 필요"))
                         .font(.headline)
-                    Text("검토를 기다리는 AI 제안 \(summary.pendingProposalCount)건")
+                    Text(L10n.format("검토를 기다리는 AI 제안 %@건", String(describing: summary.pendingProposalCount)))
                         .font(.callout)
                     Spacer()
-                    Text("검토하기")
+                    Text(L10n.text("검토하기"))
                         .font(.callout)
                 }
                 .padding(12)
@@ -141,6 +143,7 @@ struct ProjectStatusView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(onOpenReview == nil)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("status-review-callout")
         }
@@ -150,10 +153,11 @@ struct ProjectStatusView: View {
 
     private var decisionsSection: some View {
         summarySection(
-            title: "최근 확정 결정",
+            title: L10n.text("최근 확정 결정"),
             identifier: "status-decisions-section",
             section: summary.recentDecisions,
-            emptyMessage: "확정된 결정이 아직 없습니다."
+            emptyMessage: L10n.text("확정된 결정이 아직 없습니다."),
+            selection: { .decision($0.id) }
         ) { decision in
             Text(decision.statement)
                 .lineLimit(2)
@@ -163,22 +167,23 @@ struct ProjectStatusView: View {
 
     private var workSection: some View {
         summarySection(
-            title: "진행 업무",
+            title: L10n.text("진행 업무"),
             identifier: "status-work-section",
             section: summary.activeActionItems,
-            emptyMessage: "진행 중인 업무가 없습니다."
+            emptyMessage: L10n.text("진행 중인 업무가 없습니다."),
+            selection: { .actionItem($0.id) }
         ) { item in
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .lineLimit(2)
 
                 HStack(spacing: 12) {
-                    Text(WorkStateDisplay.assigneeLabel(item.assigneeID, participants: participantsByMeeting(item.meetingID)))
+                    Text(UIWorkStateDisplay.assigneeLabel(item.assigneeID, participants: participantsByMeeting(item.meetingID)))
 
-                    if let due = WorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
+                    if let due = UIWorkStateDisplay.dueDateLabel(item.dueDate, formatter: dateFormatter) {
                         // Spelled out as well as tinted: a colour alone would not survive being
                         // read aloud, printed, or seen by a user who cannot distinguish it.
-                        Text(summary.isOverdue(item) ? "\(due) · 지남" : due)
+                        Text(summary.isOverdue(item) ? L10n.format("%@ · 지남", String(describing: due)) : due)
                             .foregroundStyle(summary.isOverdue(item) ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                             .accessibilityIdentifier("status-work-due-\(item.id.uuidString)")
                     }
@@ -193,10 +198,11 @@ struct ProjectStatusView: View {
 
     private var questionsSection: some View {
         summarySection(
-            title: "미해결 질문",
+            title: L10n.text("미해결 질문"),
             identifier: "status-questions-section",
             section: summary.unresolvedQuestions,
-            emptyMessage: "미해결 질문이 없습니다."
+            emptyMessage: L10n.text("미해결 질문이 없습니다."),
+            selection: { .openQuestion($0.id) }
         ) { question in
             Text(question.question)
                 .lineLimit(2)
@@ -206,10 +212,11 @@ struct ProjectStatusView: View {
 
     private var agendaSection: some View {
         summarySection(
-            title: "다음 아젠다",
+            title: L10n.text("다음 아젠다"),
             identifier: "status-agenda-section",
             section: summary.upcomingAgendaItems,
-            emptyMessage: "다음 아젠다가 없습니다."
+            emptyMessage: L10n.text("다음 아젠다가 없습니다."),
+            selection: { .agendaItem($0.id) }
         ) { item in
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
@@ -231,6 +238,7 @@ struct ProjectStatusView: View {
         identifier: String,
         section: ProjectStatusSection<Item>,
         emptyMessage: String,
+        selection: @escaping (Item) -> ProjectWorkStateSelection,
         @ViewBuilder row: @escaping (Item) -> Row
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -238,7 +246,7 @@ struct ProjectStatusView: View {
                 Text(title)
                     .font(.headline)
 
-                Text("\(section.totalCount)건")
+                Text(L10n.format("%@건", String(describing: section.totalCount)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("\(identifier)-count")
@@ -246,7 +254,7 @@ struct ProjectStatusView: View {
                 Spacer()
 
                 if !section.isEmpty {
-                    Button("전체 보기", action: onOpenWorkState)
+                    Button(L10n.text("전체 보기"), action: onOpenWorkState)
                         .buttonStyle(.link)
                         .accessibilityIdentifier("\(identifier)-see-all")
                 }
@@ -260,12 +268,16 @@ struct ProjectStatusView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(section.items) { item in
-                        row(item)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button { onOpenObject?(selection(item)) } label: {
+                            row(item).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(onOpenObject == nil)
+                        .accessibilityIdentifier("status-open-\(selection(item).accessibilityKey)")
                     }
 
                     if section.hiddenCount > 0 {
-                        Text("외 \(section.hiddenCount)건")
+                        Text(L10n.format("외 %@건", String(describing: section.hiddenCount)))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("\(identifier)-more")

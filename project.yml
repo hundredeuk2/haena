@@ -216,6 +216,9 @@ schemes:
         HAENAUITests: [test]
     test:
       config: Debug
+      environmentVariables:
+        HAENA_UI_TESTING: "1"
+        HAENA_UI_TEST_LANGUAGE: ko
       targets:
         - HAENATests
         - HAENABenchmarkTests

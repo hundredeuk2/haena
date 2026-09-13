@@ -39,7 +39,7 @@ struct CaptureCompletionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("회의가 저장되었습니다")
+            Text(L10n.text("회의가 저장되었습니다"))
                 .font(.title2)
                 .bold()
                 .accessibilityIdentifier(identifiers.savedMessage)
@@ -51,12 +51,22 @@ struct CaptureCompletionView: View {
                 .help(outcome.meetingTitle)
                 .accessibilityIdentifier("capture-completion-meeting-title")
 
+            Text(L10n.text(outcome.preservation.localizationKey))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("capture-preservation-message")
+
+            Text(L10n.text(CapturePresentationCopy.candidates)).font(.headline)
+                .accessibilityIdentifier("capture-candidates-heading")
+            Text(L10n.text(CapturePresentationCopy.approvalNotice))
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("capture-unapproved-notice")
             results
 
             if let notice = outcome.notice {
                 // Not an error state: the meeting is saved and reachable, and the button below
                 // still works. This says which of the steps after the save did not happen.
-                Text(notice)
+                Text(L10n.text(notice))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,12 +78,12 @@ struct CaptureCompletionView: View {
             Spacer(minLength: 0)
 
             HStack {
-                Button("닫기", action: onClose)
+                Button(L10n.text("닫기"), action: onClose)
                     .accessibilityIdentifier(identifiers.closeButton)
 
                 Spacer()
 
-                Button("결과 확인", action: onOpenResults)
+                Button(L10n.text("결과 확인"), action: onOpenResults)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("capture-open-results-button")
             }
@@ -98,14 +108,14 @@ struct CaptureCompletionView: View {
     private var retryAnalysis: some View {
         if let onRetryAnalysis {
             HStack(spacing: 8) {
-                Button(MeetingReanalysisCopy.button) {
+                Button(UIMeetingReanalysisCopy.button) {
                     Task { await onRetryAnalysis() }
                 }
                 .disabled(isRetryingAnalysis)
                 .accessibilityIdentifier("capture-retry-analysis-button")
 
                 if isRetryingAnalysis {
-                    ProgressView()
+                    ProgressView(L10n.text(CaptureProgressPhase.retrying.localizationKey))
                         .controlSize(.small)
                         .accessibilityIdentifier("capture-retry-analysis-progress")
                 }
@@ -117,27 +127,27 @@ struct CaptureCompletionView: View {
 
     // MARK: - Results
 
-    /// All four kinds, always — including the ones that came back empty.
+    /// Pending AI proposals in all four kinds, including the ones that came back empty.
     ///
     /// A meeting that produced no decisions is a fact worth showing: hiding the row would leave
     /// the user unsure whether the app looked for them at all, which is exactly the doubt this
     /// screen exists to remove.
     @ViewBuilder
     private var results: some View {
-        if let counts = outcome.counts {
+        if let counts = outcome.pendingCounts {
             VStack(alignment: .leading, spacing: 6) {
-                resultRow("결정 사항", counts.decisions, identifier: "capture-count-decisions")
-                resultRow("실행 항목", counts.actionItems, identifier: "capture-count-action-items")
-                resultRow("미해결 질문", counts.openQuestions, identifier: "capture-count-open-questions")
-                resultRow("다음 아젠다", counts.agendaItems, identifier: "capture-count-next-agenda")
+                resultRow(L10n.text("결정 사항"), counts.decisions, identifier: "capture-count-decisions")
+                resultRow(L10n.text("실행 항목"), counts.actionItems, identifier: "capture-count-action-items")
+                resultRow(L10n.text("미해결 질문"), counts.openQuestions, identifier: "capture-count-open-questions")
+                resultRow(L10n.text("다음 아젠다"), counts.agendaItems, identifier: "capture-count-next-agenda")
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
         } else {
-            // The save succeeded but the project could not be read back. Saying "0건" here would
+            // The save succeeded but pending counts could not be read back. Saying "0건" here would
             // be a claim about the meeting that nothing has checked.
-            Text("저장된 결과 건수를 확인하지 못했습니다. 회의는 저장되어 있습니다.")
+            Text(L10n.text(CapturePresentationCopy.countsUnavailable))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -149,7 +159,7 @@ struct CaptureCompletionView: View {
         HStack {
             Text(title)
             Spacer()
-            Text("\(count)건")
+            Text(L10n.format("%@건", String(describing: count)))
                 .monospacedDigit()
                 .foregroundStyle(count == 0 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         }

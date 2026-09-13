@@ -219,7 +219,7 @@ final class CaptureOutcomeTests: XCTestCase {
     }
 
     /// The notice is fixed copy: nothing from a provider response reaches the screen through it.
-    func testFailureNoticeSaysZeroResultsAndNeverRepeatsTheSaveMessage() {
+    func testFailureNoticeDoesNotInventZeroResultsOrRepeatTheSaveMessage() {
         for error in [
             WorkStateExtractionError.missingCredential,
             .unauthorized,
@@ -234,7 +234,8 @@ final class CaptureOutcomeTests: XCTestCase {
             .invalidConfiguration
         ] {
             let notice = CaptureFailureCopy.extraction(error)
-            XCTAssertTrue(notice.hasPrefix("결과 0건 · "), "\(error): \(notice)")
+            XCTAssertTrue(notice.hasPrefix("AI 분석을 완료하지 못했습니다. "), "\(error): \(notice)")
+            XCTAssertFalse(notice.contains("결과 0건"))
             XCTAssertFalse(notice.contains("저장되었습니다"), "\(error): the completion screen already says this")
         }
     }

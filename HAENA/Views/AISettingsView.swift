@@ -25,7 +25,7 @@ struct AISettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("AI 설정")
+                Text(L10n.text("AI 설정"))
                     .font(.title2)
                     .bold()
 
@@ -35,7 +35,7 @@ struct AISettingsView: View {
                 guidance
 
                 if let message {
-                    Text(message)
+                    Text(L10n.text(message))
                         .font(.callout)
                         .foregroundStyle(isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                         .fixedSize(horizontal: false, vertical: true)
@@ -44,7 +44,7 @@ struct AISettingsView: View {
 
                 HStack {
                     Spacer()
-                    Button("닫기") {
+                    Button(L10n.text("닫기")) {
                         dismiss()
                     }
                     .accessibilityIdentifier("close-ai-settings-button")
@@ -79,13 +79,13 @@ struct AISettingsView: View {
     private var statusText: String {
         switch status {
         case .notConfigured:
-            return "미설정"
+            return L10n.text("미설정")
         case .configured(.keychain):
-            return "설정됨 (이 Mac의 키체인)"
+            return L10n.text("설정됨 (이 Mac의 키체인)")
         case .configured(.environment):
-            return "설정됨 (환경변수 OPENAI_API_KEY — 저장된 키보다 우선합니다)"
+            return L10n.text("설정됨 (환경변수 OPENAI_API_KEY — 저장된 키보다 우선합니다)")
         case .unavailable:
-            return "키체인을 읽지 못했습니다"
+            return L10n.text("키체인을 읽지 못했습니다")
         }
     }
 
@@ -93,25 +93,25 @@ struct AISettingsView: View {
 
     private var keyEntry: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("API 키")
+            Text(L10n.text("API 키"))
                 .font(.headline)
 
             SecureField("sk-…", text: $typedKey)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("openai-api-key-field")
 
-            Text("입력한 키는 이 Mac의 키체인에만 저장되며, 저장한 뒤에는 화면에 다시 표시되지 않습니다.")
+            Text(L10n.text("입력한 키는 이 Mac의 키체인에만 저장되며, 저장한 뒤에는 화면에 다시 표시되지 않습니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button(status.isConfigured ? "키 교체" : "저장") {
+                Button(status.isConfigured ? L10n.text("키 교체") : L10n.text("저장")) {
                     save()
                 }
                 .accessibilityIdentifier("save-openai-key-button")
                 .disabled(CredentialNormalisation.normalised(typedKey) == nil)
 
-                Button("연결 확인") {
+                Button(L10n.text("연결 확인")) {
                     Task { await verify() }
                 }
                 .accessibilityIdentifier("verify-openai-key-button")
@@ -124,14 +124,14 @@ struct AISettingsView: View {
 
                 Spacer(minLength: 0)
 
-                Button("삭제", role: .destructive) {
+                Button(L10n.text("삭제"), role: .destructive) {
                     deleteKey()
                 }
                 .accessibilityIdentifier("delete-openai-key-button")
                 .disabled(status != .configured(.keychain))
             }
 
-            Text("연결 확인은 모델을 실행하지 않는 목록 조회로 인증만 검사하므로 사용료가 발생하지 않습니다. 확인은 입력한 키만 검사하며, 이미 저장된 키를 바꾸거나 지우지 않습니다.")
+            Text(L10n.text("연결 확인은 모델을 실행하지 않는 목록 조회로 인증만 검사하므로 사용료가 발생하지 않습니다. 확인은 입력한 키만 검사하며, 이미 저장된 키를 바꾸거나 지우지 않습니다."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -142,7 +142,7 @@ struct AISettingsView: View {
 
     private var guidance: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("알아두실 점")
+            Text(L10n.text("알아두실 점"))
                 .font(.headline)
 
             ForEach(Self.guidanceLines, id: \.self) { line in
@@ -156,14 +156,14 @@ struct AISettingsView: View {
         .accessibilityIdentifier("ai-settings-guidance")
     }
 
-    static let guidanceLines = [
-        "이 버전은 Phase 0 Developer Preview이며, 사용자가 자신의 OpenAI API 키를 직접 넣는 방식(BYOK)입니다.",
-        "API 사용료는 입력한 키의 OpenAI 계정에서 발생합니다. ChatGPT 구독료와 API 사용료는 서로 별개입니다.",
-        "본인 계정의 키만 사용하세요. 다른 사람의 키를 입력하면 그 사람에게 요금이 청구됩니다.",
-        "권한을 제한한 Project API 키를 만들고 OpenAI에서 사용 한도를 설정해두시길 권합니다.",
-        "전사와 AI 추출을 실행하면 회의 오디오와 전사 내용이 OpenAI로 전송됩니다.",
-        "키를 삭제해도 이미 저장된 프로젝트·녹음·전사는 지워지지 않습니다. 새 전사와 추출만 중단됩니다."
-    ]
+    static var guidanceLines: [String] { [
+        L10n.text("이 버전은 Phase 0 Developer Preview이며, 사용자가 자신의 OpenAI API 키를 직접 넣는 방식(BYOK)입니다."),
+        L10n.text("API 사용료는 입력한 키의 OpenAI 계정에서 발생합니다. ChatGPT 구독료와 API 사용료는 서로 별개입니다."),
+        L10n.text("본인 계정의 키만 사용하세요. 다른 사람의 키를 입력하면 그 사람에게 요금이 청구됩니다."),
+        L10n.text("권한을 제한한 Project API 키를 만들고 OpenAI에서 사용 한도를 설정해두시길 권합니다."),
+        L10n.text("전사와 AI 추출을 실행하면 회의 오디오와 전사 내용이 OpenAI로 전송됩니다."),
+        L10n.text("키를 삭제해도 이미 저장된 프로젝트·녹음·전사는 지워지지 않습니다. 새 전사와 추출만 중단됩니다.")
+    ] }
 
     // MARK: - Actions
 
@@ -226,7 +226,7 @@ struct AISettingsView: View {
         case .networkUnavailable:
             show("네트워크에 연결하지 못했습니다. 저장된 키는 그대로입니다.", isError: true)
         case .unexpected(let status):
-            show("확인하지 못했습니다. (HTTP \(status))", isError: true)
+            show(L10n.format("확인하지 못했습니다. (HTTP %@)", String(describing: status)), isError: true)
         }
     }
 

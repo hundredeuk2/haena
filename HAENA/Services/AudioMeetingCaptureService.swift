@@ -107,8 +107,10 @@ struct AudioMeetingCaptureService: Sendable {
         projectID: UUID?,
         title: String,
         fileURL: URL,
-        sourceType: MeetingSourceType = .audioFile
+        sourceType: MeetingSourceType = .audioFile,
+        onProgress: (@MainActor @Sendable (CaptureProgressPhase) -> Void)? = nil
     ) async throws -> Meeting {
+        await onProgress?(.validating)
         guard let projectID else {
             throw AudioMeetingCaptureError.noProjectSelected
         }
@@ -128,6 +130,7 @@ struct AudioMeetingCaptureService: Sendable {
         // Step 1: the app's own copy, made before anything can fail over the network. From here
         // on a retry never depends on the user's original file still being where it was.
         let asset: AudioAsset
+        await onProgress?(.copyingAudio)
         do {
             asset = try assetStore.store(file, id: makeID(), importedAt: now())
         } catch {
@@ -137,6 +140,7 @@ struct AudioMeetingCaptureService: Sendable {
         // Step 2: transcription. On failure the stored copy is deliberately left in place, and
         // no meeting has been created yet, so the project is untouched.
         let result: TranscriptionResult
+        await onProgress?(.transcribing)
         do {
             result = try await provider.transcribe(
                 TranscriptionRequest(
@@ -167,6 +171,7 @@ struct AudioMeetingCaptureService: Sendable {
         }
         project.meetings.append(meeting)
         project.updatedAt = now()
+        await onProgress?(.saving)
         do {
             try await repository.save(project)
         } catch {

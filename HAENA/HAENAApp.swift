@@ -431,6 +431,9 @@ private struct AppComponentAssembly {
 
 @main
 struct HAENAApp: App {
+    @Environment(\.openSettings) private var openSettings
+    private var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
+    private var audioCaptureInitialState: AudioCaptureInitialState = .empty
     private let repository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let manualBriefService: ManualContinuityBriefService
@@ -528,15 +531,56 @@ struct HAENAApp: App {
             let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
                 ? ManualContinuityBriefUITestSeed.make()
                 : nil
-            repository = InMemoryProjectRepository(
-                projects: manualBriefSeed.map { [$0.project] } ?? []
-            )
+            var uiTestProjects = manualBriefSeed.map { [$0.project] } ?? []
+            var uiTestProfile = manualBriefSeed?.profile
+            #if DEBUG
+            let lifecycleSeed = CaptureLifecycleUITestSeed.select(environment: ProcessInfo.processInfo.environment)
+            let lifecycleRepository = lifecycleSeed.map(CaptureLifecycleUITestRepository.init(seed:))
+            if let lifecycleSeed {
+                pastedTranscriptInitialState = lifecycleSeed.pastedState
+                // Failure cannot silently select real data; the explicit fixture remains empty.
+                audioCaptureInitialState = (try? lifecycleSeed.audioState()) ?? .empty
+            }
+            let homeSeed = HomeUITestSeed.select(environment: ProcessInfo.processInfo.environment)
+            if let homeSeed {
+                uiTestProjects = homeSeed.projects
+                uiTestProfile = homeSeed.profile
+            }
+            if let reviewProject = ReviewQueueUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
+                uiTestProjects = [reviewProject]
+            }
+            if let captureSeed = CaptureNavigationUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
+                uiTestProjects.append(captureSeed.project)
+                pastedTranscriptInitialState = captureSeed.initialState
+            }
+            if let lifecycleRepository {
+                repository = lifecycleRepository
+            } else if homeSeed?.scenario == .loadFailure {
+                repository = HomeLoadFailureUITestRepository()
+            } else {
+                repository = InMemoryProjectRepository(projects: uiTestProjects)
+            }
+            #else
+            repository = InMemoryProjectRepository(projects: uiTestProjects)
+            #endif
             transitionRepository = InMemoryWorkStateTransitionRepository(
                 proposals: manualBriefSeed?.proposals ?? [],
                 ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? []
             )
+            #if DEBUG
+            if let lifecycleSeed, let lifecycleRepository {
+                extractor = CaptureLifecycleUITestExtractor(scenario: lifecycleSeed.scenario,
+                                                            repository: lifecycleRepository, latency: .seconds(3))
+                transcriptionProvider = CaptureLifecycleUITestTranscriber(
+                    failFirst: lifecycleSeed.scenario == .transcriptionFailure, latency: .seconds(3))
+            } else {
+                extractor = DeterministicWorkStateExtractor()
+                transcriptionProvider = DeterministicTranscriptionProvider()
+            }
+            #else
             extractor = DeterministicWorkStateExtractor()
             transcriptionProvider = DeterministicTranscriptionProvider()
+            #endif
             // Never the real Keychain: an automated run must not read or overwrite the user's key.
             credentialResolver = OpenAICredentialResolver(store: InMemoryAPICredentialStore())
             // A throwaway directory per launch, so a UI test that imports audio cannot write
@@ -555,7 +599,7 @@ struct HAENAApp: App {
             // Never opens an audio device either, so an automated run cannot start playing sound
             // out of whatever machine it happens to be on.
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
-            profileRepository = InMemoryLocalUserProfileRepository(profile: manualBriefSeed?.profile)
+            profileRepository = InMemoryLocalUserProfileRepository(profile: uiTestProfile)
             reminderRepository = InMemoryActionItemReminderRepository()
             ledgerRepository = InMemoryAgentLedgerRepository(
                 events: Self.uiTestLedgerSeed(environment: ProcessInfo.processInfo.environment)
@@ -676,13 +720,23 @@ struct HAENAApp: App {
                 notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
                 reanalysisService: reanalysisService,
+                pastedTranscriptInitialState: pastedTranscriptInitialState,
+                audioCaptureInitialState: audioCaptureInitialState,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,
                 showingRecordAudio: $showingRecordAudio
             )
+            .environment(\.locale, AppLanguageSettings.shared.locale)
+            #if DEBUG
+            .background(UITestWindowPlacement(resizeMainWindow: true).frame(width: 0, height: 0))
+            #endif
         }
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.text("설정…")) { openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
             // AppKit's own handling of `NSApp.terminate(_:)` silently declines whenever a SwiftUI
             // `.sheet` is still attached to the window (SwiftUI owns the sheet's presentation
             // state, so nothing outside these bindings can clear that attachment). Every sheet
@@ -691,11 +745,18 @@ struct HAENAApp: App {
             // dismiss it through the same SwiftUI state that presented it, then let the dismissal
             // finish before asking AppKit to terminate on the next run loop turn.
             CommandGroup(replacing: .appTermination) {
-                Button("Quit \(AppInfo.name)") {
+                Button(L10n.text("종료")) {
                     terminate()
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }
+        }
+        Settings {
+            GeneralSettingsView()
+                .environment(\.locale, AppLanguageSettings.shared.locale)
+                #if DEBUG
+                .background(UITestWindowPlacement().frame(width: 0, height: 0))
+                #endif
         }
     }
 

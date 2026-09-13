@@ -1,5 +1,31 @@
 import Foundation
 
+/// UI ownership and exact selection, never a persisted domain discriminator.
+enum ProjectWorkStateSelection: Hashable, Sendable {
+    case decision(UUID), actionItem(UUID), openQuestion(UUID), agendaItem(UUID)
+    var actionItemID: UUID? { if case .actionItem(let id) = self { return id }; return nil }
+    var accessibilityKey: String {
+        switch self {
+        case .decision(let id): "decision-\(id.uuidString)"
+        case .actionItem(let id): "actionItem-\(id.uuidString)"
+        case .openQuestion(let id): "openQuestion-\(id.uuidString)"
+        case .agendaItem(let id): "agendaItem-\(id.uuidString)"
+        }
+    }
+    func proposal(in project: Project) -> WorkStateProposal? {
+        switch self {
+        case .decision(let id): WorkStateInbox.confirmedDecisions(in: project).first { $0.id == id }.map(WorkStateProposal.decision)
+        case .actionItem(let id): WorkStateInbox.activeActionItems(in: project).first { $0.id == id }.map(WorkStateProposal.actionItem)
+        case .openQuestion(let id): WorkStateInbox.reviewedOpenQuestions(in: project).first { $0.id == id }.map(WorkStateProposal.openQuestion)
+        case .agendaItem(let id): WorkStateInbox.reviewedAgendaItems(in: project).first { $0.id == id }.map(WorkStateProposal.agendaItem)
+        }
+    }
+}
+
+enum BrowserTarget: Equatable, Sendable {
+    case projectStatus, meetings, pendingReview, approvedWorkState(ProjectWorkStateSelection?)
+}
+
 /// Where the project browser should land when something opens it: the home screen tapping a row,
 /// or a finished capture handing over the meeting it just created.
 struct BrowserDestination: Equatable, Sendable {
@@ -11,8 +37,32 @@ struct BrowserDestination: Equatable, Sendable {
     /// A one-shot request to look at something, not a filter and not stored state: 업무 상태 opens
     /// scrolled to that task and then behaves exactly as it always does. Making it anything more
     /// would mean the user could not navigate away from the item the home picked for them.
-    var actionItemID: UUID?
-    let pane: ProjectDetailPane
+    let target: BrowserTarget
+    var actionItemID: UUID? { selection?.actionItemID }
+    var selection: ProjectWorkStateSelection? {
+        if case .approvedWorkState(let selection) = target { return selection }; return nil
+    }
+    var pane: ProjectDetailPane {
+        switch target {
+        case .projectStatus: .status
+        case .meetings: .meetings
+        case .pendingReview, .approvedWorkState: .workState
+        }
+    }
+
+    init(projectID: UUID, meetingID: UUID? = nil, target: BrowserTarget) {
+        self.projectID = projectID; self.meetingID = meetingID; self.target = target
+    }
+
+    /// Legacy project-pane entry remains explicitly project-owned. Pending routes must say so.
+    init(projectID: UUID, meetingID: UUID? = nil, actionItemID: UUID? = nil, pane: ProjectDetailPane) {
+        self.projectID = projectID; self.meetingID = meetingID
+        switch pane {
+        case .status: target = .projectStatus
+        case .meetings: target = .meetings
+        case .workState: target = .approvedWorkState(actionItemID.map(ProjectWorkStateSelection.actionItem))
+        }
+    }
 
     /// Where a finished capture sends the user.
     ///
@@ -30,10 +80,8 @@ struct BrowserDestination: Equatable, Sendable {
 
     /// Where the home's 지금 할 일 card sends the user.
     ///
-    /// Both kinds land on 업무 상태 of the recommended project, because that one screen already
-    /// owns both halves of what the card can recommend: the review list at the top, and the
-    /// 진행 중인 업무 list below it. The home presents no review or editing UI of its own, so a
-    /// recommendation is only ever a way into a screen that already exists.
+    /// Pending recommendations belong to Review. Approved work belongs to Projects, with the
+    /// exact typed object selection. Optional IDs never decide which screen owns the request.
     ///
     /// Only the task recommendation names an item. A review recommendation deliberately does not —
     /// it is about a pile of proposals, and singling one out would be the home making a judgement
@@ -41,12 +89,11 @@ struct BrowserDestination: Equatable, Sendable {
     static func nextAction(_ action: NextAction) -> BrowserDestination {
         switch action {
         case .review(let review):
-            return BrowserDestination(projectID: review.projectID, pane: .workState)
+            return BrowserDestination(projectID: review.projectID, target: .pendingReview)
         case .work(let work):
             return BrowserDestination(
                 projectID: work.projectID,
-                actionItemID: work.actionItemID,
-                pane: .workState
+                target: .approvedWorkState(.actionItem(work.actionItemID))
             )
         }
     }

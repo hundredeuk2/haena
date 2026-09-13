@@ -12,15 +12,17 @@ final class ProjectBrowserUITests: XCTestCase {
         app.staticTexts.matching(NSPredicate(format: "value == %@", value)).firstMatch
     }
 
-    func testEmptyStateShowsMessage() {
-        let app = XCUIApplication()
-        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
-        app.launch()
+    func testEmptyStateShowsMessage() throws {
+        let app = try AppShellUITests.guardedLaunch(for: self)
+        defer { app.terminate() }
 
         XCTAssertTrue(app.buttons["browse-projects-button"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
         app.buttons["browse-projects-button"].click()
+        try AppShellUITests.validateEnvironment(app)
 
         XCTAssertTrue(app.groups["project-browser-empty-state"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
     }
 
     func testCreatingMeetingThenBrowsingShowsProjectAndMeetingDetail() {

@@ -38,16 +38,15 @@ struct ProjectDetailView: View {
     /// The task a caller wants the user to see — the home's 지금 할 일 card naming what it
     /// recommended. Taken up once, on the same first appearance as `requestedPane`.
     var requestedActionItemID: UUID?
+    var requestedWorkStateSelection: ProjectWorkStateSelection?
+    var onOpenPendingReview: (() -> Void)?
+    @State private var workStateSelection: ProjectWorkStateSelection?
 
     @State private var isConfirmingDeletion = false
     @State private var isShowingManualBrief = false
     @State private var pane: ProjectDetailPane = .status
-    /// The requested task, once taken up. Held here rather than passed straight through so it can
-    /// be *let go of*: it is cleared the moment the user leaves 업무 상태, so coming back to the tab
-    /// under their own steam does not drag them to the home's choice all over again.
-    @State private var highlightedActionItemID: UUID?
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     private var statusSummary: ProjectStatusSummary {
         ProjectStatusSummary(project: project)
@@ -71,7 +70,7 @@ struct ProjectDetailView: View {
 
                 Spacer()
 
-                Button("프로젝트 삭제", role: .destructive) {
+                Button(L10n.text("프로젝트 삭제"), role: .destructive) {
                     isConfirmingDeletion = true
                 }
                 .accessibilityIdentifier("delete-project-button")
@@ -83,9 +82,9 @@ struct ProjectDetailView: View {
             }
 
             HStack(spacing: 16) {
-                Text("생성 \(dateFormatter.string(from: project.createdAt))")
-                Text("수정 \(dateFormatter.string(from: project.updatedAt))")
-                Text(MeetingCountDisplay.label(count: project.meetings.count))
+                Text(L10n.format("생성 %@", String(describing: dateFormatter.string(from: project.createdAt))))
+                Text(L10n.format("수정 %@", String(describing: dateFormatter.string(from: project.updatedAt))))
+                Text(UIMeetingCountDisplay.label(count: project.meetings.count))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -94,7 +93,7 @@ struct ProjectDetailView: View {
                 Button {
                     isShowingManualBrief = true
                 } label: {
-                    Label("다음 회의 준비", systemImage: "calendar.badge.clock")
+                    Label(L10n.text("다음 회의 준비"), systemImage: "calendar.badge.clock")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -103,17 +102,17 @@ struct ProjectDetailView: View {
             }
 
             if let deletionErrorMessage {
-                Text(deletionErrorMessage)
+                Text(L10n.text(deletionErrorMessage))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("project-deletion-error-message")
             }
 
             Divider()
 
-            Picker("표시", selection: $pane) {
-                Text("현재 상태").tag(ProjectDetailPane.status)
-                Text("회의").tag(ProjectDetailPane.meetings)
-                Text(pendingProposalCount == 0 ? "업무 상태" : "업무 상태 (\(pendingProposalCount))")
+            Picker(L10n.text("표시"), selection: $pane) {
+                Text(L10n.text("현재 상태")).tag(ProjectDetailPane.status)
+                Text(L10n.text("회의")).tag(ProjectDetailPane.meetings)
+                Text(pendingProposalCount == 0 ? L10n.text("업무 상태") : L10n.format("업무 상태 (%@)", String(describing: pendingProposalCount)))
                     .tag(ProjectDetailPane.workState)
             }
             .pickerStyle(.segmented)
@@ -125,16 +124,18 @@ struct ProjectDetailView: View {
                 ProjectStatusView(
                     summary: statusSummary,
                     participantsByMeeting: participants(forMeeting:),
-                    onOpenWorkState: { pane = .workState },
+                    onOpenWorkState: { workStateSelection = nil; pane = .workState },
                     makeMarkdown: exportMarkdown,
                     exportFilename: ProjectExportFilename.markdownFilename(for: project.name),
                     pasteboardWriter: pasteboardWriter,
-                    fileExporter: fileExporter
+                    fileExporter: fileExporter,
+                    onOpenReview: onOpenPendingReview,
+                    onOpenObject: { workStateSelection = $0; pane = .workState }
                 )
 
             case .meetings:
                 if sortedMeetings.isEmpty {
-                    Text("저장된 회의가 없습니다.")
+                    Text(L10n.text("저장된 회의가 없습니다."))
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("meeting-list-empty-state")
                 } else {
@@ -148,14 +149,14 @@ struct ProjectDetailView: View {
                 }
 
             case .workState:
-                WorkStateReviewView(
+                ProjectWorkStateView(
                     project: project,
                     reviewService: reviewService,
                     profileRepository: profileRepository,
                     reminderRepository: reminderRepository,
                     reminderService: reminderService,
                     onChanged: onWorkStateChanged,
-                    highlightedActionItemID: highlightedActionItemID
+                    selection: workStateSelection
                 )
             }
 
@@ -171,7 +172,7 @@ struct ProjectDetailView: View {
             if let requestedPane {
                 pane = requestedPane
             }
-            highlightedActionItemID = requestedActionItemID
+            workStateSelection = requestedWorkStateSelection ?? requestedActionItemID.map(ProjectWorkStateSelection.actionItem)
         }
         // Selecting a different project in the sidebar reuses this view rather than rebuilding it,
         // so the pane has to be sent back to 현재 상태 explicitly — otherwise the second project a
@@ -180,19 +181,19 @@ struct ProjectDetailView: View {
         // The highlighted task goes with it, for exactly the same reason.
         .onChange(of: project.id) { _, _ in
             pane = .status
-            highlightedActionItemID = nil
+            workStateSelection = nil
         }
         // Leaving 업무 상태 is the user saying they are done with what the home sent them to look
         // at. Dropping it here is what keeps this a one-time hand-off rather than a mode.
         .onChange(of: pane) { _, newPane in
             if newPane != .workState {
-                highlightedActionItemID = nil
+                workStateSelection = nil
             }
         }
         .sheet(isPresented: $isConfirmingDeletion) {
             DeletionConfirmationView(
-                title: "“\(project.name)” 프로젝트를 삭제할까요?",
-                message: "포함된 회의 \(project.meetings.count)개와 관련 업무 상태가 함께 삭제됩니다.\n이 작업은 앱에서 복구할 수 없습니다.",
+                title: L10n.format("“%@” 프로젝트를 삭제할까요?", String(describing: project.name)),
+                message: L10n.format("포함된 회의 %@개와 관련 업무 상태가 함께 삭제됩니다.\n이 작업은 앱에서 복구할 수 없습니다.", String(describing: project.meetings.count)),
                 confirmButtonIdentifier: "confirm-delete-project-button",
                 cancelButtonIdentifier: "cancel-delete-project-button",
                 onConfirm: {
@@ -241,7 +242,7 @@ struct ProjectDetailView: View {
 private struct MeetingRowView: View {
     let meeting: Meeting
 
-    private let dateFormatter = MeetingDateFormatter()
+    private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -249,8 +250,8 @@ private struct MeetingRowView: View {
                 .font(.headline)
             HStack(spacing: 8) {
                 Text(dateFormatter.string(from: meeting.occurredAt))
-                Text(MeetingSourceTypeDisplay.label(for: meeting.sourceType))
-                Text("원문 \(meeting.transcriptSegments.count)개")
+                Text(L10n.text(MeetingSourceTypeDisplay.label(for: meeting.sourceType)))
+                Text(L10n.format("원문 %@개", String(describing: meeting.transcriptSegments.count)))
             }
             .font(.caption)
             .foregroundStyle(.secondary)

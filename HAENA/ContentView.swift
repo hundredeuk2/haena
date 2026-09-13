@@ -23,6 +23,8 @@ struct ContentView: View {
     /// has to be able to tell "already running" from "not started", which a per-render value could
     /// not do.
     let reanalysisService: MeetingReanalysisService
+    var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
+    var audioCaptureInitialState: AudioCaptureInitialState = .empty
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -31,19 +33,14 @@ struct ContentView: View {
     @Binding var showingImportAudio: Bool
     @Binding var showingRecordAudio: Bool
 
-    /// Where the browser should land when it opens. Set by a home row, cleared by the 프로젝트 보기
-    /// button. Kept here rather than in `HAENAApp` because, unlike the sheet flags, quitting has no
-    /// interest in it.
-    @State private var browserDestination: BrowserDestination?
+    @State private var navigation = AppShellNavigation()
+    @FocusState private var focusedDestination: AppShellDestination?
     /// Where to go once the capture sheet currently on screen has finished closing.
     ///
-    /// One sheet cannot be swapped for another in a single step: asking for the browser while the
-    /// capture sheet is still attached to the window leaves SwiftUI holding two presentations for
-    /// one window, and it drops one of them. So the destination waits here, and the capture
-    /// sheet's own dismissal is what opens the browser.
+    /// Capture owns its dismissal; only afterwards does the persistent shell take up the link.
     @State private var destinationAfterCapture: BrowserDestination?
-    /// Changed whenever a sheet closes, which is the only way stored data changes while the home is
-    /// on screen. The home reloads on it rather than polling.
+    /// Sheet completion, workspace verdicts and returning Home invalidate the read snapshot.
+    /// The home reloads on this token rather than polling.
     @State private var homeReloadToken = UUID()
     @State private var showingProfile = false
     @State private var showingAISettings = false
@@ -85,7 +82,7 @@ struct ContentView: View {
         )
     }
 
-    var body: some View {
+    private var home: some View {
         HomeView(
             repository: repository,
             profileRepository: profileRepository,
@@ -99,16 +96,93 @@ struct ContentView: View {
             onImportAudio: { showingImportAudio = true },
             onPasteTranscript: { showingPasteTranscript = true },
             onBrowseProjects: {
-                browserDestination = nil
-                showingProjectBrowser = true
+                navigation.select(.projects)
             },
             // The home never presents review UI of its own; it opens the screen that already owns
             // the action, at the place the user asked for.
             onOpen: { destination in
-                browserDestination = destination
-                showingProjectBrowser = true
+                navigation.open(destination)
             }
         )
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(AppShellDestination.allCases) { destination in
+                    Button { navigation.select(destination) } label: {
+                        Label(destination.title, systemImage: destination.symbol)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10)
+                            .background(navigation.destination == destination ? Color.accentColor.opacity(0.15) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 8))
+                            // A plain button must include label spacing/padding in its hit area,
+                            // not only the separate glyphs that happen to be painted.
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .focusable()
+                    .focused($focusedDestination, equals: destination)
+                    // Custom directional focus must also activate its focused destination.
+                    .onKeyPress(.space) {
+                        navigation.select(destination)
+                        return .handled
+                    }
+                    .accessibilityLabel(destination.title)
+                    .accessibilityAddTraits(navigation.destination == destination ? .isSelected : [])
+                    .accessibilityIdentifier("shell-rail-\(destination.rawValue)")
+                    .onMoveCommand { direction in
+                        let destinations = AppShellDestination.allCases
+                        guard let index = destinations.firstIndex(of: destination) else { return }
+                        switch direction {
+                        case .down: focusedDestination = destinations[(index + 1) % destinations.count]
+                        case .up: focusedDestination = destinations[(index + destinations.count - 1) % destinations.count]
+                        default: break
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding(12)
+            .frame(width: 160)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("shell-rail")
+            Divider()
+            // Neither rail navigation nor locale changes rebuilds the root/window owner. Home
+            // keeps its local presentation state while the workspace retains exact selections.
+            ZStack {
+                home
+                    .opacity(navigation.destination == .home ? 1 : 0)
+                    .allowsHitTesting(navigation.destination == .home)
+                    .accessibilityHidden(navigation.destination != .home)
+                AppShellWorkspaceView(
+                    navigation: $navigation, repository: repository,
+                    reviewService: WorkStateReviewService(repository: repository, metrics: metricsService),
+                    manualBriefService: manualBriefService, transitionReviewService: transitionReviewService,
+                    deletionService: ProjectDeletionService(repository: repository, assetStore: audioAssetStore,
+                                                            transitions: transitionRepository),
+                    profileRepository: profileRepository, reminderRepository: reminderRepository,
+                    reminderService: reminderService, audioAssetStore: audioAssetStore,
+                    makeAudioPlayer: makeAudioPlayer, reanalysisService: reanalysisService,
+                    reloadToken: homeReloadToken,
+                    onPaste: { showingPasteTranscript = true },
+                    onChanged: { homeReloadToken = UUID() }
+                )
+                .opacity(navigation.destination == .home ? 0 : 1)
+                .allowsHitTesting(navigation.destination != .home)
+                .accessibilityHidden(navigation.destination == .home)
+            }
+        }
+        .frame(minWidth: 720, minHeight: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("app-shell")
+        .onChange(of: navigation.destination) { old, new in
+            // The app's Quit command clears this binding before termination. Keep it as the
+            // workspace ownership flag so a nested edit/confirmation sheet is dismissed too.
+            showingProjectBrowser = new != .home
+            if old == .home || new == .home { homeReloadToken = UUID() }
+        }
         .onChange(of: showingPasteTranscript) { _, isShowing in
             reloadHomeAfterDismissal(isShowing)
         }
@@ -119,7 +193,11 @@ struct ContentView: View {
             reloadHomeAfterDismissal(isShowing)
         }
         .onChange(of: showingProjectBrowser) { _, isShowing in
-            reloadHomeAfterDismissal(isShowing)
+            if isShowing, navigation.destination == .home {
+                navigation.select(.projects)
+            } else if !isShowing, navigation.destination != .home {
+                navigation.select(.home)
+            }
         }
         .onChange(of: showingProfile) { _, isShowing in
             reloadHomeAfterDismissal(isShowing)
@@ -157,7 +235,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
+                reanalysisService: reanalysisService,
+                initialState: pastedTranscriptInitialState
             )
         }
         .sheet(isPresented: $showingRecordAudio) {
@@ -172,7 +251,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
+                reanalysisService: reanalysisService,
+                initialState: audioCaptureInitialState
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -185,29 +265,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
-            )
-        }
-        .sheet(isPresented: $showingProjectBrowser) {
-            ProjectBrowserView(
-                repository: repository,
-                transitionRepository: transitionRepository,
-                manualBriefService: manualBriefService,
-                transitionReviewService: transitionReviewService,
-                extractor: extractor,
-                audioAssetStore: audioAssetStore,
-                makeAudioPlayer: makeAudioPlayer,
-                profileRepository: profileRepository,
-                reminderRepository: reminderRepository,
-                reminderService: reminderService,
-                // Without this the review screen builds an uninstrumented service and no verdict is
-                // ever counted: this view is the only place `WorkStateReviewService` is constructed.
-                metrics: metricsService,
                 reanalysisService: reanalysisService,
-                initialProjectID: browserDestination?.projectID,
-                initialMeetingID: browserDestination?.meetingID,
-                initialActionItemID: browserDestination?.actionItemID,
-                initialPane: browserDestination?.pane ?? .status
+                initialState: audioCaptureInitialState
             )
         }
         .task {
@@ -281,7 +340,7 @@ struct ContentView: View {
     #endif
 
     /// Records where a finished capture wants to go. The capture sheet closes itself right after
-    /// calling this; opening the browser is left to `openPendingDestination`, once that dismissal
+    /// calling this; routing the shell is left to `openPendingDestination`, once that dismissal
     /// has actually happened.
     ///
     /// Landing on 회의 means the meeting list is the useful middle pane — the meeting the user just
@@ -290,7 +349,7 @@ struct ContentView: View {
         destinationAfterCapture = .results(of: destination)
     }
 
-    /// Reloads once a sheet has actually closed, and opens the browser if the capture that just
+    /// Reloads once a sheet has actually closed, and routes the shell if the capture that just
     /// closed asked for it.
     ///
     /// A capture sheet can add a meeting and a whole set of proposals, and the browser can approve
@@ -305,17 +364,14 @@ struct ContentView: View {
         openPendingDestination()
     }
 
-    /// Opens the browser on the next run loop turn rather than immediately: the sheet whose
-    /// dismissal brought us here is still being torn down, and presenting into the same window
-    /// before it has finished is what makes one of the two sheets never appear.
+    /// Consume the capture request after dismissal, without presenting another sheet.
     private func openPendingDestination() {
         guard let destination = destinationAfterCapture else {
             return
         }
         destinationAfterCapture = nil
         DispatchQueue.main.async {
-            browserDestination = destination
-            showingProjectBrowser = true
+            navigation.open(destination)
         }
     }
 }

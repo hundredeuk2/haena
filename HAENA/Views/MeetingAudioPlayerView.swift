@@ -24,13 +24,13 @@ struct MeetingAudioPlayerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                Button(model.isPlaying ? "일시정지" : "재생") {
+                Button(model.isPlaying ? L10n.text("일시정지") : L10n.text("재생")) {
                     Task { await model.togglePlayPause() }
                 }
                 .accessibilityIdentifier("meeting-audio-play-pause-button")
                 .disabled(!model.isLoaded)
 
-                Button("처음부터") {
+                Button(L10n.text("처음부터")) {
                     Task { await model.restart() }
                 }
                 .accessibilityIdentifier("meeting-audio-restart-button")
@@ -55,13 +55,13 @@ struct MeetingAudioPlayerView: View {
 
             if let errorMessage = model.errorMessage {
                 HStack(spacing: 8) {
-                    Text(errorMessage)
+                    Text(L10n.text(errorMessage))
                         .font(.caption)
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("meeting-audio-error-message")
 
-                    Button("다시 시도") {
+                    Button(L10n.text("다시 시도")) {
                         Task { await model.load() }
                     }
                     .accessibilityIdentifier("meeting-audio-retry-button")

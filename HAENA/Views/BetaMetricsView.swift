@@ -78,7 +78,7 @@ struct BetaMetricsView: View {
     private var content: some View {
         switch loadState {
         case .loading:
-            ProgressView("측정 결과 불러오는 중…")
+            ProgressView(L10n.text("측정 결과 불러오는 중…"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("beta-metrics-loading")
 
@@ -88,7 +88,7 @@ struct BetaMetricsView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("beta-metrics-load-error")
-                Button("다시 시도") { Task { await load() } }
+                Button(L10n.text("다시 시도")) { Task { await load() } }
                     .accessibilityIdentifier("retry-beta-metrics-button")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -231,7 +231,7 @@ struct BetaMetricsView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let resetError {
-                Text(resetError)
+                Text(L10n.text(resetError))
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,7 +262,7 @@ struct BetaMetricsView: View {
     }
 
     private var closeButton: some View {
-        Button("닫기") { onClose() }
+        Button(L10n.text("닫기")) { onClose() }
             .keyboardShortcut(.defaultAction)
             .disabled(isResetting)
             .accessibilityIdentifier("close-beta-metrics-button")

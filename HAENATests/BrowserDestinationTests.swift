@@ -47,6 +47,7 @@ final class BrowserDestinationTests: XCTestCase {
         )
 
         let destination = BrowserDestination.nextAction(.review(review))
+        XCTAssertEqual(destination.target, .pendingReview)
 
         XCTAssertEqual(destination.projectID, Fixtures.projectB)
         XCTAssertEqual(destination.pane, .workState)
@@ -71,6 +72,7 @@ final class BrowserDestinationTests: XCTestCase {
         )
 
         let destination = BrowserDestination.nextAction(.work(work))
+        XCTAssertEqual(destination.target, .approvedWorkState(.actionItem(Fixtures.uuid(700))))
 
         XCTAssertEqual(destination.projectID, Fixtures.projectB)
         XCTAssertEqual(destination.actionItemID, Fixtures.uuid(700))
