@@ -433,6 +433,7 @@ private struct AppComponentAssembly {
 struct HAENAApp: App {
     @Environment(\.openSettings) private var openSettings
     private var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
+    private var audioCaptureInitialState: AudioCaptureInitialState = .empty
     private let repository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let manualBriefService: ManualContinuityBriefService
@@ -533,6 +534,13 @@ struct HAENAApp: App {
             var uiTestProjects = manualBriefSeed.map { [$0.project] } ?? []
             var uiTestProfile = manualBriefSeed?.profile
             #if DEBUG
+            let lifecycleSeed = CaptureLifecycleUITestSeed.select(environment: ProcessInfo.processInfo.environment)
+            let lifecycleRepository = lifecycleSeed.map(CaptureLifecycleUITestRepository.init(seed:))
+            if let lifecycleSeed {
+                pastedTranscriptInitialState = lifecycleSeed.pastedState
+                // Failure cannot silently select real data; the explicit fixture remains empty.
+                audioCaptureInitialState = (try? lifecycleSeed.audioState()) ?? .empty
+            }
             let homeSeed = HomeUITestSeed.select(environment: ProcessInfo.processInfo.environment)
             if let homeSeed {
                 uiTestProjects = homeSeed.projects
@@ -542,7 +550,9 @@ struct HAENAApp: App {
                 uiTestProjects.append(captureSeed.project)
                 pastedTranscriptInitialState = captureSeed.initialState
             }
-            if homeSeed?.scenario == .loadFailure {
+            if let lifecycleRepository {
+                repository = lifecycleRepository
+            } else if homeSeed?.scenario == .loadFailure {
                 repository = HomeLoadFailureUITestRepository()
             } else {
                 repository = InMemoryProjectRepository(projects: uiTestProjects)
@@ -554,8 +564,20 @@ struct HAENAApp: App {
                 proposals: manualBriefSeed?.proposals ?? [],
                 ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? []
             )
+            #if DEBUG
+            if let lifecycleSeed, let lifecycleRepository {
+                extractor = CaptureLifecycleUITestExtractor(scenario: lifecycleSeed.scenario,
+                                                            repository: lifecycleRepository, latency: .seconds(3))
+                transcriptionProvider = CaptureLifecycleUITestTranscriber(
+                    failFirst: lifecycleSeed.scenario == .transcriptionFailure, latency: .seconds(3))
+            } else {
+                extractor = DeterministicWorkStateExtractor()
+                transcriptionProvider = DeterministicTranscriptionProvider()
+            }
+            #else
             extractor = DeterministicWorkStateExtractor()
             transcriptionProvider = DeterministicTranscriptionProvider()
+            #endif
             // Never the real Keychain: an automated run must not read or overwrite the user's key.
             credentialResolver = OpenAICredentialResolver(store: InMemoryAPICredentialStore())
             // A throwaway directory per launch, so a UI test that imports audio cannot write
@@ -696,6 +718,7 @@ struct HAENAApp: App {
                 credentialResolver: credentialResolver,
                 reanalysisService: reanalysisService,
                 pastedTranscriptInitialState: pastedTranscriptInitialState,
+                audioCaptureInitialState: audioCaptureInitialState,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

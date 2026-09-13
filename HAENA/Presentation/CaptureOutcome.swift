@@ -58,15 +58,22 @@ struct CaptureOutcome: Equatable, Sendable {
     /// Set when the meeting was saved but a later step was not. Never blocks: the screen still
     /// offers the meeting, because the meeting is really there.
     let notice: String?
+    /// Separate from historical total counts (used by metrics/reanalysis). Only pending proposals
+    /// may be labelled "awaiting review"; approved/processed results never enter this count.
+    let pendingCounts: CaptureResultCounts?
+    let preservation: CapturePreservation
 
     var projectID: UUID { destination.projectID }
     var meetingID: UUID { destination.meetingID }
 
-    init(destination: CaptureDestination, meetingTitle: String, counts: CaptureResultCounts?, notice: String?) {
+    init(destination: CaptureDestination, meetingTitle: String, counts: CaptureResultCounts?, notice: String?,
+         pendingCounts: CaptureResultCounts? = nil, preservation: CapturePreservation = .meetingOnly) {
         self.destination = destination
         self.meetingTitle = meetingTitle
         self.counts = counts
         self.notice = notice
+        self.pendingCounts = pendingCounts
+        self.preservation = preservation
     }
 
     /// Reads the saved project back and counts what the meeting actually holds.
@@ -84,15 +91,25 @@ struct CaptureOutcome: Equatable, Sendable {
         let destination = CaptureDestination(projectID: meeting.projectID, meetingID: meeting.id)
         let project = try? await repository.project(id: meeting.projectID)
 
-        let counts = project.map {
-            CaptureResultCounts(summary: MeetingWorkStateSummary(project: $0, meetingID: meeting.id))
+        let summary = project.flatMap { project -> MeetingWorkStateSummary? in
+            guard project.meetings.contains(where: { $0.id == meeting.id }) else { return nil }
+            return MeetingWorkStateSummary(project: project, meetingID: meeting.id)
+        }
+        let counts = summary.map(CaptureResultCounts.init(summary:))
+        let pending = summary.map {
+            CaptureResultCounts(decisions: $0.decisions.needsReview.count,
+                                actionItems: $0.actionItems.needsReview.count,
+                                openQuestions: $0.openQuestions.needsReview.count,
+                                agendaItems: $0.agendaItems.needsReview.count)
         }
 
         return CaptureOutcome(
             destination: destination,
             meetingTitle: meeting.title,
             counts: counts,
-            notice: notice
+            notice: notice,
+            pendingCounts: pending,
+            preservation: CapturePreservation(saved: meeting)
         )
     }
 }

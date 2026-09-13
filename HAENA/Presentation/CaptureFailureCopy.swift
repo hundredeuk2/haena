@@ -10,9 +10,9 @@ import Foundation
 /// screen, which has already said so. Repeating it would make the screen argue with itself.
 enum CaptureFailureCopy {
     /// Extraction ran after the meeting was stored and did not finish. The meeting, its transcript
-    /// and any audio are all still there — only the work-state results are missing.
+    /// and any audio are still there. This reports a failed step, never an unchecked result count.
     static func extraction(_ error: any Error) -> String {
-        "결과 0건 · " + reason(error)
+        "AI 분석을 완료하지 못했습니다. " + reason(error)
     }
 
     private static func reason(_ error: any Error) -> String {

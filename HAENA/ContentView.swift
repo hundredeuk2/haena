@@ -24,6 +24,7 @@ struct ContentView: View {
     /// not do.
     let reanalysisService: MeetingReanalysisService
     var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
+    var audioCaptureInitialState: AudioCaptureInitialState = .empty
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -250,7 +251,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
+                reanalysisService: reanalysisService,
+                initialState: audioCaptureInitialState
             )
         }
         .sheet(isPresented: $showingImportAudio) {
@@ -263,7 +265,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
+                reanalysisService: reanalysisService,
+                initialState: audioCaptureInitialState
             )
         }
         .task {

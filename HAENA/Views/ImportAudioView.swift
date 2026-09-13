@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Typed draft only. No automatic import; production defaults remain empty.
+struct AudioCaptureInitialState: Equatable, Sendable {
+    var selectedProjectID: UUID? = nil
+    var meetingTitle: String = ""
+    var selectedFile: ValidatedAudioFile? = nil
+    static let empty = Self()
+}
+
 /// Lets a user pick an audio file, attach it to a project, transcribe it, and run work-state
 /// extraction over the result. Mirrors `PasteTranscriptView`: this view holds UI state and maps
 /// service errors to Korean copy, and never talks to a provider or to `URLSession` itself.
@@ -26,6 +34,7 @@ struct ImportAudioView: View {
     /// Lets the completion screen offer another attempt when extraction failed after the save.
     /// Nil hides that button and leaves this screen exactly as it was.
     var reanalysisService: MeetingReanalysisService?
+    var initialState: AudioCaptureInitialState = .empty
 
     @Environment(\.dismiss) private var dismiss
 
@@ -33,8 +42,7 @@ struct ImportAudioView: View {
     /// several independent booleans that could disagree with each other.
     private enum Phase: Equatable {
         case idle
-        case transcribing
-        case saving
+        case working(CaptureProgressPhase)
         /// The meeting reached storage. Only ever built from a real saved meeting, so the
         /// completion screen can always offer it.
         case completed(CaptureOutcome)
@@ -43,7 +51,8 @@ struct ImportAudioView: View {
         /// Both phases where work is in flight. Every control that could start a second run is
         /// disabled while this is true.
         var isBusy: Bool {
-            self == .transcribing || self == .saving
+            if case .working = self { return true }
+            return false
         }
     }
 
@@ -57,6 +66,8 @@ struct ImportAudioView: View {
     @State private var validationMessage: String?
     @State private var phase: Phase = .idle
     @State private var isRetryingAnalysis = false
+    @State private var appliedInitialState = false
+    @State private var preSavePreservation = CapturePreservation.none
 
     var body: some View {
         if case .completed(let outcome) = phase {
@@ -93,6 +104,8 @@ struct ImportAudioView: View {
                 Text(L10n.text(validationMessage))
                     .foregroundStyle(.red)
                     .accessibilityIdentifier("audio-import-validation-message")
+                Text(L10n.text(CapturePreservation.none.localizationKey))
+                    .accessibilityIdentifier("capture-presave-message")
             }
 
             phaseSection
@@ -106,7 +119,7 @@ struct ImportAudioView: View {
 
                 Spacer()
 
-                Button(L10n.text("전사 시작")) {
+                Button(L10n.text(isFailed ? CapturePresentationCopy.retry : "전사 시작")) {
                     importAudio()
                 }
                 .accessibilityIdentifier("start-audio-import-button")
@@ -118,6 +131,12 @@ struct ImportAudioView: View {
         .padding(24)
         .frame(minWidth: 480, minHeight: 460)
         .task {
+            if !appliedInitialState {
+                selectedProjectID = initialState.selectedProjectID
+                meetingTitle = initialState.meetingTitle
+                selectedFile = initialState.selectedFile
+                appliedInitialState = true
+            }
             if let preselectedFile {
                 selectedFile = preselectedFile
                 if meetingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -202,13 +221,9 @@ struct ImportAudioView: View {
     private var phaseSection: some View {
         switch phase {
         case .idle:
-            EmptyView()
-        case .transcribing:
-            ProgressView(L10n.text("음성을 전사하는 중… 회의 길이에 따라 몇 분이 걸릴 수 있습니다."))
-                .accessibilityIdentifier("audio-transcribing-progress")
-        case .saving:
-            ProgressView(L10n.text("저장하고 AI가 분석하는 중…"))
-                .accessibilityIdentifier("audio-saving-progress")
+            CapturePhaseView(phase: .ready)
+        case .working(let progress):
+            CapturePhaseView(phase: progress)
         case .completed:
             // The whole screen is the completion view by then; see `body`.
             EmptyView()
@@ -216,7 +231,15 @@ struct ImportAudioView: View {
             Text(L10n.text(message))
                 .foregroundStyle(.red)
                 .accessibilityIdentifier("audio-import-failed-message")
+            Text(L10n.text(preSavePreservation.localizationKey))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("capture-presave-message")
         }
+    }
+
+    private var isFailed: Bool {
+        if case .failed = phase { return true }
+        return false
     }
 
     // MARK: - Actions
@@ -274,7 +297,8 @@ struct ImportAudioView: View {
             return
         }
         validationMessage = nil
-        phase = .transcribing
+        phase = .working(.validating)
+        preSavePreservation = .none
         // The flow starts the moment 전사 시작 puts the screen into its first busy phase, so the
         // upload and the transcription the user is waiting through are both inside the measure.
         let run = CaptureRun(source: metricSource, metrics: metrics)
@@ -286,7 +310,12 @@ struct ImportAudioView: View {
                     projectID: selectedProjectID,
                     title: meetingTitle,
                     fileURL: selectedFile.url,
-                    sourceType: sourceType
+                    sourceType: sourceType,
+                    onProgress: { progress in
+                        phase = .working(progress)
+                        // Reaching transcription proves the copy succeeded, but not a Meeting save.
+                        if progress == .transcribing { preSavePreservation = .audioOnly }
+                    }
                 )
             } catch let error as AudioMeetingCaptureError {
                 phase = .failed(message(for: error))
@@ -305,7 +334,7 @@ struct ImportAudioView: View {
             // its own copy of the audio, so a temporary recording is redundant from this moment
             // even if extraction goes on to fail.
             onTranscribed?()
-            phase = .saving
+            phase = .working(.analysing)
             await runExtraction(for: meeting, run: run)
         }
     }
@@ -385,7 +414,8 @@ struct ImportAudioView: View {
                     destination: previous.destination,
                     meetingTitle: previous.meetingTitle,
                     counts: nil,
-                    notice: notice
+                    notice: notice,
+                    preservation: previous.preservation
                 )
             )
             return
@@ -450,23 +480,23 @@ struct ImportAudioView: View {
         }
     }
 
-    /// The stored audio survives every one of these, so each message ends by saying so — the
-    /// user needs to know a retry will not require finding the original file again.
+    /// The failed step only. The separate preservation paragraph is derived from the observed
+    /// copy boundary; retry still uses this form's selected file through the existing service.
     private func message(for error: TranscriptionError) -> String {
-        let suffix = "오디오는 앱에 저장되어 있어 다시 시도할 수 있습니다."
+        // Preservation is a separate typed paragraph; do not concatenate untranslated suffixes.
         switch error {
         case .missingCredential:
-            return L10n.format("전사를 사용하려면 OPENAI_API_KEY 환경변수가 필요합니다. %@", String(describing: suffix))
+            return "전사를 사용하려면 AI 설정에서 키를 확인해주세요."
         case .unauthorized:
-            return L10n.format("전사 인증에 실패했습니다. %@", String(describing: suffix))
+            return "전사 인증에 실패했습니다. AI 설정에서 키를 확인해주세요."
         case .rateLimited:
-            return L10n.format("전사 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요. %@", String(describing: suffix))
+            return "전사 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요."
         case .timedOut, .networkUnavailable:
-            return L10n.format("전사 서버에 연결하지 못했습니다. %@", String(describing: suffix))
+            return "전사 서버에 연결하지 못했습니다."
         case .emptyTranscript:
-            return L10n.format("전사 결과가 비어 있습니다. 음성이 들어 있는 파일인지 확인해주세요. %@", String(describing: suffix))
+            return "전사 결과가 비어 있습니다. 음성이 들어 있는 파일인지 확인해주세요."
         case .serverError, .requestRejected, .malformedResponse, .invalidConfiguration:
-            return L10n.format("전사에 실패했습니다. %@", String(describing: suffix))
+            return "전사에 실패했습니다."
         }
     }
 

@@ -92,14 +92,14 @@
           {
             "id": 4,
             "title": "Clarify capture progress, failure, and completion states",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.2"
             ],
             "details": "Align record, import, and paste sheets around the same phase language: preparing, recording or validating, saved, transcription/extraction outcome, and retry. Explicitly state what was preserved after post-save failure and that extracted counts are unapproved candidates. Keep user input when a pre-save validation fails.",
             "testStrategy": "Direct unit and synthetic UI cases cover all three input paths, cancellation, pre-save failure, post-save extraction failure, retry, result opening, and no accidental durable approval.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T12:04:37.704Z"
           },
           {
             "id": 5,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T10:48:02.473Z"
+        "updatedAt": "2026-09-13T12:04:37.704Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T10:48:02.475Z",
+      "lastModified": "2026-09-13T12:04:37.705Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

@@ -26,6 +26,7 @@ struct RecordAudioView: View {
     /// Passed straight through: a finished recording continues in `ImportAudioView`, and its
     /// completion screen is the one that can offer another attempt.
     var reanalysisService: MeetingReanalysisService?
+    var initialState: AudioCaptureInitialState = .empty
 
     @Environment(\.dismiss) private var dismiss
 
@@ -82,7 +83,8 @@ struct RecordAudioView: View {
                     },
                     onOpenResults: onOpenResults,
                     metrics: metrics,
-                    reanalysisService: reanalysisService
+                    reanalysisService: reanalysisService,
+                    initialState: initialState
                 )
             } else {
                 recordingScreen
@@ -118,7 +120,7 @@ struct RecordAudioView: View {
                     // Text and a symbol, not colour alone: colour is not available to every user.
                     Image(systemName: "record.circle.fill")
                         .foregroundStyle(.red)
-                    Text(L10n.text("녹음 중"))
+                    CapturePhaseView(phase: .recording)
                         .bold()
                     Text(Self.elapsedText(elapsed))
                         .monospacedDigit()
@@ -129,6 +131,7 @@ struct RecordAudioView: View {
                 Text(L10n.text("회의를 녹음한 뒤 제목과 프로젝트를 선택하면 전사가 시작됩니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                CapturePhaseView(phase: phase.isBusy ? .preparing : .ready)
             }
 
             if case .failed(let message) = phase {
@@ -136,6 +139,9 @@ struct RecordAudioView: View {
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("recording-error-message")
+                Text(L10n.text(CapturePreservation.none.localizationKey))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("capture-presave-message")
             }
 
             if phase == .requestingPermission {

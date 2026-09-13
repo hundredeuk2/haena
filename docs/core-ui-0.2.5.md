@@ -309,3 +309,131 @@ Models, repositories, services, extraction/provider/prompt, approval and reminde
 HomeSummary/NextAction, ContentView/shell/deep-link contracts and production defaults are
 unchanged. No user Application Support or real data access, external API/model call, menu-bar,
 2.4 work, Notion change, push, PR, merge, package, release or frozen 0.2.4 replacement.
+
+## 2.4 — truthful capture lifecycle and review counts
+
+2026-09-13. Start: `ea67ee3c231c033a9c321c4bc720ba41f04ad6f9`,
+`codex/0.2.5-ui-plan`, clean, no upstream. This checkpoint implements only Task 2.4;
+the interrupted changes were preserved and their full diff reviewed before completion.
+
+### Implementation and authority boundary
+
+- Record, Import Audio and Paste use the same finite presentation phases: ready, preparing,
+  recording, validating, copying audio, transcribing, saving, analysing and retrying. These
+  are transient display observations, not persisted workflow statuses. Existing capture services
+  add only optional, nonthrowing MainActor progress callbacks; validation/copy/transcription/save
+  ordering and the canonical repository contract are unchanged.
+- Saving is not saved. Completion is created only after repository.save returns successfully.
+  Pre-save failure retains the entered title/project/transcript or selected audio file and offers
+  retry without a results destination. Paste synchronously blocks a second Save while capture is
+  in flight; this also prevents editing/cancelling that draft during its active save/analysis.
+- Audio transcription failure is **before Meeting save**, after the managed audio copy. Its copy
+  says only that audio is preserved and Meeting/transcript are not saved. Validation/copy failure
+  does not claim an audio copy. After canonical save, preservation is derived from the actual
+  Meeting's audioAsset and transcriptSegments, never from sourceType alone.
+- Analysis failure does not roll back the saved Meeting. Retry uses the existing reanalysis
+  service and exact project/meeting IDs; results remain accessible through the unchanged 2.2
+  typed destination and sheet-dismissal route. A second analysis attempt after results exist is
+  refused by the existing policy. No auto-approval or duplicate Meeting is introduced.
+- CaptureOutcome retains historical total counts for metrics/reanalysis, separately deriving
+  pending counts from MeetingWorkStateSummary. Completion labels those as unapproved AI proposals
+  requiring individual review. Approved/processed outputs do not enter the displayed pending
+  counts. Read failure or a missing Meeting produces unknown counts, not invented zero results.
+  The old analysis-error prefix claiming "0 results" was replaced with the actual failed step.
+- Thirty ko/en resource entries cover shared phases, preservation, pending counts and failure
+  copy. Transcription credential guidance points to existing AI Settings; no provider behavior,
+  response content, user title, transcript or evidence is translated or interpolated as a key.
+- Whole-file `#if DEBUG` CaptureLifecycleUITestSeed requires both HAENA_UI_TESTING=1 and a known
+  finite scenario. Synthetic projects/repositories/credentials/providers are in-memory; WAVs and
+  managed audio copies use unique temporary directories. No environment-provided payload or path.
+  The new typed audio draft defaults to empty in production. Test-only three-second provider
+  latency makes active phases observable; production has no new delay, provider or retry.
+
+### Direct acceptance
+
+| Boundary | Verified result |
+| --- | --- |
+| All three paths, English success | Ready/progress before completion, busy Save disabled, correct saved artifacts, unapproved notice, Open Results and no remaining sheet |
+| All three paths, canonical save failure | No Meeting/results, exact title/project/transcript or file selection retained, explicit retry creates one Meeting |
+| Both audio paths, transcription failure | Managed copy exists, no Meeting/transcript saved; retained selection can retry successfully |
+| All three paths, analysis failure/retry | Saved artifacts and exact Meeting preserved; one output per kind remains pending; repeat reanalysis refuses without duplication |
+| Count-read failure | Unknown, not zero; existing results destination retained; UI covers combined analysis/read failure and retry; unit separately covers read failure after successful analysis |
+| Cancellation | Paste/import dismiss without saving; deterministic recording cancels without a Meeting or approval |
+| Counts/approval | Four pending proposals after successful extraction/retry; approved/completed/resolved/dismissed entries excluded from pending counts |
+| 2.2/2.3 regression | All existing accepted shell, Home ko/en, typed capture, non-input entry and validation scenarios still pass |
+
+UI uses fixed typed prefills, the isolated bundle `com.haena.CoreUI025`, serial execution and
+the existing foreground/WindowServer overlap stop guard. No environment guard invalidated a run.
+Record exercises deterministic start/stop through the existing Import owner, not a real microphone.
+Open Results checks the exact saved title, sheet count zero, one meeting row and four pending
+proposals. Unit checks exact Meeting equality, IDs, nil assignee/due and unchanged proposed status.
+
+### Execution, including initial failures
+
+The initial build-for-testing failed on one newly added fixture call:
+`CaptureLifecycleUITestSeed.swift:36:69: extraneous argument label 'fileURL:' in call`.
+Correcting the call to the existing validator's unlabeled API fixed compilation. That build
+executed **zero tests** and is not counted as a passing or skipped test run. There were no test
+assertion failures in the subsequent unit or UI invocations. No timeout increase or assertion
+removal was used. Resuming this checkpoint confirmed the completed xcresults without rerunning UI.
+
+| Unit suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| AppLanguageTests | 15 | 0 | 0 |
+| AppShellNavigationTests | 12 | 0 | 0 |
+| AudioMeetingCaptureServiceTests | 15 | 0 | 0 |
+| BrowserDestinationTests | 13 | 0 | 0 |
+| CaptureNavigationUITestSeedTests | 6 | 0 | 0 |
+| CaptureOutcomeTests | 11 | 0 | 0 |
+| CapturePresentationTests (new) | 15 | 0 | 0 |
+| HomeMeetingResumeTests | 12 | 0 | 0 |
+| HomeSummaryTests | 21 | 0 | 0 |
+| MeetingAudioRecorderTests | 21 | 0 | 0 |
+| MeetingReanalysisServiceTests | 11 | 0 | 0 |
+| MicrophoneRecordingIntegrationTests | 9 | 0 | 0 |
+| NextActionTests | 20 | 0 | 0 |
+| TextMeetingCaptureServiceTests | 19 | 0 | 0 |
+| **Total** | **200** | **0** | **0** |
+
+| Serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| CaptureLifecycleUITests (new) | 17 | 0 | 0 |
+| HomeResumeUITests | 12 | 0 | 0 |
+| AppShellUITests | 5 | 0 | 0 |
+| HAENAUITests | 2 | 0 | 0 |
+| ProjectBrowser non-input empty state | 1 | 0 | 0 |
+| PasteTranscript non-input entry + validation | 2 | 0 | 0 |
+| **Total across two serial invocations** | **39** | **0** | **0** |
+
+The three xcresult summaries confirm **200/0/0**, **17/0/0** and **22/0/0** respectively.
+These are distinct test executions, not repeated passes added to inflate acceptance counts.
+Final Debug build and build-for-testing passed. Offline dependency validation confirms
+**2 tasks / 13 subtasks / 17 valid dependencies**. `git diff --check` passes. XcodeGen is
+idempotent: project.pbxproj SHA-256 before/after regeneration is
+`1ccbde8c3e010abe738e898b036747e971e2016eb4c999d5fdda6506bc0fac99`;
+project.yml remains `19a1118a9e9a12d1cba35011c78251e963300c7de5624ab264d28e47525b430e`.
+The project delta only registers five new Swift files (20 added lines).
+
+Local evidence, not staged: `haena-025-capture-unit`, `haena-025-capture-ui` and
+`haena-025-capture-regression-ui` logs/xcresults. Build logs: `haena-025-capture-initial-build`
+(disclosed compiler failure), `haena-025-capture-unit-build`,
+`haena-025-capture-regression-build` (test builds) and `haena-025-capture-final-debug`.
+
+### Scoped completion / unverified boundaries
+
+Task Master **2.4 done**, parent **2 in-progress**, **2.5 pending**, re-read after the update.
+All direct 2.4 acceptance passes. No blocking issue remains for this slice.
+
+- The original three character-input scenarios under 2.2 remain **unexecuted**, neither passed
+  nor skipped, assigned to 2.10. Typed-prefill capture is not evidence of physical input fidelity.
+- Native file-picker invalid-selection behavior, OS permission dialogs, real hardware/audio,
+  credential interaction, real providers, Release/package and full-app regression are unverified.
+- Pre-save audio retry retains the existing selected-file service path and can leave the prior
+  unattached managed copy. This checkpoint verifies no duplicate **Meeting**, not audio-asset
+  deduplication, orphan cleanup or recovery from a missing original file. Those policies were
+  not changed or represented as solved.
+- Models, persistence, extraction, recording/transcription implementations, HomeSummary,
+  NextAction and BrowserDestination have zero diff. Domain IDs/schema, prompt/provider contract,
+  evidence/assignee/due, approval, reminders and production storage defaults are unchanged.
+- No real-user Application Support or meeting data access, external model/API call, Notion,
+  push, PR, merge, package, release, frozen 0.2.4 replacement or Task 2.5 work in this checkpoint.

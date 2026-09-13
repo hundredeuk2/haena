@@ -51,6 +51,16 @@ struct CaptureCompletionView: View {
                 .help(outcome.meetingTitle)
                 .accessibilityIdentifier("capture-completion-meeting-title")
 
+            Text(L10n.text(outcome.preservation.localizationKey))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("capture-preservation-message")
+
+            Text(L10n.text(CapturePresentationCopy.candidates)).font(.headline)
+                .accessibilityIdentifier("capture-candidates-heading")
+            Text(L10n.text(CapturePresentationCopy.approvalNotice))
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("capture-unapproved-notice")
             results
 
             if let notice = outcome.notice {
@@ -105,7 +115,7 @@ struct CaptureCompletionView: View {
                 .accessibilityIdentifier("capture-retry-analysis-button")
 
                 if isRetryingAnalysis {
-                    ProgressView()
+                    ProgressView(L10n.text(CaptureProgressPhase.retrying.localizationKey))
                         .controlSize(.small)
                         .accessibilityIdentifier("capture-retry-analysis-progress")
                 }
@@ -117,14 +127,14 @@ struct CaptureCompletionView: View {
 
     // MARK: - Results
 
-    /// All four kinds, always — including the ones that came back empty.
+    /// Pending AI proposals in all four kinds, including the ones that came back empty.
     ///
     /// A meeting that produced no decisions is a fact worth showing: hiding the row would leave
     /// the user unsure whether the app looked for them at all, which is exactly the doubt this
     /// screen exists to remove.
     @ViewBuilder
     private var results: some View {
-        if let counts = outcome.counts {
+        if let counts = outcome.pendingCounts {
             VStack(alignment: .leading, spacing: 6) {
                 resultRow(L10n.text("결정 사항"), counts.decisions, identifier: "capture-count-decisions")
                 resultRow(L10n.text("실행 항목"), counts.actionItems, identifier: "capture-count-action-items")
@@ -135,9 +145,9 @@ struct CaptureCompletionView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
         } else {
-            // The save succeeded but the project could not be read back. Saying "0건" here would
+            // The save succeeded but pending counts could not be read back. Saying "0건" here would
             // be a claim about the meeting that nothing has checked.
-            Text(L10n.text("저장된 결과 건수를 확인하지 못했습니다. 회의는 저장되어 있습니다."))
+            Text(L10n.text(CapturePresentationCopy.countsUnavailable))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

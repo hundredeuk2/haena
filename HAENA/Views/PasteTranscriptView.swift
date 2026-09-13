@@ -64,6 +64,8 @@ struct PasteTranscriptView: View {
     @State private var speakerLinks: [String: UUID] = [:]
     @State private var validationMessage: String?
     @State private var isExtracting = false
+    @State private var isCapturing = false
+    @State private var progress = CaptureProgressPhase.ready
     /// Set once the meeting is safely stored, which is what replaces this form with the completion
     /// screen. Never set for a capture that failed before the save — there would be no meeting to
     /// report or to open.
@@ -140,11 +142,16 @@ struct PasteTranscriptView: View {
                             Text(L10n.text(validationMessage))
                                 .foregroundStyle(.red)
                                 .accessibilityIdentifier("text-meeting-validation-message")
+                            Text(L10n.text(CapturePreservation.none.localizationKey))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("capture-presave-message")
                         }
 
                         if isExtracting {
-                            ProgressView(L10n.text("AI 분석 중…"))
+                            CapturePhaseView(phase: .analysing)
                                 .accessibilityIdentifier("work-state-extraction-progress")
+                        } else {
+                            CapturePhaseView(phase: progress)
                         }
                     }
                     .padding(24)
@@ -175,7 +182,7 @@ struct PasteTranscriptView: View {
                     }
                     .accessibilityIdentifier("cancel-text-meeting-button")
 
-                    Button(L10n.text("저장")) {
+                    Button(L10n.text(validationMessage == nil ? "저장" : CapturePresentationCopy.retry)) {
                         saveMeeting()
                     }
                     .accessibilityIdentifier("save-text-meeting-button")
@@ -185,6 +192,7 @@ struct PasteTranscriptView: View {
             }
         }
         .frame(width: 700, height: 700)
+        .disabled(isCapturing)
         .task {
             do {
                 projects = try await service.allProjects()
@@ -445,19 +453,24 @@ struct PasteTranscriptView: View {
     }
 
     private func saveMeeting() {
+        guard !isCapturing else { return }
+        isCapturing = true
+        progress = .validating
         validationMessage = nil
         // The flow starts here — the moment the user pressed 저장 — not at the first await, so
         // validation and the repository read are inside the measure the same way they are inside
         // the user's wait.
         let run = CaptureRun(source: .pastedText, metrics: metrics)
         Task {
+            defer { isCapturing = false; progress = .ready }
             let meeting: Meeting
             do {
                 if inputMode == .freeform {
                     meeting = try await service.saveTextMeeting(
                         projectID: selectedProjectID,
                         title: meetingTitle,
-                        transcript: transcriptText
+                        transcript: transcriptText,
+                        onProgress: { progress = $0 }
                     )
                 } else {
                     let turns = structuredTurns.map { turn in
@@ -474,7 +487,8 @@ struct PasteTranscriptView: View {
                         draft: PastedTranscriptDraft(
                             participants: participantDrafts,
                             turns: turns
-                        )
+                        ),
+                        onProgress: { progress = $0 }
                     )
                 }
             } catch let error as TextMeetingCaptureError {
@@ -489,6 +503,7 @@ struct PasteTranscriptView: View {
 
             // The transcript is already safely persisted at this point. Extraction runs after,
             // as a separate step whose failure is reported but never rolls the save back.
+            progress = .analysing
             let phases = ExtractionPhaseRecorder(
                 runID: run.id,
                 projectID: meeting.projectID,
@@ -555,7 +570,8 @@ struct PasteTranscriptView: View {
                 destination: previous.destination,
                 meetingTitle: previous.meetingTitle,
                 counts: nil,
-                notice: notice
+                notice: notice,
+                preservation: previous.preservation
             )
             return
         }
