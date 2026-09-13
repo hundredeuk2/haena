@@ -31,23 +31,161 @@
           },
           {
             "id": 3,
-            "title": "Final isolated regression and bundle verification",
+            "title": "Final isolated regression and bundle verification (release gate)",
             "status": "in-progress",
             "dependencies": [
               "1.2"
             ],
-            "details": "Synthetic tests, both languages, Debug and Release universal; private candidate untouched.",
+            "details": "Keep the four legacy UI failures open while 0.2.5 changes the same surfaces. Before the final 0.2.5 tryout, close each as a defect or an explicitly approved rebaseline, then run synthetic ko/en and universal bundle verification. The frozen 0.2.4 candidate stays untouched.",
             "parentId": "1",
-            "updatedAt": "2026-09-12T12:47:59.412Z"
+            "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-12T12:47:59.412Z"
+        "updatedAt": "2026-09-13T04:30:37.000Z"
+      },
+      {
+        "id": "2",
+        "title": "Implement 0.2.5 tryout UI",
+        "description": "Conditionally approved UI direction: retain the 2a continuity information architecture, correct action hierarchy and menu-bar semantics, and make the core loop understandable without a guide.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [],
+        "details": "Use English UI v0 as the product baseline after integrating the docs-only origin/main delta. Preserve stored schema, stable IDs, source evidence, assignee and due-date values, and the explicit approval boundary. Do not use real user data, real API keys, or the frozen 0.2.4 package during implementation.",
+        "testStrategy": "Every subtask gets directly related unit or synthetic UI coverage. The core self-tryout happens before the menu-bar enhancement; the final gate reruns ko/en accessibility, restart persistence, and the packaged input-to-Brief loop.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Freeze the action hierarchy and integration baseline",
+            "status": "pending",
+            "dependencies": [
+              "1.2"
+            ],
+            "details": "Record the 2a layout as direction rather than pixel specification. Make capture and Approve unmistakable primary actions, keep Exclude/Edit secondary, separate destructive actions, and rename the 'read-only popover' contract to a no-approval status/control popover because recording start/stop changes recording state. Reconcile the docs-only origin/main delta with codex/english-ui-v0 without recreating the 447-string localization layer.",
+            "testStrategy": "Diff the merge base against both refs, confirm the unique origin/main files are README/docs only, and obtain user approval for the baseline and corrected interaction contract before product implementation.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 2,
+            "title": "Build the persistent app shell and deep-link navigation",
+            "status": "pending",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Replace the Home-plus-nested-sheets navigation bottleneck with a persistent macOS shell for Home, Review, Briefs, Transcripts, and Projects. Keep capture and settings as focused sheets. Preserve existing BrowserDestination deep links and window ownership so navigation does not change domain state.",
+            "testStrategy": "Synthetic navigation tests cover each rail destination, Home-to-review deep links, meeting selection, sheet dismissal, keyboard focus, and window widths down to the supported minimum without blank orphan panes.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 3,
+            "title": "Rework first-run and resume Home",
+            "status": "pending",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "For an empty account, show one product-purpose sentence and three capture actions. For returning users, show one primary next action or honest empty state, last meeting/current stage/pending count, and compact secondary sections. Move Agent Ledger and Beta Metrics out of the primary action row. Do not show both a meeting chain and a pipeline when they communicate the same state.",
+            "testStrategy": "Synthetic empty, pending-review, assigned-work, no-profile, load-failure, and restart-resume states prove that the first action is visible without scrolling and every primary row reaches its owner screen.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 4,
+            "title": "Clarify capture progress, failure, and completion states",
+            "status": "pending",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Align record, import, and paste sheets around the same phase language: preparing, recording or validating, saved, transcription/extraction outcome, and retry. Explicitly state what was preserved after post-save failure and that extracted counts are unapproved candidates. Keep user input when a pre-save validation fails.",
+            "testStrategy": "Direct unit and synthetic UI cases cover all three input paths, cancellation, pre-save failure, post-save extraction failure, retry, result opening, and no accidental durable approval.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 5,
+            "title": "Rebuild the review queue and proposal action hierarchy",
+            "status": "pending",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Create a scannable pending queue with meeting grouping and kind filters. Each proposal shows kind, confidence, headline, assignee/due date where applicable, and source quote. Approve is the single primary button; Exclude and Edit are secondary and remain reachable by keyboard and VoiceOver. Approved work is not mixed back into the pending queue.",
+            "testStrategy": "Synthetic proposals for all four kinds verify filtering, pending counts, action emphasis, edit availability only for action items, explicit verdict routing, and no auto-approval or batch approval.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 6,
+            "title": "Link proposal evidence to transcript context",
+            "status": "pending",
+            "dependencies": [
+              "2.5"
+            ],
+            "details": "Selecting a source quote opens or focuses the owning meeting transcript and highlights the exact referenced segment. Keep the quote visible when audio or a segment is unavailable, and never fabricate a timestamp or fuzzy-match unrelated transcript text.",
+            "testStrategy": "Tests cover exact evidence-segment IDs, multiple proposals in one meeting, missing audio, pasted transcripts, missing segment references, selection changes, and preserved proposal identity after navigation.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 7,
+            "title": "Clarify the Continuity Brief verdict flow",
+            "status": "pending",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Separate approved carried state, candidates awaiting verdict, and approved next agenda. Give completion, blocked/delayed, and ambiguous transitions distinct labels and actions. State the precise boundary: opening the Brief performs no write and no model call, while an explicit verdict can change durable state. Define first-Brief and zero-candidate states.",
+            "testStrategy": "Synthetic Brief cases verify each verdict type, first-meeting and zero-candidate states, unchanged object IDs and due dates unless explicitly edited, and no model invocation when opening the Brief.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 8,
+            "title": "Run the first core-loop self-tryout",
+            "status": "pending",
+            "dependencies": [
+              "2.3",
+              "2.4",
+              "2.6",
+              "2.7"
+            ],
+            "details": "Build a local 0.2.5 candidate before adding the menu-bar enhancement. A fresh synthetic user must complete paste or import, inspect evidence, approve one item, relaunch, and open the next Brief without a separate guide. Record only reproducible blockers as Bug tasks.",
+            "testStrategy": "One clean-account Korean run and one English smoke run; capture step, expected action, actual action, and blocker. No actual meeting, provider request, user Application Support, or release replacement.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 9,
+            "title": "Add the no-approval menu-bar status and recording control",
+            "status": "pending",
+            "dependencies": [
+              "2.8"
+            ],
+            "details": "Add MenuBarExtra with recording state and elapsed time, start/stop recording through the existing recorder path, pending-review count, Open in App, and Quit. Keep the Dock icon. Do not expose Approve, Exclude, Edit, or any other durable project-state verdict in the popover.",
+            "testStrategy": "Synthetic tests cover window-closed availability, shared recording lifecycle, pending-count refresh, deep-link opening, quit confirmation during recording, and absence of verdict controls.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          },
+          {
+            "id": 10,
+            "title": "Close localization, accessibility, regression, and packaged tryout gates",
+            "status": "pending",
+            "dependencies": [
+              "1.3",
+              "2.8",
+              "2.9"
+            ],
+            "details": "Finish ko/en strings for every new state, handle long labels and supported minimum window widths, verify light/dark contrast plus keyboard and VoiceOver order, and run the final packaged core loop. Resolve each of the four legacy UI failures as a defect or user-approved rebaseline; preserve the unsigned 0.2.4 artifact.",
+            "testStrategy": "Localization key/format audit, directly related unit tests, isolated ko/en light/dark UI suite, Debug and universal Release build, restart persistence, and a packaged input-to-Review-to-approval-to-Brief loop with known limitations recorded.",
+            "parentId": "2",
+            "updatedAt": "2026-09-13T04:30:37.000Z"
+          }
+        ],
+        "updatedAt": "2026-09-13T04:30:37.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-12T12:47:59.413Z",
-      "taskCount": 1,
+      "lastModified": "2026-09-13T04:30:37.000Z",
+      "taskCount": 2,
       "completedCount": 0,
       "tags": [
         "master"
