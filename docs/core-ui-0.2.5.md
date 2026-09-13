@@ -550,3 +550,110 @@ package, Release, Windows, Notion, push, PR or merge operation was performed.
 
 Task Master is **parent 2 in-progress / 2.5 done / 2.6 pending**. All direct 2.5 acceptance has a
 passing final result and no blocker remains for this slice.
+
+## 2.6 — source quote to exact transcript context
+
+### Baseline and route
+
+2026-09-14. Start: `bcb673d75a59c9f5697b4f708760ab12c94599df`, `codex/0.2.5-ui-plan`, upstream
+`origin/codex/0.2.5-ui-plan` 0/0, clean. Read-only gate confirmed parent 2 in-progress / 2.5 done /
+2.6 pending and 2 parents / 13 subtasks / 17 valid unique acyclic dependencies before 2.6 was set
+in-progress. No worktree, checkout, reset, stash or clean operation was used.
+
+The route is typed end to end. `TranscriptEvidenceSelection(meetingID, segmentID)` is built only
+from the stored `EvidenceReference`; it carries no text and no time. `BrowserTarget
+.transcriptEvidence(selection)` lands on `.transcripts` with `meetingPane = .transcript`, and the
+route's meeting is taken from the selection itself, so a caller cannot name one meeting and
+highlight a segment of another. `AppShellNavigation.transcriptSelection` is a one-shot request
+like `workStateSelection`: replaced by any explicit `open`, cleared by rail navigation, project
+change, a meeting that fails validation, and never applied to a meeting other than the one on
+screen (`highlightedSegmentID(in:)`).
+
+`ReviewQueue.Entry.transcriptSelection` is non-nil only when the owning meeting really stores the
+referenced segment — the same proof 2.5 requires for a timestamp, but independent of it: a pasted
+transcript has no timing and still has an exactly addressable segment. Missing, dangling,
+cross-meeting and unassigned references get nil. On the card a proven quote becomes a plain-style
+button (the transcripts symbol beside it, Approve still the only prominent control), focusable and
+Space-activated like the verdicts, with the exact quote text as its accessibility label and a hint
+saying it opens the transcript. An unproven quote stays the 2.5 static text beside the 2.5
+source-issue line. The transcript pane scrolls to the stored ID, tints that one row with a
+"근거 발화 / Evidence segment" marker, and states in words whether the segment was highlighted or
+could not be found. A same-text segment elsewhere in the transcript is never marked. The Review /
+Projects ownership, verdict services, editing, reminders, lifecycle, schema and stable IDs are
+unchanged; `MeetingResultsView` still shows the quote as text. Opening the screen performs reads
+only: no model call, no reconciliation write.
+
+### Direct acceptance
+
+| Unit selection | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ReviewEvidenceNavigationTests (new) | 20 | 0 | 0 |
+| ReviewQueueTests (2.5 direct) | 20 | 0 | 0 |
+| Navigation, destination, Home, capture, presentation, language regressions | 181 | 0 | 0 |
+| **Total** | **221** | **0** | **0** |
+
+The 20 new tests cover exact stored meeting/segment IDs for every pending kind, three proposals of
+one meeting on the same segment plus one on its own segment, an identical-text duplicate segment
+that is never selected, a pasted transcript without timing or audio, a recorded meeting whose audio
+asset is absent, missing segment, dangling meeting, cross-meeting and unassigned references,
+an emptied transcript, the typed route and shell state, selection change, one-shot clearing,
+manual meeting switch, validation, preserved proposal identity / pending state / stored bytes, the
+selection's two-field shape, and ko/en resources. The first unit run failed one assertion that
+compared kind-ordered inbox IDs with meeting-grouped queue IDs as arrays; the test was corrected to
+a set comparison and the whole selection rerun green (`haena-026-unit-final.xcresult`).
+
+Synthetic `evidence` seed UI, guarded launch, minimum window:
+
+| Review evidence UI | Distinct scenarios with final pass | Failed final | Skipped final |
+| --- | ---: | ---: | ---: |
+| ko / en navigation, keyboard Space activation, missing-source honesty | **4** | **0** | **0** |
+
+Each navigation scenario clicks decision 100 → "Synthetic Review Meeting" transcript with only
+segment 4 marked (same-text segment 8 and segment 7 unmarked), no audio player; returns to Review
+with the count still 5, the same card, headline and hittable unselected Approve/Exclude; clicks
+agenda 103 → segment 7 marked and 4 unmarked; clicks action 104 → "Synthetic Earlier Meeting"
+(텍스트 입력 / Pasted Text), segment 5 marked, no timestamp, no player; then rail navigation shows
+the meeting without a highlight and Review still at 5. The keyboard case tabs to the quote button,
+confirms its own "Keyboard Focused" attribute, and presses Space. Attempt history: the first run
+passed keyboard and missing-source and failed both navigation cases at the same step — action
+104's quote existed below the fold of the minimum-height list and was not hittable. The test now
+scrolls the quote into the list viewport first, exactly as the 2.5 ownership case does, and both
+cases passed on rerun (`haena-026-evidence-ui.xcresult`, `haena-026-evidence-ui-rerun.xcresult`).
+Across direct 2.6 UI attempts: 6 invocations, 4 pass, 2 fail, 0 environment skips.
+
+### Preserved 2.5 and 2.2–2.4 UI regression
+
+| Serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ReviewQueueUITests (2.5 direct) | 10 | 0 | 0 |
+| AppShellUITests | 5 | 0 | 0 |
+| HomeResumeUITests | 12 | 0 | 0 |
+| CaptureLifecycleUITests | 17 | 0 | 0 |
+| **Total** | **44** | **0** | **0** |
+
+One serial invocation, `haena-026-ui-regression.xcresult`. The 2.5 presentation cases now assert
+the exact evidence text as the label of the quote *button* for the four proven cards; the 2.5
+missing-source case additionally asserts that no such button exists. No other 2.5 assertion
+changed. PasteTranscript and ProjectBrowser non-input cases were not rerun for 2.6: nothing in
+this diff touches those screens.
+
+### Completion checks and boundaries
+
+Final Debug build and build-for-testing passed. XcodeGen is idempotent: project.pbxproj SHA-256
+before/after regeneration is `e08955b633c7071dbe582dda08acacedc2473cb8788f520c75d7bcc6ed151cf9`
+(two new test files); `project.yml` remains `19a1118a9e9a12d1cba35011c78251e963300c7de5624ab264d28e47525b430e`.
+`git diff --check` passes. Dependency validation confirms **2 parents / 13 subtasks / 17 valid,
+unique, non-self, acyclic dependencies**; it ran as an equivalent offline script because the only
+installed Task Master executable lives under the unrelated human-gold checkout, which this session
+must not read, and `.taskmaster/tasks/tasks.json` was updated in the CLI's own field format.
+
+Out of scope, disclosed not repaired: `scripts/check-localization.py` already fails at the start
+HEAD on a pre-existing duplicate key `저장된 회의가 없습니다.`; the same audit with that one
+duplicate tolerated reports 511 keys, 415 static references, 0 missing, 0 placeholder mismatches.
+The quote button gives up text selection on the Review card; the transcript row keeps it. VoiceOver
+hint text is set in code and visible in the attached hierarchies but is not asserted by XCUITest.
+The physical character-input scenarios remain assigned to 2.10. No real user data, provider, model,
+microphone, audio, Notion, package, Release, Windows, push, PR or merge operation was performed.
+Task 2.7 was not started.
+
+Task Master is **parent 2 in-progress / 2.5 done / 2.6 done / 2.7 pending**.

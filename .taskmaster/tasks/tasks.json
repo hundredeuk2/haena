@@ -116,14 +116,14 @@
           {
             "id": 6,
             "title": "Link proposal evidence to transcript context",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.5"
             ],
             "details": "Selecting a source quote opens or focuses the owning meeting transcript and highlights the exact referenced segment. Keep the quote visible when audio or a segment is unavailable, and never fabricate a timestamp or fuzzy-match unrelated transcript text.",
             "testStrategy": "Tests cover exact evidence-segment IDs, multiple proposals in one meeting, missing audio, pasted transcripts, missing segment references, selection changes, and preserved proposal identity after navigation.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T16:08:35.000Z"
           },
           {
             "id": 7,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T13:45:25.000Z"
+        "updatedAt": "2026-09-13T16:08:35.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T13:45:25.000Z",
+      "lastModified": "2026-09-13T16:08:35.000Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

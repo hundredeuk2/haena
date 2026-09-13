@@ -22,8 +22,18 @@ enum ProjectWorkStateSelection: Hashable, Sendable {
     }
 }
 
+/// The exact stored transcript reference a review quote points at: the owning meeting and the
+/// segment ID that was persisted with the proposal. Built only from `EvidenceReference`, never from
+/// the quote's text, so the transcript can be asked for one segment by identity and nothing else.
+struct TranscriptEvidenceSelection: Hashable, Sendable {
+    let meetingID: UUID
+    let segmentID: UUID
+}
+
 enum BrowserTarget: Equatable, Sendable {
     case projectStatus, meetings, pendingReview, approvedWorkState(ProjectWorkStateSelection?)
+    /// One stored segment of one meeting's transcript, opened from a review quote.
+    case transcriptEvidence(TranscriptEvidenceSelection)
 }
 
 /// Where the project browser should land when something opens it: the home screen tapping a row,
@@ -45,7 +55,7 @@ struct BrowserDestination: Equatable, Sendable {
     var pane: ProjectDetailPane {
         switch target {
         case .projectStatus: .status
-        case .meetings: .meetings
+        case .meetings, .transcriptEvidence: .meetings
         case .pendingReview, .approvedWorkState: .workState
         }
     }
@@ -76,6 +86,13 @@ struct BrowserDestination: Equatable, Sendable {
             meetingID: capture.meetingID,
             pane: .meetings
         )
+    }
+
+    /// Where a review card's source quote sends the user: the transcript of the meeting the stored
+    /// reference names, at the stored segment. The meeting is taken from the reference itself so
+    /// the route cannot name one meeting and highlight a segment of another.
+    static func transcriptEvidence(projectID: UUID, _ selection: TranscriptEvidenceSelection) -> BrowserDestination {
+        BrowserDestination(projectID: projectID, meetingID: selection.meetingID, target: .transcriptEvidence(selection))
     }
 
     /// Where the home's 지금 할 일 card sends the user.

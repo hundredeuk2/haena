@@ -50,7 +50,10 @@ final class ReviewQueueUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["proposal-card-\(id(n))-kind"].exists)
             XCTAssertTrue(app.staticTexts["proposal-confidence-\(id(n))"].exists)
             XCTAssertTrue(app.staticTexts["proposal-card-\(id(n))-headline"].exists)
-            XCTAssertEqual(app.staticTexts["proposal-evidence-\(id(n))"].value as? String,
+            // 2.6: a proven source quote is the transcript link; the exact evidence text is its label.
+            let evidence = app.buttons["proposal-evidence-\(id(n))"]
+            XCTAssertTrue(evidence.exists)
+            XCTAssertEqual(evidence.label,
                 language == "ko" ? "원문 01:05 “Synthetic exact source quote.”" : "Evidence 01:05 “Synthetic exact source quote.”")
             XCTAssertEqual(app.buttons["edit-action-item-\(id(n))"].exists, n == 101)
             let approve = app.buttons["approve-proposal-\(id(n))"]
@@ -156,6 +159,7 @@ final class ReviewQueueUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["proposal-card-\(id(100))-source-issue"].value as? String,
                        "The quote is preserved, but the source segment could not be found.")
         XCTAssertEqual(app.staticTexts["proposal-evidence-\(id(100))"].value as? String, "Evidence “Synthetic exact source quote.”")
+        XCTAssertFalse(app.buttons["proposal-evidence-\(id(100))"].exists, "an unavailable source is never a link")
         count(5, "en", app)
     }
     func testFocusedKeyboardApprovalOnly() throws {

@@ -3,7 +3,10 @@ import Foundation
 
 /// Finite opt-in fixture, not a provider or environment payload adapter.
 enum ReviewQueueUITestSeed {
-    enum Scenario: String { case queue, empty, missingSource }
+    /// `evidence` extends `queue` with two more stored segments in the review meeting: one with
+    /// text identical to the referenced segment, and one the agenda proposal alone points at. It
+    /// exists so a test can tell exact-ID navigation apart from text matching.
+    enum Scenario: String { case queue, empty, missingSource, evidence }
     static func id(_ suffix: Int) -> UUID {
         UUID(uuidString: String(format: "CC000000-0000-4000-8000-%012d", suffix))!
     }
@@ -56,6 +59,14 @@ enum ReviewQueueUITestSeed {
             project.openQuestions.append(question); project.nextAgenda.append(agenda)
         }
         if scenario == .missingSource { project.meetings[0].transcriptSegments = [] }
+        if scenario == .evidence {
+            let duplicate = TranscriptSegment(id: id(8), meetingID: id(2), speakerID: person.id,
+                sourceSpeakerLabel: "A", text: segment.text, startTime: 5, endTime: 10)
+            let second = TranscriptSegment(id: id(7), meetingID: id(2), speakerID: person.id,
+                sourceSpeakerLabel: "A", text: "Synthetic second source quote.", startTime: 125, endTime: 130)
+            project.meetings[0].transcriptSegments = [duplicate, segment, second]
+            project.nextAgenda[1].evidence = EvidenceReference(meetingID: meeting.id, transcriptSegmentID: second.id, quote: second.text)
+        }
         return project
     }
 }

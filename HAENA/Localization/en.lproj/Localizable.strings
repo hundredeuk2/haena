@@ -509,3 +509,9 @@
 "이 제안 하나만 승인합니다." = "Approve only this proposal.";
 "선택한 승인 항목: %@" = "Selected approved item: %@";
 "선택한 항목은 현재 승인된 업무 상태에 없습니다." = "The selected item is not in the current approved work state.";
+
+/* Review evidence to transcript context (2.6). */
+"원문에서 이 발화를 엽니다." = "Opens this segment in the transcript.";
+"근거 발화" = "Evidence segment";
+"검토 근거 발화를 강조 표시했습니다." = "The review evidence segment is highlighted.";
+"선택한 근거 발화를 찾을 수 없습니다." = "The selected evidence segment could not be found.";
