@@ -47,7 +47,7 @@
         "id": "2",
         "title": "Implement 0.2.5 tryout UI",
         "description": "Conditionally approved UI direction: retain the 2a continuity information architecture, correct action hierarchy and menu-bar semantics, and make the core loop understandable without a guide.",
-        "status": "pending",
+        "status": "in-progress",
         "priority": "high",
         "dependencies": [],
         "details": "Use English UI v0 as the product baseline after integrating the docs-only origin/main delta. Preserve stored schema, stable IDs, source evidence, assignee and due-date values, and the explicit approval boundary. Do not use real user data, real API keys, or the frozen 0.2.4 package during implementation.",
@@ -56,14 +56,14 @@
           {
             "id": 1,
             "title": "Freeze the action hierarchy and integration baseline",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "1.2"
             ],
             "details": "Record the 2a layout as direction rather than pixel specification. Make capture and Approve unmistakable primary actions, keep Exclude/Edit secondary, separate destructive actions, and rename the 'read-only popover' contract to a no-approval status/control popover because recording start/stop changes recording state. Reconcile the docs-only origin/main delta with codex/english-ui-v0 without recreating the 447-string localization layer.",
             "testStrategy": "Diff the merge base against both refs, confirm the unique origin/main files are README/docs only, and obtain user approval for the baseline and corrected interaction contract before product implementation.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T05:23:15.159Z"
           },
           {
             "id": 2,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T04:30:37.000Z"
+        "updatedAt": "2026-09-13T05:23:15.159Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T04:30:37.000Z",
+      "lastModified": "2026-09-13T05:23:15.162Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [
