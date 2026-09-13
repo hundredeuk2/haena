@@ -23,6 +23,7 @@ struct ContentView: View {
     /// has to be able to tell "already running" from "not started", which a per-render value could
     /// not do.
     let reanalysisService: MeetingReanalysisService
+    var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
 
     // Owned by `HAENAApp`, not locally, so that quitting while one of these sheets is open can
     // dismiss it first: see `HAENAApp`'s Quit command.
@@ -122,6 +123,11 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .focusable()
                     .focused($focusedDestination, equals: destination)
+                    // Custom directional focus must also activate its focused destination.
+                    .onKeyPress(.space) {
+                        navigation.select(destination)
+                        return .handled
+                    }
                     .accessibilityLabel(destination.title)
                     .accessibilityAddTraits(navigation.destination == destination ? .isSelected : [])
                     .accessibilityIdentifier("shell-rail-\(destination.rawValue)")
@@ -228,7 +234,8 @@ struct ContentView: View {
                 extractionService: extractionService,
                 onOpenResults: requestResults,
                 metrics: metricsService,
-                reanalysisService: reanalysisService
+                reanalysisService: reanalysisService,
+                initialState: pastedTranscriptInitialState
             )
         }
         .sheet(isPresented: $showingRecordAudio) {

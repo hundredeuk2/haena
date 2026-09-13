@@ -46,10 +46,10 @@ four environment exemptions, or an approved rebaseline. Each needs its own curre
 Execution stops after the 2.1 local checkpoint. No 2.2 implementation, product UI changes, user
 store access, model calls, frozen package changes, push, PR, merge or release are included.
 
-## 2.2 — persistent shell, UI verification blocked
+## 2.2 — persistent shell, direct acceptance verified
 
 Start: `482d44fd968a21f9fe192c5282ae7364913a1075`, clean, no upstream.
-Only 2.2 was moved to in-progress. Parent 2 remains in-progress; 2.3 and later remain pending.
+Initially only 2.2 was moved to in-progress. The final, narrowed acceptance decision is below.
 
 ### Navigation implementation
 
@@ -72,115 +72,127 @@ Only 2.2 was moved to in-progress. Parent 2 remains in-progress; 2.3 and later r
   The test-only window placement helper adds a 720x520 content-size option (the former browser
   minimum width), without a storage override. Keyboard rail focus uses typed destinations.
 
-### Verification status — input A/B checkpoint
+### Typed-prefill checkpoint and acceptance boundary
 
-Start: clean `8ab73eba39499b65a4a490a725d71ecb103b7c8f` on
-`codex/0.2.5-ui-plan`, no upstream. Parent 2 / 2.2 remain **in-progress**; 2.3 pending.
-No Notion or Task Master status change. No product-source change remains in this checkpoint.
+Start: clean `60ea14a6ffae1ee0d26f065ddfeafdc0f583d967`, branch
+`codex/0.2.5-ui-plan`, no upstream. This order explicitly scopes 2.2 to shell destinations,
+deep links, meeting selection, sheet dismissal, keyboard focus and minimum width.
+Character-entry fidelity is not claimed by navigation tests.
 
-### A/B result (one process, one S then one y per field)
+### Production-safe typed seam
 
-Both surfaces used Korean locale, the same primary-display placement and the same
-foreground/overlap guard. The minimum surface contained only a plain SwiftUI TextField and
-a current-value label, with no repository/service/storage/model access. It was followed by
-the actual PasteTranscript meeting-title field in the same HAE.NA process.
+- `PastedTranscriptInitialState` is ordinary form state: optional selected project ID, title,
+  transcript. Its initializer/default is nil + empty strings; it does not save or extract.
+- PasteTranscriptView initializes its three State values once from this dependency.
+  ContentView forwards it; production HAENAApp supplies the unchanged empty default.
+- Only compile-time DEBUG + HAENA_UI_TESTING=1 + HAENA_UI_TEST_CAPTURE_PREFILL=1 selects
+  `CaptureNavigationUITestSeed` in the existing in-memory assembly. No raw environment content.
+  The fixed project ID is C9000000-0000-4000-8000-000000000001, initially without any meeting or
+  approved output. No provider, model, Keychain or user Application Support dependency is added.
+- Capture UI verifies exact selected project name, title and transcript **before Save**, then
+  existing Save → completion → Open Results → sheet dismissal → exact meeting result.
+  No character typing, clipboard, coordinates, retry, accepted typo or weakened assertion.
+- Six focused seed tests cover defaults, dual opt-in, strict boolean values, ignored raw content,
+  fixed identity/empty output inventory, explicit-save-only in-memory capture and isolation.
 
-| Surface | After S | After y | Target keyDown receipt |
-| --- | --- | --- | --- |
-| Independent minimal TextField | S | S; value label also value=S | minimal=true, keyCode=16, isY=true, textInput=true |
-| Actual meeting-title-field | S | S | minimal=false, keyCode=16, isY=true, textInput=true |
+### Confirmed shell fixes
 
-The target probe was armed and observed keyCode=1 / isY=false for S as a positive control
-on each surface. XCTest recorded Synthesize event for both requests. Thus the y loss is
-**common AppKit/IME/XCUITest input-environment boundary**, not specific to PasteTranscript.
-Its exact downstream mechanism remains unproven. Do not repeat the already-settled target
-arrival diagnostic or claim a storage defect.
+Earlier label hit-area fixes remain (a9282e1): Review rail and project-row contentShape expanded
+the clickable region, and unchanged scenarios passed. The stale observation-helper lookup was
+a separate repaired test-contract defect.
 
-The A/B test's pass means both observations completed under valid guards, **not** that y input
-worked. Only keyCode/isY/textInput and the static minimal/actual classification were logged by
-the local monitor; it returned events unchanged. No clipboard or input-source settings read,
-no foreign window contents, and no user data/model/provider access.
+This checkpoint exposed a distinct keyboard activation defect under valid guards:
+after ↓ + Space, target AX showed Review **Keyboard Focused**, but Home still **Selected**.
+Directional focus moved; activation did not. A focus-scoped onKeyPress(.space) now invokes the
+existing navigation.select(destination). No domain/review/storage/input behavior changed.
+The same keyboard scenario passed after this minimum fix; no assertion was removed.
 
-### Fixture adjustment and remaining failure
+### Known input automation limitation — explicitly transferred to 2.10
 
-As explicitly authorized for the common-environment outcome, AppShell navigation fixture alone
-changed to `Shell Fixture Project`, `Shell Fixture Meeting`, and
-`Navigation fixture transcript.`. The expected result title changed consistently.
-All exact pre-save assertions remain, with no timing/retry/coordinate/clipboard workaround.
+Historical A/B evidence showed both an independent plain SwiftUI TextField and the actual
+PasteTranscript field received y keyDown yet remained S after S → y. A y-free fixture also lost
+x before save. This is the recorded common AppKit/IME/XCUITest automation limitation, not evidence
+of storage corruption, and not solved by typed prefill. No more fixture-character avoidance.
 
-One Capture rerun failed at the first pre-save assertion: actual project-name input was
-`Shell Fiture Project`, omitting **x**. No project or meeting was saved by that attempt.
-The x event was not independently probed; do not infer its exact mechanism from the y probe.
-The y-free fixture therefore did not establish reliable input. No successive character avoidance,
-fixture search or retry followed. Capture remains incomplete; keyboard and remaining suites
-were not started because the input prerequisite is still unsatisfied.
+The following original character-input scenarios are **not executed** in this checkpoint and
+are transferred to 2.10's physical-keyboard / packaged-tryout gate, not counted as pass or skip:
 
-### Product and test boundaries
+- ProjectBrowserUITests.testCreatingMeetingThenBrowsingShowsProjectAndMeetingDetail
+- PasteTranscriptUITests.testCreatingProjectAndSavingMeetingShowsSavedConfirmation
+- PasteTranscriptUITests.testStructuredPasteLinksOneSpeakerKeepsAnotherUnlinkedAndReachesCompletion
 
-- Review rail hit-area defect and project-row hit-area defect remain fixed by a9282e1;
-  each unchanged scenario passed after contentShape expanded the respective full label area.
-- Original Capture not-hittable symptom did not recur in later attempts; an earlier attempt
-  reached saved results with an already-wrong input title. That is not full Capture acceptance.
-- The stale observation-helper element query was fixed separately; no assertion was removed.
-- Final changes are only the AppShell fixture/comment update and this compressed evidence.
-  Models, IDs, evidence, approval, storage, extraction and navigation product code are unchanged.
+The 2.10 testStrategy already includes the complete packaged input-to-Brief loop. This evidence
+document records the explicit input-fidelity carry-forward; no future task was started.
+The removed A/B surface, key probe, env flags and intentionally failing diagnostic remain absent.
+The legitimate typed-prefill seed is retained behind its compile-time/test-only boundary.
 
-**Temporary cleanup:** the minimum A/B surface, local keyDown monitor, A/B environment flag and
-dedicated diagnostic test were removed. UITestWindowPlacement.swift matches baseline exactly.
-The rebuilt Debug app has no INPUT_AB_PROBE, HAENA_UI_TEST_INPUT_AB, ab-input-field or prior
-TARGET_KEY_PROBE/environment marker. The five ordinary AppShell test methods remain.
+### Current execution record
 
-### Execution accounting
+Every UI invocation is serial in the existing synthetic assembly, Korean locale, primary-display
+placement, bundle com.haena.CoreUI025, no saved-window restoration. Selected non-input legacy
+tests now share the same foreground/overlap stop guard. No user app is closed or manipulated.
+No guard invalidated any run in this checkpoint. Counts come from actual logs:
 
-Executed / failed / skipped counts below are actual runs, not distinct scenario counts.
-Environment-invalid execution must never be interpreted as a functional pass or failure.
+| UI run / suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Standalone typed Capture | 1 | 0 | 0 |
+| Keyboard before fix | 1 | 1 | 0 |
+| Keyboard after fix | 1 | 0 | 0 |
+| Final AppShellUITests (all five) | 5 | 0 | 0 |
+| HAENAUITests (all two) | 2 | 0 | 0 |
+| ProjectBrowser non-input empty state | 1 | 0 | 0 |
+| PasteTranscript non-input entry + validation | 2 | 0 | 0 |
+| **All checkpoint UI attempts** | **13** | **1** | **0** |
+| **Final acceptance suites only** | **10** | **0** | **0** |
 
-| Run / suite | Executed | Failed | Skipped | Interpretation |
-| --- | ---: | ---: | ---: | --- |
-| Initial AppShell at 69e2bc3 | 5 | 3 | 1 | Historical; keyboard invalid environment |
-| Hit-area / Capture triage | 7 | 5 | 0 | Historical; two fixed-hit-area passes |
-| Single-character controls at a9282e1 | 2 | 2 | 0 | Historical input diagnostics |
-| Event-boundary at 8ab73eb | 1 | 1 | 0 | Historical; y target receipt proved |
-| This turn temporary A/B | 1 | 0 | 0 | Diagnostic observations completed, not input correctness |
-| This turn AppShell Capture | 1 | 1 | 0 | x omitted; exact pre-save assertion blocked save |
-| This turn keyboard | 0 | 0 | 0 | Not executed |
-| This turn full AppShell suite | 0 | 0 | 0 | Not executed |
-| This turn HAENAUITests | 0 | 0 | 0 | Not executed |
-| This turn ProjectBrowserUITests | 0 | 0 | 0 | Not executed |
-| This turn PasteTranscriptUITests | 0 | 0 | 0 | Not executed |
-| All follow-ups, excluding initial run | 12 | 9 | 0 | Three passes, including diagnostic A/B |
+The final row is a subset, not additional execution. The repaired keyboard failure remains
+disclosed. Three legacy character-input scenarios are unexecuted, not skips (listed above).
 
-No guard invalidated this turn's two runs. All were serial in the existing isolated synthetic
-assembly, bundle `com.haena.CoreUI025`, with saved-window restoration disabled. No other app
-was closed or manipulated.
-
-| Final probe-free verification | Executed | Failed | Skipped |
+| Final unit suite | Executed | Failed | Skipped |
 | --- | ---: | ---: | ---: |
 | BrowserDestinationTests | 13 | 0 | 0 |
 | AppShellNavigationTests | 12 | 0 | 0 |
-| Total unit | 25 | 0 | 0 |
+| CaptureNavigationUITestSeedTests | 6 | 0 | 0 |
+| **Total** | **31** | **0** | **0** |
 
-Debug build and build-for-testing passed. Offline validation: 2 tasks / 13 subtasks /
-17 dependencies valid. Diff check passed; product source and Task Master graph have zero diff
-from 8ab73eb. These results do not resolve the failed input prerequisite or unexecuted UI gates.
+Debug build and build-for-testing passed. Offline validation after the status update:
+**2 tasks / 13 subtasks / 17 dependencies valid**. Diff check passed. XcodeGen regeneration
+is idempotent: project.pbxproj SHA-256 remained
+`6f1ea8e48a6cc50725024d798b56f76ff480c6a482e70bbf71997f7879b9f8cb`;
+project.yml is unchanged. The pbxproj change only registers the seed and its unit-test file.
+Models, persistence, services, extraction, prompt/schema, and original window placement are
+unchanged. No temporary A/B/probe/intentional-failure test or marker remains in final source
+or rebuilt Debug app; Release was not built in this task.
 
-### Evidence and next gate
+### 2.2 final decision
 
-Local evidence remains outside Git:
+| Direct acceptance | Current evidence |
+| --- | --- |
+| Five destinations / minimum width / no orphan pane | Final minimum-width AppShell test passed |
+| Home deep link + retained project/meeting selection | Final Home-to-Review/Brief/Transcripts round-trip passed |
+| Project selection + existing meeting/results views | Final project/meeting/results round-trip passed |
+| Capture sheet dismissal + exact saved result | Final typed-prefill Capture passed with exact pre-save values |
+| Directional keyboard focus + activation | Final keyboard test passed after Space handler fix |
+| Unchanged production empty input and validation | No-prefill entry and no-project validation passed |
 
-- `haena-025-shell-ab.xcresult` / log: minimal values at log lines 71/81/83,
-  actual values at 195/205.
-- `haena-025-shell-ab-diagnostics`: target-specific
-  `StandardOutputAndStandardError-com.haena.CoreUI025.txt`, probe lines 13/19/21/23/24.
-  Export also contains a system log archive; its contents were not read.
-- `haena-025-shell-ab-capture.xcresult` / log: exact-input x omission.
-- `haena-025-shell-ab-clean-build.log`, `haena-025-shell-ab-final-unit.xcresult` / log,
-  `haena-025-shell-ab-final-debug.log`: probe-free final verification.
-- Historical evidence prefixes: `haena-025-shell-ui`, `haena-025-shell-triage-*`,
-  `haena-025-shell-input-diagnostic`, `haena-025-shell-input-key`,
-  `haena-025-shell-event-boundary`.
+Offline Task Master **2.2 is done**, parent **2 in-progress**, **2.3 pending**, re-read after update.
+No blocker remains for the explicitly scoped 2.2 acceptance. Character-input fidelity remains
+unverified and explicitly carried to 2.10; this is not evidence of a completed packaged tryout.
 
-**Blocker:** input remains unreliable beyond y. A justified input-environment remedy is needed
-before Capture, keyboard, full AppShell, Home, ProjectBrowser and PasteTranscript tests can
-establish acceptance. Do not mark 2.2 done from unit/build success or the completed A/B observation.
-No 2.3 work, Notion, push, PR, merge, package, release or frozen 0.2.4 modification.
+Historical totals remain auditable in prior commits and local evidence: initial shell 5/3/1;
+pre-A/B follow-ups 10/8/0; A/B 1/0/0 (observation only, not correct input); y-free Capture 1/1/0.
+These repeated diagnostic attempts are not this checkpoint's final acceptance suite.
+
+### Evidence and non-goals
+
+Local `haena-025-shell-prefill-*` logs/xcresults contain current evidence. The keyboard failure
+target-only attachments are `haena-025-shell-prefill-after-home.txt` and
+`haena-025-shell-prefill-keyboard-failure.txt`; no whole-desktop recording was opened.
+Prior A/B evidence remains in `haena-025-shell-ab*`, with target receipt in target-specific
+stdout only. No raw runtime artifact is staged.
+
+Final unit evidence: `haena-025-shell-prefill-final-unit.xcresult` / log;
+build evidence: `haena-025-shell-prefill-keyboard-build.log` (test build) and
+`haena-025-shell-prefill-final-debug.log`. Final UI prefixes are `prefill-suite`, `prefill-home`,
+`prefill-project-empty` and `prefill-paste`, each under `haena-025-shell-`.
+No Notion, Windows work, push, PR, merge, package/release or frozen 0.2.4 replacement.

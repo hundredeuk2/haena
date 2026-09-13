@@ -12,10 +12,11 @@ final class AppShellUITests: XCTestCase {
         try XCTSkipIf(Self.invalidEnvironment, "ENVIRONMENT_INVALID: no further UI attempts this run")
     }
 
-    private func launch(seed: Bool = false, minimum: Bool = false) throws -> XCUIApplication {
+    private func launch(seed: Bool = false, minimum: Bool = false, capturePrefill: Bool = false) throws -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
+        if capturePrefill { app.launchEnvironment["HAENA_UI_TEST_CAPTURE_PREFILL"] = "1" }
         if seed { app.launchEnvironment["HAENA_UI_TESTING_MANUAL_BRIEF"] = "1" }
         if minimum { app.launchEnvironment["HAENA_UI_TEST_MINIMUM_WINDOW"] = "1" }
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
@@ -30,6 +31,26 @@ final class AppShellUITests: XCTestCase {
     }
 
     private func guardEnvironment(_ app: XCUIApplication) throws {
+        try Self.validateEnvironment(app)
+    }
+
+    /// The selected legacy non-input regressions use the same isolation/stop guard.
+    static func guardedLaunch(for test: XCTestCase) throws -> XCUIApplication {
+        try XCTSkipIf(invalidEnvironment, "ENVIRONMENT_INVALID: no further UI attempts this run")
+        let app = XCUIApplication()
+        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
+        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        test.addUIInterruptionMonitor(withDescription: "Shell regression isolation guard") { _ in
+            MainActor.assumeIsolated { invalidEnvironment = true }
+            return false
+        }
+        app.launch()
+        try validateEnvironment(app)
+        return app
+    }
+
+    static func validateEnvironment(_ app: XCUIApplication) throws {
         let foreground = NSWorkspace.shared.frontmostApplication
         // XCTest's foreground state alone did not explain earlier clicks with an unchanged
         // target hierarchy. Also require the foreground process to be the HAE.NA executable,
@@ -86,16 +107,6 @@ final class AppShellUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-
-    private func enterExactText(_ text: String, into element: XCUIElement, in app: XCUIApplication) throws {
-        // A/B isolated the y omission to the common input environment, not this screen.
-        // Navigation uses an equivalent ASCII fixture without that key, but every entered
-        // value must still match exactly before saving. No retry or accepted typo.
-        try guardEnvironment(app)
-        element.typeText(text)
-        try guardEnvironment(app)
-        XCTAssertEqual(element.value as? String, text, "Synthetic fixture input must be exact before saving")
     }
 
     private func rail(_ destination: String, in app: XCUIApplication) throws {
@@ -161,25 +172,23 @@ final class AppShellUITests: XCTestCase {
     }
 
     func testCaptureDismissalRoutesToSavedMeetingResults() throws {
-        let app = try launch()
+        let app = try launch(capturePrefill: true)
         defer { app.terminate() }
         try click(app.buttons["paste-transcript-button"], in: app)
-        try click(app.buttons["new-project-button"], in: app)
-        try click(app.textFields["new-project-name-field"], in: app)
-        try enterExactText("Shell Fixture Project", into: app.textFields["new-project-name-field"], in: app)
-        app.textFields["new-project-name-field"].typeKey(.return, modifierFlags: [])
-        let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
-                                                object: app.textFields["new-project-name-field"])
-        wait(for: [removed], timeout: 5)
-        try click(app.textFields["meeting-title-field"], in: app)
-        try enterExactText("Shell Fixture Meeting", into: app.textFields["meeting-title-field"], in: app)
-        try click(app.textViews["transcript-text-editor"], in: app)
-        try enterExactText("Navigation fixture transcript.", into: app.textViews["transcript-text-editor"], in: app)
+        let picker = element("project-picker", in: app)
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Shell Synthetic Project"), object: picker
+        )
+        wait(for: [selected], timeout: 5)
+        try guardEnvironment(app)
+        XCTAssertEqual(picker.value as? String, "Shell Synthetic Project")
+        XCTAssertEqual(app.textFields["meeting-title-field"].value as? String, "Shell Synthetic Meeting")
+        XCTAssertEqual(app.textViews["transcript-text-editor"].value as? String, "Synthetic navigation-only transcript.")
         try click(app.buttons["save-text-meeting-button"], in: app)
         XCTAssertTrue(app.buttons["capture-open-results-button"].waitForExistence(timeout: 8))
         try click(app.buttons["capture-open-results-button"], in: app)
         XCTAssertTrue(element("meeting-results-screen", in: app).waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["meeting-detail-title"].value as? String, "Shell Fixture Meeting")
+        XCTAssertEqual(app.staticTexts["meeting-detail-title"].value as? String, "Shell Synthetic Meeting")
         XCTAssertEqual(app.sheets.count, 0)
         XCTAssertTrue(app.buttons["shell-rail-home"].isHittable)
     }
@@ -193,8 +202,10 @@ final class AppShellUITests: XCTestCase {
         try guardEnvironment(app)
         XCTAssertTrue(element("shell-empty-review", in: app).waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["shell-rail-review"].label, "검토")
+        try guardEnvironment(app)
         app.typeKey(.downArrow, modifierFlags: [])
         app.typeKey(.space, modifierFlags: [])
+        try guardEnvironment(app)
         XCTAssertTrue(element("shell-empty-briefs", in: app).waitForExistence(timeout: 5))
     }
 }

@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Initial form state only; never a save, extraction request, or domain mutation.
+struct PastedTranscriptInitialState: Equatable, Sendable {
+    var selectedProjectID: UUID? = nil
+    var meetingTitle: String = ""
+    var transcript: String = ""
+    static let empty = Self()
+}
+
 private enum PastedTranscriptInputMode: String, CaseIterable, Identifiable {
     case freeform
     case structured
@@ -61,6 +69,24 @@ struct PasteTranscriptView: View {
     /// report or to open.
     @State private var outcome: CaptureOutcome?
     @State private var isRetryingAnalysis = false
+
+    init(
+        service: TextMeetingCaptureService,
+        extractionService: WorkStateExtractionService,
+        onOpenResults: ((CaptureDestination) -> Void)? = nil,
+        metrics: BetaMetricsService? = nil,
+        reanalysisService: MeetingReanalysisService? = nil,
+        initialState: PastedTranscriptInitialState = .empty
+    ) {
+        self.service = service
+        self.extractionService = extractionService
+        self.onOpenResults = onOpenResults
+        self.metrics = metrics
+        self.reanalysisService = reanalysisService
+        _selectedProjectID = State(initialValue: initialState.selectedProjectID)
+        _meetingTitle = State(initialValue: initialState.meetingTitle)
+        _transcriptText = State(initialValue: initialState.transcript)
+    }
 
     var body: some View {
         if let outcome {

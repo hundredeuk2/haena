@@ -432,6 +432,7 @@ private struct AppComponentAssembly {
 @main
 struct HAENAApp: App {
     @Environment(\.openSettings) private var openSettings
+    private var pastedTranscriptInitialState: PastedTranscriptInitialState = .empty
     private let repository: any WorkStateTransitionProjectRepository
     private let transitionRepository: any WorkStateTransitionRepository
     private let manualBriefService: ManualContinuityBriefService
@@ -529,8 +530,15 @@ struct HAENAApp: App {
             let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
                 ? ManualContinuityBriefUITestSeed.make()
                 : nil
+            var uiTestProjects = manualBriefSeed.map { [$0.project] } ?? []
+            #if DEBUG
+            if let captureSeed = CaptureNavigationUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
+                uiTestProjects.append(captureSeed.project)
+                pastedTranscriptInitialState = captureSeed.initialState
+            }
+            #endif
             repository = InMemoryProjectRepository(
-                projects: manualBriefSeed.map { [$0.project] } ?? []
+                projects: uiTestProjects
             )
             transitionRepository = InMemoryWorkStateTransitionRepository(
                 proposals: manualBriefSeed?.proposals ?? [],
@@ -677,6 +685,7 @@ struct HAENAApp: App {
                 notificationScheduler: notificationScheduler,
                 credentialResolver: credentialResolver,
                 reanalysisService: reanalysisService,
+                pastedTranscriptInitialState: pastedTranscriptInitialState,
                 showingPasteTranscript: $showingPasteTranscript,
                 showingProjectBrowser: $showingProjectBrowser,
                 showingImportAudio: $showingImportAudio,

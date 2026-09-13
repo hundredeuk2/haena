@@ -6,33 +6,37 @@ final class PasteTranscriptUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testPasteTranscriptButtonOpensInputScreen() {
-        let app = XCUIApplication()
-        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
-        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
-        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launch()
+    func testPasteTranscriptButtonOpensInputScreen() throws {
+        let app = try AppShellUITests.guardedLaunch(for: self)
+        defer { app.terminate() }
 
         XCTAssertTrue(app.buttons["paste-transcript-button"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
         app.buttons["paste-transcript-button"].click()
+        try AppShellUITests.validateEnvironment(app)
 
         XCTAssertTrue(app.textFields["meeting-title-field"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["meeting-title-field"].value as? String, "")
+        XCTAssertEqual(app.textViews["transcript-text-editor"].value as? String, "")
+        try AppShellUITests.validateEnvironment(app)
     }
 
-    func testSavingWithoutProjectShowsValidationMessage() {
-        let app = XCUIApplication()
-        app.launchEnvironment["HAENA_UI_TESTING"] = "1"
-        app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = "ko"
-        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launch()
+    func testSavingWithoutProjectShowsValidationMessage() throws {
+        let app = try AppShellUITests.guardedLaunch(for: self)
+        defer { app.terminate() }
 
         XCTAssertTrue(app.buttons["paste-transcript-button"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
         app.buttons["paste-transcript-button"].click()
+        try AppShellUITests.validateEnvironment(app)
 
         XCTAssertTrue(app.buttons["save-text-meeting-button"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
         app.buttons["save-text-meeting-button"].click()
+        try AppShellUITests.validateEnvironment(app)
 
         XCTAssertTrue(app.staticTexts["text-meeting-validation-message"].waitForExistence(timeout: 5))
+        try AppShellUITests.validateEnvironment(app)
     }
 
     func testCreatingProjectAndSavingMeetingShowsSavedConfirmation() {
