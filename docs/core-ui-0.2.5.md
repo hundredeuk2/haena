@@ -437,3 +437,116 @@ All direct 2.4 acceptance passes. No blocking issue remains for this slice.
   evidence/assignee/due, approval, reminders and production storage defaults are unchanged.
 - No real-user Application Support or meeting data access, external model/API call, Notion,
   push, PR, merge, package, release, frozen 0.2.4 replacement or Task 2.5 work in this checkpoint.
+
+## 2.5 — Pending Review queue and approved Work State ownership
+
+### Baseline and approved ownership rebaseline
+
+2026-09-13. Start: `2e17aaa06a6de36b42725c7b29453bf30b917214`,
+`codex/0.2.5-ui-plan`, no upstream. The checkout already contained the authorized Task Master
+`2.5 in-progress` change and a partial implementation in product and test files. Those changes were
+preserved and reviewed in place; no checkout, reset, stash or clean operation was used.
+
+The product-owner-approved screen contract is now explicit and typed:
+
+- Review owns only pending Decision, Action Item, Open Question and Agenda proposals.
+- Projects / Work State owns only approved objects and their existing edit, reminder and lifecycle
+  controls.
+- Home pending rows and review recommendations route to Review. Home work, question and agenda rows,
+  plus the debug reminder sample, route to Projects with an exact typed object selection.
+- `BrowserDestination.nextAction(.review)` is `.pendingReview`; `.work` is
+  `.approvedWorkState(.actionItem(exactID))`. Screen ownership is never inferred from whether an
+  optional action-item ID happens to exist.
+
+This changes two old expectations by approved product contract, not by weakening a regression:
+`AppShellNavigationTests` now expects the legacy approved-work link to open Projects, and
+`HomeResumeUITests` expects pending state in Review but approved state in Projects. Exact object-ID
+assertions remain in place.
+
+### Implementation and preserved boundaries
+
+`ReviewQueue` derives a deterministic pending-only queue grouped by exact owning Meeting, with
+All / Decisions / Actions / Questions / Agenda filters and stable ordering. Cards show kind,
+confidence, headline, Action Item assignee and due date, and the exact stored evidence quote with a
+timestamp only when the owning Meeting and transcript segment prove it. Missing, dangling,
+cross-meeting and unassigned evidence are shown as unavailable rather than retargeted or invented.
+
+Approve is the single primary action. Exclude and Action-Item-only Edit are secondary actions.
+Each verdict calls the existing service with the exact proposal ID, reloads storage before changing
+the displayed queue and Home count, and never batches or auto-approves. Approved Work State keeps
+the existing exact IDs, editing, reminder reconciliation and lifecycle services. No domain model,
+repository or persisted schema changed. Task 2.6 transcript-context highlighting was not started.
+
+### Direct acceptance
+
+Focused unit acceptance and the 2.2–2.4 unit regression set passed on the final test build:
+
+| Unit selection | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Navigation, destination, Home, capture and presentation regressions | 212 | 0 | 0 |
+| ReviewQueue and exact verdict/typed-owner tests | 20 | 0 | 0 |
+| **Total** | **232** | **0** | **0** |
+
+The 20 Review tests cover all four kinds, meeting grouping, stable order, all filters and counts,
+non-pending exclusion, exact typed routes, wrong-kind/missing selections, exact verdict isolation,
+Action-Item-only editing, and honest missing/dangling/cross-meeting evidence. Result:
+`haena-025-review-focused-unit-final.xcresult`.
+
+All ten distinct serial synthetic Review UI scenarios have a final pass: presentation, verdict/edit/
+Home-count reload and approved ownership in Korean and English; empty state in both languages;
+missing-source honesty; and focused keyboard Space approval. VoiceOver-facing identifiers, labels,
+sort order and the exact evidence value are asserted by the same presentation/ownership scenarios.
+
+| Review UI acceptance | Distinct scenarios with final pass | Failed final | Skipped final |
+| --- | ---: | ---: | ---: |
+| Korean / English and accessibility / keyboard | **10** | **0** | **0** |
+
+Attempt history is kept separate from the final distinct-case result. An initial unsigned runner
+setup exited before executing a test. The first combined signed run passed two empty-state cases,
+then the foreground guard detected Codex and skipped eight cases. Independent reruns passed those
+eight; one missing-source attempt observed a synthesized click that left Home unchanged and failed
+its exact navigation assertion, and its immediate clean rerun passed without changing the
+assertion. Across all direct UI attempts this is 19 framework test invocations: 10 pass, 1 fail and
+8 environment skips. Temporary event/screen probes and the click-triage attachment were removed.
+
+### Preserved 2.2–2.4 UI regression
+
+| Serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| CaptureLifecycleUITests | 17 | 0 | 0 |
+| HomeResumeUITests | 12 | 0 | 0 |
+| AppShellUITests | 5 | 0 | 0 |
+| HAENAUITests | 2 | 0 | 0 |
+| ProjectBrowser non-input empty state | 1 | 0 | 0 |
+| PasteTranscript non-input entry + validation | 2 | 0 | 0 |
+| **Final distinct regression cases** | **39** | **0** | **0** |
+
+The 17 Capture tests passed in one serial invocation. The next invocation passed its selected 19
+tests; three initially mistyped method selectors executed zero tests and were not counted. With the
+correct selectors, Chrome took foreground and the guard skipped those three. Independent guarded
+reruns then passed ProjectBrowser and both PasteTranscript cases. Environment skips are disclosed,
+not counted as passes. Results are in the `haena-025-review-capture-regression-rerun`,
+`haena-025-review-shell-regression`, `haena-025-review-project-empty-rerun`,
+`haena-025-review-paste-open-final` and `haena-025-review-paste-validation-final` xcresults.
+
+### Broader baseline and completion checks
+
+A broad HAENATests probe executed 1,117 tests: 1,108 passed, six failed and three skipped. The six
+failures are outside this diff: five stale `StructuredAssigneeProviderContractTests` expectations
+against the current provider schema and one `MicrophoneConfigurationTests` assertion because the
+scheme supplied `HAENA_UI_TESTING=1`. They are disclosed as baseline issues, not repaired or counted
+as Task 2.5 acceptance. The final scoped 232/232 run above is green.
+
+Final Debug build and build-for-testing passed. Offline Task Master validation confirms **2 parent
+tasks / 13 subtasks / 17 valid, unique, non-self, acyclic dependencies**. XcodeGen is idempotent:
+project.pbxproj SHA-256 before/after is
+`bdf6d67120f840051ff8c5a4d89246f634f6752b0864e5ccecec10952d4cfd98`; `project.yml` remains
+`19a1118a9e9a12d1cba35011c78251e963300c7de5624ab264d28e47525b430e`.
+`git diff --check` passes.
+
+The three physical character-input scenarios transferred from 2.2 remain **unexecuted** and assigned
+to 2.10; they are neither pass nor skip. No real user data, real provider/API, real microphone,
+package, Release, Windows, Notion, push, PR or merge operation was performed.
+
+Task Master is **parent 2 in-progress / 2.5 done / 2.6 pending**. All direct 2.5 acceptance has a
+passing final result and no blocker remains for this slice.

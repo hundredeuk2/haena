@@ -20,6 +20,8 @@ struct ProjectStatusView: View {
     let exportFilename: String
     let pasteboardWriter: any PasteboardWriter
     let fileExporter: any MarkdownFileExporter
+    var onOpenReview: (() -> Void)?
+    var onOpenObject: ((ProjectWorkStateSelection) -> Void)?
 
     @State private var feedback: Feedback?
 
@@ -125,7 +127,7 @@ struct ProjectStatusView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("status-review-callout-empty")
         } else {
-            Button(action: onOpenWorkState) {
+            Button { onOpenReview?() } label: {
                 HStack(spacing: 8) {
                     Text(L10n.text("확인 필요"))
                         .font(.headline)
@@ -141,6 +143,7 @@ struct ProjectStatusView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(onOpenReview == nil)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("status-review-callout")
         }
@@ -153,7 +156,8 @@ struct ProjectStatusView: View {
             title: L10n.text("최근 확정 결정"),
             identifier: "status-decisions-section",
             section: summary.recentDecisions,
-            emptyMessage: L10n.text("확정된 결정이 아직 없습니다.")
+            emptyMessage: L10n.text("확정된 결정이 아직 없습니다."),
+            selection: { .decision($0.id) }
         ) { decision in
             Text(decision.statement)
                 .lineLimit(2)
@@ -166,7 +170,8 @@ struct ProjectStatusView: View {
             title: L10n.text("진행 업무"),
             identifier: "status-work-section",
             section: summary.activeActionItems,
-            emptyMessage: L10n.text("진행 중인 업무가 없습니다.")
+            emptyMessage: L10n.text("진행 중인 업무가 없습니다."),
+            selection: { .actionItem($0.id) }
         ) { item in
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
@@ -196,7 +201,8 @@ struct ProjectStatusView: View {
             title: L10n.text("미해결 질문"),
             identifier: "status-questions-section",
             section: summary.unresolvedQuestions,
-            emptyMessage: L10n.text("미해결 질문이 없습니다.")
+            emptyMessage: L10n.text("미해결 질문이 없습니다."),
+            selection: { .openQuestion($0.id) }
         ) { question in
             Text(question.question)
                 .lineLimit(2)
@@ -209,7 +215,8 @@ struct ProjectStatusView: View {
             title: L10n.text("다음 아젠다"),
             identifier: "status-agenda-section",
             section: summary.upcomingAgendaItems,
-            emptyMessage: L10n.text("다음 아젠다가 없습니다.")
+            emptyMessage: L10n.text("다음 아젠다가 없습니다."),
+            selection: { .agendaItem($0.id) }
         ) { item in
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
@@ -231,6 +238,7 @@ struct ProjectStatusView: View {
         identifier: String,
         section: ProjectStatusSection<Item>,
         emptyMessage: String,
+        selection: @escaping (Item) -> ProjectWorkStateSelection,
         @ViewBuilder row: @escaping (Item) -> Row
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -260,8 +268,12 @@ struct ProjectStatusView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(section.items) { item in
-                        row(item)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button { onOpenObject?(selection(item)) } label: {
+                            row(item).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(onOpenObject == nil)
+                        .accessibilityIdentifier("status-open-\(selection(item).accessibilityKey)")
                     }
 
                     if section.hiddenCount > 0 {

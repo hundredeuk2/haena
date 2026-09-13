@@ -413,7 +413,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.pendingProposalsByProject.items) { entry in
                     HomeRowButton(identifier: "home-pending-row-\(entry.projectID.uuidString)") {
-                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
+                        onOpen(BrowserDestination(projectID: entry.projectID, target: .pendingReview))
                     } label: {
                         HStack {
                             Text(entry.projectName)
@@ -479,7 +479,7 @@ struct HomeView: View {
             } else {
                 ForEach(section.items) { entry in
                     HomeRowButton(identifier: "home-work-row-\(entry.id.uuidString)") {
-                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
+                        onOpen(BrowserDestination(projectID: entry.projectID, target: .approvedWorkState(.actionItem(entry.id))))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.actionItem.title)
@@ -533,7 +533,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.unresolvedQuestions.items) { entry in
                     HomeRowButton(identifier: "home-question-row-\(entry.id.uuidString)") {
-                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
+                        onOpen(BrowserDestination(projectID: entry.projectID, target: .approvedWorkState(.openQuestion(entry.id))))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.value.question)
@@ -566,7 +566,7 @@ struct HomeView: View {
             } else {
                 ForEach(summary.upcomingAgendaItems.items) { entry in
                     HomeRowButton(identifier: "home-agenda-row-\(entry.id.uuidString)") {
-                        onOpen(BrowserDestination(projectID: entry.projectID, pane: .workState))
+                        onOpen(BrowserDestination(projectID: entry.projectID, target: .approvedWorkState(.agendaItem(entry.id))))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.value.title)
@@ -651,8 +651,7 @@ struct HomeView: View {
                 BrowserDestination(
                     projectID: result.projectID,
                     meetingID: result.meetingID,
-                    actionItemID: result.actionItemID,
-                    pane: .workState
+                    target: .approvedWorkState(.actionItem(result.actionItemID))
                 )
             )
         } catch {

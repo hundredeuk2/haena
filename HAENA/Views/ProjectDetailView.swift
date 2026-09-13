@@ -38,14 +38,13 @@ struct ProjectDetailView: View {
     /// The task a caller wants the user to see — the home's 지금 할 일 card naming what it
     /// recommended. Taken up once, on the same first appearance as `requestedPane`.
     var requestedActionItemID: UUID?
+    var requestedWorkStateSelection: ProjectWorkStateSelection?
+    var onOpenPendingReview: (() -> Void)?
+    @State private var workStateSelection: ProjectWorkStateSelection?
 
     @State private var isConfirmingDeletion = false
     @State private var isShowingManualBrief = false
     @State private var pane: ProjectDetailPane = .status
-    /// The requested task, once taken up. Held here rather than passed straight through so it can
-    /// be *let go of*: it is cleared the moment the user leaves 업무 상태, so coming back to the tab
-    /// under their own steam does not drag them to the home's choice all over again.
-    @State private var highlightedActionItemID: UUID?
 
     private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
@@ -125,11 +124,13 @@ struct ProjectDetailView: View {
                 ProjectStatusView(
                     summary: statusSummary,
                     participantsByMeeting: participants(forMeeting:),
-                    onOpenWorkState: { pane = .workState },
+                    onOpenWorkState: { workStateSelection = nil; pane = .workState },
                     makeMarkdown: exportMarkdown,
                     exportFilename: ProjectExportFilename.markdownFilename(for: project.name),
                     pasteboardWriter: pasteboardWriter,
-                    fileExporter: fileExporter
+                    fileExporter: fileExporter,
+                    onOpenReview: onOpenPendingReview,
+                    onOpenObject: { workStateSelection = $0; pane = .workState }
                 )
 
             case .meetings:
@@ -148,14 +149,14 @@ struct ProjectDetailView: View {
                 }
 
             case .workState:
-                WorkStateReviewView(
+                ProjectWorkStateView(
                     project: project,
                     reviewService: reviewService,
                     profileRepository: profileRepository,
                     reminderRepository: reminderRepository,
                     reminderService: reminderService,
                     onChanged: onWorkStateChanged,
-                    highlightedActionItemID: highlightedActionItemID
+                    selection: workStateSelection
                 )
             }
 
@@ -171,7 +172,7 @@ struct ProjectDetailView: View {
             if let requestedPane {
                 pane = requestedPane
             }
-            highlightedActionItemID = requestedActionItemID
+            workStateSelection = requestedWorkStateSelection ?? requestedActionItemID.map(ProjectWorkStateSelection.actionItem)
         }
         // Selecting a different project in the sidebar reuses this view rather than rebuilding it,
         // so the pane has to be sent back to 현재 상태 explicitly — otherwise the second project a
@@ -180,13 +181,13 @@ struct ProjectDetailView: View {
         // The highlighted task goes with it, for exactly the same reason.
         .onChange(of: project.id) { _, _ in
             pane = .status
-            highlightedActionItemID = nil
+            workStateSelection = nil
         }
         // Leaving 업무 상태 is the user saying they are done with what the home sent them to look
         // at. Dropping it here is what keeps this a one-time hand-off rather than a mode.
         .onChange(of: pane) { _, newPane in
             if newPane != .workState {
-                highlightedActionItemID = nil
+                workStateSelection = nil
             }
         }
         .sheet(isPresented: $isConfirmingDeletion) {

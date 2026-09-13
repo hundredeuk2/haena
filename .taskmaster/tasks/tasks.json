@@ -104,14 +104,14 @@
           {
             "id": 5,
             "title": "Rebuild the review queue and proposal action hierarchy",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.2"
             ],
             "details": "Create a scannable pending queue with meeting grouping and kind filters. Each proposal shows kind, confidence, headline, assignee/due date where applicable, and source quote. Approve is the single primary button; Exclude and Edit are secondary and remain reachable by keyboard and VoiceOver. Approved work is not mixed back into the pending queue.",
             "testStrategy": "Synthetic proposals for all four kinds verify filtering, pending counts, action emphasis, edit availability only for action items, explicit verdict routing, and no auto-approval or batch approval.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T13:45:25.000Z"
           },
           {
             "id": 6,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T12:04:37.704Z"
+        "updatedAt": "2026-09-13T13:45:25.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T12:04:37.705Z",
+      "lastModified": "2026-09-13T13:45:25.000Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

@@ -117,8 +117,7 @@ struct AppShellWorkspaceView: View {
             WorkStateReviewView(
                 project: project, reviewService: reviewService,
                 profileRepository: profileRepository, reminderRepository: reminderRepository,
-                reminderService: reminderService, onChanged: refresh,
-                highlightedActionItemID: navigation.actionItemID
+                reminderService: reminderService, onChanged: refresh
             ).id(navigation.requestID)
         case .briefs:
             ManualContinuityBriefView(
@@ -130,7 +129,12 @@ struct AppShellWorkspaceView: View {
             if let meeting { meetingContent(project, meeting) }
             else { meetingSelection(project) }
         case .projects:
-            if let meeting { meetingContent(project, meeting) }
+            if navigation.projectPane == .workState {
+                ProjectWorkStateView(project: project, reviewService: reviewService,
+                    profileRepository: profileRepository, reminderRepository: reminderRepository,
+                    reminderService: reminderService, onChanged: refresh,
+                    selection: navigation.workStateSelection).id(navigation.requestID)
+            } else if let meeting { meetingContent(project, meeting) }
             else {
                 ProjectDetailView(
                     project: project, selectedMeetingID: $navigation.meetingID,
@@ -141,7 +145,9 @@ struct AppShellWorkspaceView: View {
                     profileRepository: profileRepository, reminderRepository: reminderRepository,
                     reminderService: reminderService, onWorkStateChanged: refresh,
                     requestedPane: navigation.projectPane,
-                    requestedActionItemID: navigation.actionItemID
+                    requestedActionItemID: navigation.actionItemID,
+                    requestedWorkStateSelection: navigation.workStateSelection,
+                    onOpenPendingReview: { navigation.open(.init(projectID: project.id, target: .pendingReview)) }
                 ).id(navigation.requestID)
             }
         }

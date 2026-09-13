@@ -489,3 +489,23 @@
 "AI 분석을 완료하지 못했습니다. AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요." = "AI analysis did not finish. AI requests are temporarily limited. Try again shortly.";
 "AI 분석을 완료하지 못했습니다. AI 서버에 연결하지 못했습니다." = "AI analysis did not finish. Could not connect to the AI server.";
 "AI 분석을 완료하지 못했습니다. AI가 이 회의록 분석을 거절했습니다." = "AI analysis did not finish. The AI declined to analyze this transcript.";
+/* Pending review ownership and exact source state. */
+"review.filter.all" = "All";
+"review.filter.decisions" = "Decisions";
+"review.filter.actions" = "Actions";
+"review.filter.questions" = "Questions";
+"review.filter.agenda" = "Agenda";
+"제안 종류" = "Proposal kind";
+"표시 %@ / 미검토 전체 %@" = "Showing %@ / Total pending %@";
+"이 회의 표시 %@ / 미검토 전체 %@" = "This meeting: showing %@ / Total pending %@";
+"미승인 후보" = "Pending candidate";
+"이 종류의 미검토 제안이 없습니다." = "No pending proposals of this kind.";
+"저장된 원문 근거가 없습니다." = "No source evidence is stored.";
+"소유 회의가 지정되지 않았습니다." = "No owning meeting is assigned.";
+"소유 회의를 찾을 수 없습니다." = "The owning meeting could not be found.";
+"근거와 소유 회의가 일치하지 않습니다." = "The evidence does not refer to the owning meeting.";
+"인용문은 보존되어 있지만 원문 발화를 찾을 수 없습니다." = "The quote is preserved, but the source segment could not be found.";
+"마감일 미지정" = "No due date assigned";
+"이 제안 하나만 승인합니다." = "Approve only this proposal.";
+"선택한 승인 항목: %@" = "Selected approved item: %@";
+"선택한 항목은 현재 승인된 업무 상태에 없습니다." = "The selected item is not in the current approved work state.";

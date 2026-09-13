@@ -31,27 +31,29 @@ struct AppShellNavigation: Equatable {
     private(set) var destination: AppShellDestination = .home
     var projectID: UUID?
     var meetingID: UUID?
-    private(set) var actionItemID: UUID?
+    private(set) var workStateSelection: ProjectWorkStateSelection?
+    var actionItemID: UUID? { workStateSelection?.actionItemID }
     private(set) var projectPane: ProjectDetailPane = .status
     private(set) var meetingPane: MeetingDetailPane = .initial
     private(set) var requestID = UUID()
 
     mutating func select(_ destination: AppShellDestination) {
         self.destination = destination
-        actionItemID = nil
+        workStateSelection = nil
         if destination == .transcripts { meetingPane = .transcript }
+        if destination == .projects { projectPane = .status }
     }
 
     mutating func open(_ request: BrowserDestination) {
         projectID = request.projectID
         meetingID = request.meetingID
-        actionItemID = request.actionItemID
+        workStateSelection = request.selection
         projectPane = request.pane
         meetingPane = .initial
         requestID = UUID()
-        switch request.pane {
-        case .status: destination = .projects
-        case .workState: destination = .review
+        switch request.target {
+        case .projectStatus, .approvedWorkState: destination = .projects
+        case .pendingReview: destination = .review
         case .meetings: destination = .transcripts
         }
     }
@@ -60,7 +62,7 @@ struct AppShellNavigation: Equatable {
         guard projectID != id else { return }
         projectID = id
         meetingID = nil
-        actionItemID = nil
+        workStateSelection = nil
         projectPane = .status
         requestID = UUID()
     }
@@ -69,6 +71,6 @@ struct AppShellNavigation: Equatable {
         let selection = BrowserInitialSelection.resolve(projectID: projectID, meetingID: meetingID, in: projects)
         projectID = selection.projectID
         meetingID = selection.meetingID
-        if projectID == nil { actionItemID = nil }
+        if projectID == nil { workStateSelection = nil }
     }
 }

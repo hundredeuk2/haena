@@ -37,7 +37,8 @@ final class AppShellNavigationTests: XCTestCase {
         var state = AppShellNavigation()
         let id = UUID()
         state.open(.init(projectID: F.projectA, actionItemID: id, pane: .workState))
-        XCTAssertEqual(state.destination, .review)
+        // Product-owner approved 2.5 rebaseline: approved work is owned by Projects.
+        XCTAssertEqual(state.destination, .projects)
         XCTAssertEqual(state.actionItemID, id)
         state.select(.home)
         XCTAssertNil(state.actionItemID)

@@ -57,24 +57,30 @@ struct WorkStateProposalCard: View {
     /// Where in the recording the quote came from. Nil whenever that cannot be answered
     /// truthfully — the card must never print a time it had to invent.
     var evidenceTimestamp: String?
+    var sourceIssue: ReviewSourceIssue?
     let identifiers: WorkStateProposalCardIdentifiers
     let onApprove: () -> Void
     let onExclude: () -> Void
     /// Nil for kinds with nothing to correct: only an action item carries an assignee and a due date.
     var onEdit: (() -> Void)?
+    private enum Control: Hashable { case approve, exclude, edit }
+    @FocusState private var focusedControl: Control?
 
     private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                if let statusBadge {
-                    WorkStateStatusBadge(text: statusBadge, isProminent: true)
-                }
-
                 Text(UIWorkStateDisplay.label(for: proposal.kind))
                     .font(.caption)
                     .bold()
+                    .accessibilityIdentifier(identifiers.card + "-kind")
+                    .accessibilitySortPriority(9)
+
+                if let statusBadge {
+                    WorkStateStatusBadge(text: statusBadge, isProminent: true)
+                        .accessibilitySortPriority(8)
+                }
 
                 Spacer()
 
@@ -83,20 +89,27 @@ struct WorkStateProposalCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier(identifiers.confidence)
+                        .accessibilitySortPriority(7)
                 }
             }
 
             Text(proposal.headline)
                 .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(identifiers.card + "-headline")
+                .accessibilitySortPriority(6)
 
             if let supporting = proposal.supporting {
                 Text(supporting)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilitySortPriority(5)
             }
 
             if case .actionItem(let item) = proposal {
-                ActionItemMetaRow(actionItem: item, participants: participants)
+                ActionItemMetaRow(actionItem: item, participants: participants, accessibilityPrefix: identifiers.card)
+                    .accessibilityIdentifier(identifiers.card + "-metadata")
+                    .accessibilitySortPriority(4)
             }
 
             // The evidence is the whole point of the review step: a user should never have to take
@@ -104,17 +117,45 @@ struct WorkStateProposalCard: View {
             if let evidence = proposal.evidence {
                 WorkStateEvidenceQuote(quote: evidence.quote, timestamp: evidenceTimestamp)
                     .accessibilityIdentifier(identifiers.evidence)
+                    .accessibilitySortPriority(3)
+            }
+            if let issue = sourceIssue ?? (proposal.evidence == nil ? .noEvidence : nil) {
+                Text(L10n.text(issue.localizationKey))
+                    .font(.caption).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(identifiers.card + "-source-issue")
             }
 
             HStack {
                 Button(L10n.text("승인"), action: onApprove)
+                    .buttonStyle(.borderedProminent)
+                    .focusable()
+                    .focused($focusedControl, equals: .approve)
+                    .onKeyPress(.space) {
+                        guard focusedControl == .approve else { return .ignored }
+                        onApprove(); return .handled
+                    }
+                    .accessibilityHint(L10n.text("이 제안 하나만 승인합니다."))
                     .accessibilityIdentifier(identifiers.approve)
 
                 Button(L10n.text("제외"), action: onExclude)
+                    .buttonStyle(.bordered)
+                    .focusable()
+                    .focused($focusedControl, equals: .exclude)
+                    .onKeyPress(.space) {
+                        guard focusedControl == .exclude else { return .ignored }
+                        onExclude(); return .handled
+                    }
                     .accessibilityIdentifier(identifiers.exclude)
 
                 if let onEdit {
                     Button(L10n.text("수정"), action: onEdit)
+                        .buttonStyle(.bordered)
+                        .focusable()
+                        .focused($focusedControl, equals: .edit)
+                        .onKeyPress(.space) {
+                            guard focusedControl == .edit else { return .ignored }
+                            onEdit(); return .handled
+                        }
                         .accessibilityIdentifier(identifiers.edit)
                 }
 
@@ -178,22 +219,30 @@ struct ActionItemMetaRow: View {
     let actionItem: ActionItem
     let participants: [Participant]
     var showsStatus: Bool = false
+    var accessibilityPrefix: String? = nil
 
     private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             if showsStatus {
                 Text(UIWorkStateDisplay.label(for: actionItem.status))
             }
 
             Text(UIWorkStateDisplay.assigneeLabel(actionItem.assigneeID, participants: participants))
+                .accessibilityIdentifier(accessibilityPrefix.map { $0 + "-assignee" } ?? "")
 
             if let due = UIWorkStateDisplay.dueDateLabel(actionItem.dueDate, formatter: dateFormatter) {
                 Text(due)
+                    .accessibilityIdentifier(accessibilityPrefix.map { $0 + "-due" } ?? "")
+            } else {
+                Text(L10n.text("마감일 미지정"))
+                    .accessibilityIdentifier(accessibilityPrefix.map { $0 + "-due" } ?? "")
             }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
     }
 }

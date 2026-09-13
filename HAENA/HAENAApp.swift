@@ -546,6 +546,9 @@ struct HAENAApp: App {
                 uiTestProjects = homeSeed.projects
                 uiTestProfile = homeSeed.profile
             }
+            if let reviewProject = ReviewQueueUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
+                uiTestProjects = [reviewProject]
+            }
             if let captureSeed = CaptureNavigationUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
                 uiTestProjects.append(captureSeed.project)
                 pastedTranscriptInitialState = captureSeed.initialState

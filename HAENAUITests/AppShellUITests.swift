@@ -37,13 +37,14 @@ final class AppShellUITests: XCTestCase {
     /// The selected legacy non-input regressions use the same isolation/stop guard.
     static func guardedLaunch(for test: XCTestCase, language: String = "ko",
                               homeScenario: String? = nil, minimum: Bool = false,
-                              captureScenario: String? = nil) throws -> XCUIApplication {
+                              captureScenario: String? = nil, reviewScenario: String? = nil) throws -> XCUIApplication {
         try XCTSkipIf(invalidEnvironment, "ENVIRONMENT_INVALID: no further UI attempts this run")
         let app = XCUIApplication()
         app.launchEnvironment["HAENA_UI_TESTING"] = "1"
         app.launchEnvironment["HAENA_UI_TEST_LANGUAGE"] = language
         if let homeScenario { app.launchEnvironment["HAENA_UI_TEST_HOME"] = homeScenario }
         if let captureScenario { app.launchEnvironment["HAENA_UI_TEST_CAPTURE_LIFECYCLE"] = captureScenario }
+        if let reviewScenario { app.launchEnvironment["HAENA_UI_TEST_REVIEW_QUEUE"] = reviewScenario }
         if minimum { app.launchEnvironment["HAENA_UI_TEST_MINIMUM_WINDOW"] = "1" }
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         test.addUIInterruptionMonitor(withDescription: "Shell regression isolation guard") { _ in

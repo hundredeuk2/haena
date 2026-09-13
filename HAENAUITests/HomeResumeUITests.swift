@@ -84,7 +84,8 @@ final class HomeResumeUITests: XCTestCase {
         }
         XCTAssertFalse(element("home-pending-section", app).exists)
         try click(primary, app)
-        XCTAssertTrue(element("work-state-review-screen", app).waitForExistence(timeout: 5))
+        // Product-owner approved 2.5 ownership rebaseline; exact item assertions remain.
+        XCTAssertTrue(element(pending ? "work-state-review-screen" : "approved-work-state-screen", app).waitForExistence(timeout: 5))
         if pending {
             XCTAssertTrue(app.staticTexts["pending-proposal-count"].exists)
         } else {
