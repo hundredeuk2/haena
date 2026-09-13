@@ -47,6 +47,8 @@ struct MeetingDetailView: View {
     /// Supplied where a meeting can be analysed again. Nil keeps this view what it was — the
     /// re-analysis row simply never appears.
     var reanalysis: MeetingReanalysisService?
+    /// Explicit shell navigation may request the transcript; capture links still request results.
+    var requestedPane: MeetingDetailPane?
 
     @State private var isConfirmingDeletion = false
     /// Nil until asked. The answer comes from `MeetingReanalysisService` rather than from a local
@@ -168,6 +170,10 @@ struct MeetingDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-detail-screen")
+        .onAppear { if let requestedPane { pane = requestedPane } }
+        .onChange(of: requestedPane) { _, value in
+            if let value { pane = value }
+        }
         // Keyed on the project's own timestamp: a verdict, a deletion, or a finished re-analysis
         // all reload the project, and each of them can change whether this meeting still has
         // nothing to show. Re-asking is a read of stored data — it starts no run.

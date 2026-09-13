@@ -68,14 +68,14 @@
           {
             "id": 2,
             "title": "Build the persistent app shell and deep-link navigation",
-            "status": "pending",
+            "status": "in-progress",
             "dependencies": [
               "2.1"
             ],
             "details": "Replace the Home-plus-nested-sheets navigation bottleneck with a persistent macOS shell for Home, Review, Briefs, Transcripts, and Projects. Keep capture and settings as focused sheets. Preserve existing BrowserDestination deep links and window ownership so navigation does not change domain state.",
             "testStrategy": "Synthetic navigation tests cover each rail destination, Home-to-review deep links, meeting selection, sheet dismissal, keyboard focus, and window widths down to the supported minimum without blank orphan panes.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T05:28:12.597Z"
           },
           {
             "id": 3,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T05:23:15.159Z"
+        "updatedAt": "2026-09-13T05:28:12.597Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T05:23:15.162Z",
+      "lastModified": "2026-09-13T05:28:12.599Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

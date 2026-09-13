@@ -23,8 +23,9 @@ struct UITestWindowPlacement: NSViewRepresentable {
             DispatchQueue.main.async { [weak window] in
                 guard let window else { return }
                 if resize {
-                    window.setContentSize(NSSize(width: min(1000, screen.visibleFrame.width - 160),
-                                                 height: min(800, screen.visibleFrame.height - 160)))
+                    let minimum = ProcessInfo.processInfo.environment["HAENA_UI_TEST_MINIMUM_WINDOW"] == "1"
+                    window.setContentSize(NSSize(width: min(minimum ? 720 : 1000, screen.visibleFrame.width - 160),
+                                                 height: min(minimum ? 520 : 800, screen.visibleFrame.height - 160)))
                 }
                 window.setFrameTopLeftPoint(NSPoint(x: screen.visibleFrame.minX + 80,
                                                    y: screen.visibleFrame.maxY - 80))
