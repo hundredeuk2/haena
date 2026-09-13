@@ -115,6 +115,9 @@ struct ContentView: View {
                             .padding(.horizontal, 10)
                             .background(navigation.destination == destination ? Color.accentColor.opacity(0.15) : .clear,
                                         in: RoundedRectangle(cornerRadius: 8))
+                            // A plain button must include label spacing/padding in its hit area,
+                            // not only the separate glyphs that happen to be painted.
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .focusable()

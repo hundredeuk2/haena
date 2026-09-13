@@ -95,7 +95,9 @@ struct AppShellWorkspaceView: View {
                             Text(project.name).font(.headline)
                             Text(UIMeetingCountDisplay.label(count: project.meetings.count))
                                 .font(.caption)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("project-row-\(project.id.uuidString)")

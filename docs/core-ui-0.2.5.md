@@ -114,6 +114,119 @@ Local evidence (outside Git): `haena-025-shell-ui.xcresult`, `haena-025-shell-ui
 `haena-025-shell-unit-final.log` under the temporary directory. No screenshots, runtime transcript
 fixtures, user data or raw logs are included in the commit.
 
-**Blocker:** a dedicated, unobstructed UI session is needed before diagnosing/rerunning the three
-unresolved assertions and keyboard test, then running the directly related existing UI tests.
-No claim of 2.2 completion, no 2.3 work, no Notion completion, push, PR, merge or package follows.
+The table above records the initial 69e2bc3 run, not the current classification. Its explicit
+environment-invalid keyboard result does not classify the other three failures.
+
+### 2.2 diagnosis follow-up (from 69e2bc3)
+
+Preflight: exact branch/HEAD, clean, no upstream; parent 2 and 2.2 in-progress, 2.3 pending.
+Read the original xcresult/log and target-window text attachments before any new UI run.
+No whole-desktop recordings or unrelated application contents were opened.
+
+New observations are limited to target identifiers, bounds, enabled/hittable state, foreground
+bundle, and synthetic target-window hierarchy. WindowServer owner PID/layer/bounds guard rejects
+an overlapping foreign window above the target; it does not read foreign titles or contents.
+Each rerun was a single selected test with the same isolated assembly. No foreground/overlap
+guard was invalidated in this follow-up; no other applications were closed or manipulated.
+
+| Original failure | Current classification | Evidence / minimal next observation |
+| --- | --- | --- |
+| Capture paste button exists but not hittable | **unresolved; original symptom not reproduced** | Three follow-up attempts reached the input form with hittable=true. One reached saved meeting results. The complete capture test remains blocked by the exact input issue below; do not retroactively attribute the original symptom to Chrome. |
+| Review click leaves Home selected / empty state absent | **product defect, fixed** | Reproduced under valid guards. Plain button exposed only the 48x16 glyph region. Adding contentShape(Rectangle()) to its label made the 136x32 row hittable; the unchanged minimum-width test passed all rail/empty-state/orphan-pane assertions. |
+| Project row click leaves project unselected | **product defect, fixed** | Independently reproduced under valid guards. The two-line plain label exposed 121x33 instead of its row. Adding contentShape(Rectangle()) made the row 775x33; the unchanged project/meeting/results/selection-preservation test passed. |
+
+Only those two product hit areas changed. No domain schema, IDs, evidence, approval policy,
+extraction, Home content, capture logic, Calendar, team functionality or storage code changed.
+
+Two additional findings are separate from the original symptoms:
+
+- **Test-contract defect, fixed:** the new observation helper initially re-queried the clicked
+  Save element to name an attachment after Save had legitimately removed it. Capture the
+  identifier before clicking instead. No assertion or UI action was weakened.
+- **Input boundary unresolved:** both bulk and individual typeText events produced `Snthetic`
+  instead of `Synthetic`. Two pre-save attachments show this in project, meeting-title and
+  transcript fields; the displayed saved meeting title preserved the already-entered value.
+  Individual events did not solve it. Keep ordinary input plus a new exact pre-save assertion;
+  do not change the expected fixture, accept the typo, retry input, or infer storage corruption.
+  Minimum remaining observation: trace a single `y` key's synthesized, delivered and received
+  event at the same target TextField, distinguishing input transport/IME from app handling.
+
+| Follow-up single-test attempt | Executed | Failed | Skipped | Result |
+| --- | ---: | ---: | ---: | --- |
+| Capture observation | 1 | 1 | 0 | Diagnostic helper stale-element query; repaired |
+| Capture after helper repair | 1 | 1 | 0 | Results reached; intended title differed from pre-save input |
+| Review/empty state before hit-area fix | 1 | 1 | 0 | Product defect reproduced |
+| Review/empty state after fix | 1 | 0 | 0 | Passed |
+| Project selection before hit-area fix | 1 | 1 | 0 | Product defect reproduced independently |
+| Project selection after fix | 1 | 0 | 0 | Passed |
+| Capture with individual events / exact precondition | 1 | 1 | 0 | Input mismatch caught before saving |
+| **Total UI attempts** | **7** | **5** | **0** | **2 passes; no environment-invalid attempt in this follow-up** |
+
+Keyboard and the existing HAENAUITests / ProjectBrowserUITests / PasteTranscriptUITests were
+not run: the three-case prerequisite is still incomplete. They are not counted as skips/passes.
+The final input helper retains the exact precondition but restores bulk typing, because slowing
+input did not resolve the defect; this final helper was compiled, not UI-rerun. The initial
+follow-up unit run executed BrowserDestinationTests 13/0/0 and AppShellNavigationTests 12/0/0
+(executed/failed/skipped); test build and diff check passed. No UI success is inferred from those.
+
+Evidence remains outside Git under the temporary directory, in the `haena-025-shell-triage-*`
+logs and xcresults. The initial 69e2bc3 evidence is unchanged. No runtime artifacts are staged.
+
+**Current blocker:** exact synthetic input cannot yet be reliably established in Capture.
+Parent 2 and 2.2 remain in-progress; 2.3 remains pending. No completion, Notion update, push,
+PR, merge, package or release follows from these two confirmed product fixes.
+
+### 2.2 single-character diagnostic continuation
+
+Reconfirmed branch HEAD 69e2bc39ed92da4428d56f2095309e4d0761d5cd and exactly the four
+known dirty files before continuing. No Task Master state or Notion page was changed.
+No additional product code was changed. The diagnostic uses only the synthetic target
+meeting-title TextField, with the same foreground/overlap guard and no save.
+
+| Observation | Actual target field value |
+| --- | --- |
+| typeText("S") into empty field | `S` |
+| separate typeText("y") after S | `S` (y absent) |
+| typeText("y") into cleared field | empty |
+| separate typeKey("y", modifierFlags: []) into cleared field | empty |
+
+XCTest logs contain Synthesize event and the immediate AX values. They do **not** prove
+which event reached the app handler. The empty-field control rules out only an exclusively
+uppercase-to-lowercase boundary. Both input APIs failed, so neither a product handler defect
+nor an XCTest-only defect is asserted. No y handler was found in the inspected app-owned
+View/Presentation key-handler/shortcut declarations. This absence is not runtime delivery proof.
+The optional input-source identifier read was rejected by the execution safety reviewer and
+was not performed; no alternate route, source switch, clipboard read or other app interaction
+was attempted.
+
+| Continuation UI run | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Single S/y plus lower-case-only control | 1 | 1 | 0 |
+| Comparison adding direct typeKey control | 1 | 1 | 0 |
+| **Continuation total** | **2** | **2** | **0** |
+| **All follow-up AppShellUITests attempts** | **9** | **7** | **0** |
+| HAENAUITests | 0 | 0 | 0 |
+| ProjectBrowserUITests | 0 | 0 | 0 |
+| PasteTranscriptUITests | 0 | 0 | 0 |
+
+The nine follow-up executions contain two passes. No continuation guard invalidated a run.
+The original five-run baseline remains separate above. Capture completion was not rerun after
+this failed input prerequisite; keyboard and related UI remain unexecuted, not passed/skipped.
+The diagnostic assertion remains strict. A different fixture or input transport is not justified
+as a proven fix yet, and no timeout, retry, coordinate click or assertion weakening was added.
+
+Remaining observation requires an explicitly scoped target-only event-receipt diagnostic to
+distinguish event synthesis/delivery from app handling. Do not infer storage corruption from
+this input failure. Task 2.2 remains in-progress, parent 2 remains in-progress, and 2.3 pending.
+Local diagnostic evidence: `haena-025-shell-input-diagnostic` and `haena-025-shell-input-key`
+logs/xcresults in the temporary directory, never staged.
+
+Final verification on this exact source: BrowserDestinationTests **13/0/0** and
+AppShellNavigationTests **12/0/0**, total **25/0/0** (executed/failed/skipped).
+Debug build and build-for-testing passed. Offline validation: **2 tasks / 13 subtasks /
+17 dependencies valid**. `git diff --check` passed. Models, services, extraction,
+HAENAApp bootstrap, BrowserDestination and Task Master graph have zero diff from 69e2bc3.
+Evidence: `haena-025-shell-checkpoint-unit.xcresult`, matching unit log,
+`haena-025-shell-checkpoint-debug.log`, and `haena-025-shell-input-key-build.log`.
+Only the two hit-area files, AppShellUITests and this aggregate document belong to this
+local checkpoint. No push, PR, merge, package, release or next-task start is authorized here.
