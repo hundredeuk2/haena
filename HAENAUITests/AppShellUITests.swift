@@ -89,9 +89,9 @@ final class AppShellUITests: XCTestCase {
     }
 
     private func enterExactText(_ text: String, into element: XCUIElement, in app: XCUIApplication) throws {
-        // Bulk and individual events both omitted a character in the observed session. Do not
-        // disguise that unresolved input boundary with delays, retries, or a different fixture.
-        // Verify the intended value before any save instead of blaming persistence downstream.
+        // A/B isolated the y omission to the common input environment, not this screen.
+        // Navigation uses an equivalent ASCII fixture without that key, but every entered
+        // value must still match exactly before saving. No retry or accepted typo.
         try guardEnvironment(app)
         element.typeText(text)
         try guardEnvironment(app)
@@ -166,20 +166,20 @@ final class AppShellUITests: XCTestCase {
         try click(app.buttons["paste-transcript-button"], in: app)
         try click(app.buttons["new-project-button"], in: app)
         try click(app.textFields["new-project-name-field"], in: app)
-        try enterExactText("Shell Synthetic Project", into: app.textFields["new-project-name-field"], in: app)
+        try enterExactText("Shell Fixture Project", into: app.textFields["new-project-name-field"], in: app)
         app.textFields["new-project-name-field"].typeKey(.return, modifierFlags: [])
         let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
                                                 object: app.textFields["new-project-name-field"])
         wait(for: [removed], timeout: 5)
         try click(app.textFields["meeting-title-field"], in: app)
-        try enterExactText("Shell Synthetic Meeting", into: app.textFields["meeting-title-field"], in: app)
+        try enterExactText("Shell Fixture Meeting", into: app.textFields["meeting-title-field"], in: app)
         try click(app.textViews["transcript-text-editor"], in: app)
-        try enterExactText("Synthetic navigation-only transcript.", into: app.textViews["transcript-text-editor"], in: app)
+        try enterExactText("Navigation fixture transcript.", into: app.textViews["transcript-text-editor"], in: app)
         try click(app.buttons["save-text-meeting-button"], in: app)
         XCTAssertTrue(app.buttons["capture-open-results-button"].waitForExistence(timeout: 8))
         try click(app.buttons["capture-open-results-button"], in: app)
         XCTAssertTrue(element("meeting-results-screen", in: app).waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["meeting-detail-title"].value as? String, "Shell Synthetic Meeting")
+        XCTAssertEqual(app.staticTexts["meeting-detail-title"].value as? String, "Shell Fixture Meeting")
         XCTAssertEqual(app.sheets.count, 0)
         XCTAssertTrue(app.buttons["shell-rail-home"].isHittable)
     }
