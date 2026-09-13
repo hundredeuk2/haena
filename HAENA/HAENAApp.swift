@@ -531,15 +531,25 @@ struct HAENAApp: App {
                 ? ManualContinuityBriefUITestSeed.make()
                 : nil
             var uiTestProjects = manualBriefSeed.map { [$0.project] } ?? []
+            var uiTestProfile = manualBriefSeed?.profile
             #if DEBUG
+            let homeSeed = HomeUITestSeed.select(environment: ProcessInfo.processInfo.environment)
+            if let homeSeed {
+                uiTestProjects = homeSeed.projects
+                uiTestProfile = homeSeed.profile
+            }
             if let captureSeed = CaptureNavigationUITestSeed.select(environment: ProcessInfo.processInfo.environment) {
                 uiTestProjects.append(captureSeed.project)
                 pastedTranscriptInitialState = captureSeed.initialState
             }
+            if homeSeed?.scenario == .loadFailure {
+                repository = HomeLoadFailureUITestRepository()
+            } else {
+                repository = InMemoryProjectRepository(projects: uiTestProjects)
+            }
+            #else
+            repository = InMemoryProjectRepository(projects: uiTestProjects)
             #endif
-            repository = InMemoryProjectRepository(
-                projects: uiTestProjects
-            )
             transitionRepository = InMemoryWorkStateTransitionRepository(
                 proposals: manualBriefSeed?.proposals ?? [],
                 ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? []
@@ -564,7 +574,7 @@ struct HAENAApp: App {
             // Never opens an audio device either, so an automated run cannot start playing sound
             // out of whatever machine it happens to be on.
             makeAudioPlayer = { DeterministicMeetingAudioPlayer() }
-            profileRepository = InMemoryLocalUserProfileRepository(profile: manualBriefSeed?.profile)
+            profileRepository = InMemoryLocalUserProfileRepository(profile: uiTestProfile)
             reminderRepository = InMemoryActionItemReminderRepository()
             ledgerRepository = InMemoryAgentLedgerRepository(
                 events: Self.uiTestLedgerSeed(environment: ProcessInfo.processInfo.environment)

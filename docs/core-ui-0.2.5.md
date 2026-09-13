@@ -196,3 +196,116 @@ build evidence: `haena-025-shell-prefill-keyboard-build.log` (test build) and
 `haena-025-shell-prefill-final-debug.log`. Final UI prefixes are `prefill-suite`, `prefill-home`,
 `prefill-project-empty` and `prefill-paste`, each under `haena-025-shell-`.
 No Notion, Windows work, push, PR, merge, package/release or frozen 0.2.4 replacement.
+
+## 2.3 — first-run / stored-state resume Home
+
+2026-09-13. Start: `1f9b0ea2dccf19bbf0992eabee43df1de952e46a`,
+`codex/0.2.5-ui-plan`, no upstream. The only existing dirty file was Task Master's authorized
+2.3 pending → in-progress change plus timestamps; preserved, not reset or replaced.
+
+### Implementation and authority boundary
+
+- Empty Home now has one purpose sentence and exactly three visible capture entries: Record,
+  Import Audio, Paste Transcript. No onboarding/profile gate. Existing project browsing remains
+  a compact header control. Profile/AI settings/Agent History/Beta Metrics are in Home Tools;
+  the Debug-only reminder sample no longer precedes the main action.
+- Returning Home highlights one existing NextAction recommendation, or its honest empty state.
+  Unchanged priority: pending review before explicitly linked own work; no substitute assignee.
+  The four existing summaries are retained under a collapsed Project Summary disclosure.
+- `HomeMeetingResume` is a read-only presentation value, not a schema/status or extraction state.
+  It selects the latest stored meeting by occurredAt, createdAt, project ID and meeting ID.
+  `MeetingWorkStateSummary` supplies the pending/total counts with its existing scope/policies.
+  The row says review needed, no proposals awaiting review, or meeting saved/no results.
+  It never claims that extraction ran, succeeded, or is currently running.
+- Latest-meeting title, stored stage and **that meeting's** pending count appear in one row.
+  No meeting-chain or pipeline is added. Its exact IDs route through BrowserDestination.results;
+  the primary review/work CTA retains BrowserDestination.nextAction and existing owner screens.
+- Nine ko/en entries extend the existing resources. User titles, names and evidence stay raw
+  display values, not localization keys. At minimum width, work title/project/assignee wrap rather
+  than silently truncating. No root reset, new storage field, due-date change or approval action.
+- The only assembly addition is whole-file `#if DEBUG` HomeUITestSeed and failing test repository,
+  selected by both HAENA_UI_TESTING=1 and a finite HAENA_UI_TEST_HOME scenario. No raw environment
+  payload or storage path. Normal UI-test defaults and production repository/provider defaults
+  are unchanged. Tests use fixed synthetic values and in-memory repositories only.
+
+### Direct acceptance
+
+All six scenarios run in **both ko and en** (12 tests). Minimum content size is 720x520;
+the measured window is 720x552 including chrome. Tests require the first Home action/row to be
+hittable and contained in the window without scrolling, and preserve the 2.2 foreground/overlap
+guard. No environment guard was invalidated in either invocation.
+
+| State | Verified result |
+| --- | --- |
+| Empty | Purpose + exactly three visible capture entries; each opens its existing owner and returns without saving |
+| Pending review | One Review CTA, exact meeting/stage/count label, existing Review then exact meeting-results destination |
+| Assigned work | Explicit linked participant, full title/assignee at minimum size, exact action and results owner |
+| No profile | Honest no-recommendation state; no other person's work substituted; meeting results still reachable |
+| Load failure | Existing error + reachable Retry; never represented as successful empty data |
+| Restart-resume | Terminate and launch a new process with the same fixed canonical seed; same row/count and exact results owner |
+
+Restart UI evidence is **in-memory seed reconstruction**, not a claim about a user store surviving
+process termination. The separate unit round-trip serializes/decodes the canonical Project values
+and rebuilds the repository/read model; sorted JSON bytes, IDs, transcript/evidence, assignee,
+due date and approval state remain identical. No new persistence seam was introduced.
+
+### Execution, including failed attempts
+
+The first combined UI invocation ran 22 tests: 14 passed, 8 failed, 0 skipped. Six failures were
+the new test querying child StaticTexts of a SwiftUI navigation button: target-only AX evidence
+showed the full title/stage/count in the button's combined label. Two failures tested a larger
+capture sheet's Cancel against the smaller parent Home frame after all three Home actions had
+already passed visibility checks. Both were test-boundary errors, not failed saves or navigation.
+The repaired tests assert the **entire** combined label and retain Home bounds checks, while
+sheet interaction uses its existing hittable control. No timeout increase, blind click or retry.
+The target hierarchy also exposed truncated work title/assignee at minimum size; those Text views
+now wrap and the final tests assert their full values. No domain data was edited.
+
+| Final unit suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| HomeMeetingResumeTests | 12 | 0 | 0 |
+| HomeSummaryTests | 21 | 0 | 0 |
+| NextActionTests | 20 | 0 | 0 |
+| BrowserDestinationTests | 13 | 0 | 0 |
+| AppShellNavigationTests | 12 | 0 | 0 |
+| CaptureNavigationUITestSeedTests | 6 | 0 | 0 |
+| AppLanguageTests | 15 | 0 | 0 |
+| **Total** | **99** | **0** | **0** |
+
+| Final serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| HomeResumeUITests | 12 | 0 | 0 |
+| AppShellUITests (all 2.2 tests unchanged) | 5 | 0 | 0 |
+| HAENAUITests | 2 | 0 | 0 |
+| ProjectBrowser non-input empty state | 1 | 0 | 0 |
+| PasteTranscript non-input entry + validation | 2 | 0 | 0 |
+| **Total** | **22** | **0** | **0** |
+
+Both xcresult summaries confirm these actual counts. Across both UI invocations: 44 executed,
+8 failed, 0 skipped; the final 22 are a subset, not extra executions. Unit ran 99/0/0 initially
+and 99/0/0 finally. A separate zero-test runner startup failed because ordinary Debug build
+removed HAENATests.xctest from the host PlugIns directory. Restoring build-for-testing fixed the
+assembly; that startup is **not a passing or skipped test run** and required no product change.
+
+Final Debug build and build-for-testing passed. Offline dependencies: 2 tasks, 13 subtasks,
+17 valid dependencies. `git diff --check` passed. XcodeGen regeneration is idempotent at
+project.pbxproj SHA-256 `7e78c4f5d6bd889048bc71d69692480c7e198d9ddcc3aa635e63689633f92851`;
+project.yml is unchanged, and the project-file delta only registers four new Swift files.
+
+Evidence (local only, not staged): `haena-025-home-ui` initial and `haena-025-home-final-ui`
+logs/xcresults; `haena-025-home-unit` initial and `haena-025-home-verified-unit` final;
+`haena-025-home-final-unit` is the disclosed zero-test assembly failure. Build logs:
+`haena-025-home-debug`, `haena-025-home-corrected-testbuild`,
+`haena-025-home-verification-testbuild`. Target-only AX evidence is
+`haena-025-home-assigned-hierarchy.txt`; no desktop recording was opened.
+
+### Scoped completion / deferred work
+
+Task Master **2.3 done**, parent **2 in-progress**, **2.4 pending**. All direct 2.3 acceptance
+passes; no blocker remains in this slice. The three original character-input scenarios listed
+under 2.2 remain **unexecuted**, neither passed nor skipped, assigned to the 2.10 packaged/input
+gate. No real-user persistence, physical typing, Release/package or full-app regression claim.
+Models, repositories, services, extraction/provider/prompt, approval and reminder policies,
+HomeSummary/NextAction, ContentView/shell/deep-link contracts and production defaults are
+unchanged. No user Application Support or real data access, external API/model call, menu-bar,
+2.4 work, Notion change, push, PR, merge, package, release or frozen 0.2.4 replacement.

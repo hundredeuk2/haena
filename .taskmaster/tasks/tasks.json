@@ -80,14 +80,14 @@
           {
             "id": 3,
             "title": "Rework first-run and resume Home",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.2"
             ],
             "details": "For an empty account, show one product-purpose sentence and three capture actions. For returning users, show one primary next action or honest empty state, last meeting/current stage/pending count, and compact secondary sections. Move Agent Ledger and Beta Metrics out of the primary action row. Do not show both a meeting chain and a pipeline when they communicate the same state.",
             "testStrategy": "Synthetic empty, pending-review, assigned-work, no-profile, load-failure, and restart-resume states prove that the first action is visible without scrolling and every primary row reaches its owner screen.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T10:48:02.473Z"
           },
           {
             "id": 4,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T08:10:49.594Z"
+        "updatedAt": "2026-09-13T10:48:02.473Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T08:10:49.594Z",
+      "lastModified": "2026-09-13T10:48:02.475Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

@@ -42,6 +42,7 @@ struct HomeView: View {
 
     private struct LoadedHome: Equatable {
         let summary: HomeSummary
+        let latestMeeting: HomeMeetingResume?
         let remindersByActionItem: [UUID: ActionItemReminder]
         let hasEligibleReminderTask: Bool
     }
@@ -73,6 +74,7 @@ struct HomeView: View {
             case .loaded(let loaded):
                 summaryBody(
                     loaded.summary,
+                    latestMeeting: loaded.latestMeeting,
                     reminders: loaded.remindersByActionItem,
                     hasEligibleReminderTask: loaded.hasEligibleReminderTask
                 )
@@ -90,58 +92,46 @@ struct HomeView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top) {
             Text(AppInfo.name)
-                .font(.largeTitle)
-                .bold()
+                .font(.largeTitle).bold()
                 .accessibilityIdentifier("product-name")
-
-            HStack(spacing: 12) {
-                Button(L10n.text("녹음 시작")) {
-                    onRecord()
-                }
-                .accessibilityIdentifier("record-button")
-
-                Button(L10n.text("파일 불러오기")) {
-                    onImportAudio()
-                }
-                .accessibilityIdentifier("import-button")
-
-                Button(L10n.text("텍스트 회의록 붙여넣기")) {
-                    onPasteTranscript()
-                }
-                .accessibilityIdentifier("paste-transcript-button")
-
-                Spacer(minLength: 0)
-
-                Button(L10n.text("프로젝트 보기")) {
-                    onBrowseProjects()
-                }
+            Spacer(minLength: 8)
+            Button(L10n.text("프로젝트 보기"), action: onBrowseProjects)
                 .accessibilityIdentifier("browse-projects-button")
+            Menu {
+                profileButtons
+                #if DEBUG
+                reminderSampleButton
+                #endif
+            } label: {
+                Label(L10n.text("Home 도구"), systemImage: "ellipsis.circle")
             }
-
-            profileRow
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityIdentifier("home-tools-menu")
         }
     }
 
-    /// An invitation, never a gate: the app is fully usable without a profile, so this states the
-    /// situation and offers the screen rather than blocking the way in.
-    @ViewBuilder
-    private var profileRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                profileSummary
-                profileButtons
-                Spacer(minLength: 0)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                profileSummary
-                HStack(spacing: 8) {
-                    profileButtons
-                    Spacer(minLength: 0)
-                }
-            }
+    private var captureActions: some View {
+        VStack(spacing: 8) {
+            captureButton("녹음 시작", symbol: "mic", id: "record-button", action: onRecord)
+            captureButton("파일 불러오기", symbol: "waveform", id: "import-button", action: onImportAudio)
+            captureButton("텍스트 회의록 붙여넣기", symbol: "doc.text", id: "paste-transcript-button", action: onPasteTranscript)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-capture-actions")
+    }
+
+    private func captureButton(_ title: String, symbol: String, id: String,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(L10n.text(title), systemImage: symbol)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier(id)
     }
 
     @ViewBuilder
@@ -178,36 +168,61 @@ struct HomeView: View {
     @ViewBuilder
     private func summaryBody(
         _ summary: HomeSummary,
+        latestMeeting: HomeMeetingResume?,
         reminders: [UUID: ActionItemReminder],
         hasEligibleReminderTask: Bool
     ) -> some View {
         if summary.projectCount == 0 {
-            VStack(spacing: 12) {
-                Text(L10n.text("아직 저장된 프로젝트가 없습니다."))
-                Text(L10n.text("회의를 녹음하거나 음성 파일을 불러오면 여기에 확인할 내용이 모입니다."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                #if DEBUG
-                reminderSampleButton
-                #endif
+            VStack(alignment: .leading, spacing: 20) {
+                Text(L10n.text("회의를 남기고, 제안을 검토하고, 다음 할 일을 이어가세요."))
+                    .font(.title3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("home-purpose")
+                captureActions
+                Spacer(minLength: 0)
             }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("home-empty-state")
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    #if DEBUG
-                    if !hasEligibleReminderTask {
-                        reminderSampleCallout
-                    }
-                    #endif
+                VStack(alignment: .leading, spacing: 16) {
                     nextActionCard(summary, reminders: reminders)
-                    pendingSection(summary)
-                    workSection(summary, reminders: reminders)
-                    questionSection(summary)
-                    agendaSection(summary)
+                    if let latestMeeting {
+                        HomeRowButton(identifier: "home-latest-meeting-button") {
+                            onOpen(latestMeeting.destination)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L10n.text("최근 회의")).font(.caption).foregroundStyle(.secondary)
+                                Text(latestMeeting.title)
+                                    .accessibilityIdentifier("home-latest-meeting-title")
+                                Text(L10n.text(latestMeeting.stage.localizationKey))
+                                    .font(.caption)
+                                    .accessibilityIdentifier("home-latest-meeting-stage")
+                                Text(L10n.format("이 회의의 미검토 제안: %@", String(latestMeeting.pendingCount)))
+                                    .font(.caption)
+                                    .accessibilityIdentifier("home-latest-pending-count")
+                            }
+                        }
+                    } else {
+                        Text(L10n.text("저장된 회의가 없습니다."))
+                            .accessibilityIdentifier("home-no-meeting")
+                    }
+                    captureActions
+                    DisclosureGroup(L10n.text("프로젝트 요약")) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            profileSummary
+                            pendingSection(summary)
+                            workSection(summary, reminders: reminders)
+                            questionSection(summary)
+                            agendaSection(summary)
+                            #if DEBUG
+                            if !hasEligibleReminderTask { reminderSampleCallout }
+                            #endif
+                        }
+                        .padding(.top, 12)
+                    }
+                    .accessibilityIdentifier("home-summary-disclosure")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -309,6 +324,7 @@ struct HomeView: View {
             Button(L10n.text("검토하기")) {
                 onOpen(BrowserDestination.nextAction(.review(review)))
             }
+            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("home-next-action-button")
         }
     }
@@ -317,16 +333,19 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(work.title)
                 .font(.title3)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("home-next-action-headline")
 
             HStack(spacing: 12) {
                 Text(work.projectName)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("home-next-action-project")
 
                 // Named even though this is by definition the user's own work: the card sits above
                 // a list that names everybody, and a row that quietly omits the assignee reads as
                 // unassigned rather than as mine.
                 Text(work.assigneeName ?? L10n.text("담당자 미정"))
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("home-next-action-assignee")
 
                 // Colour alone does not survive being unable to see it, so a passed deadline says
@@ -348,6 +367,7 @@ struct HomeView: View {
             Button(L10n.text("업무 보기")) {
                 onOpen(BrowserDestination.nextAction(.work(work)))
             }
+            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("home-next-action-button")
         }
     }
@@ -598,6 +618,7 @@ struct HomeView: View {
             loadState = .loaded(
                 LoadedHome(
                     summary: HomeSummary(projects: projects, profile: profile),
+                    latestMeeting: HomeMeetingResume.latest(in: projects),
                     remindersByActionItem: Dictionary(
                         uniqueKeysWithValues: active.map { ($0.actionItemID, $0) }
                     ),

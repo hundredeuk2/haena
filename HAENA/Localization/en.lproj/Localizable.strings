@@ -448,3 +448,13 @@
 "결과 0건 · AI 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도해주세요." = "No results · AI requests are temporarily limited. Try again shortly.";
 "결과 0건 · AI 서버에 연결하지 못했습니다." = "No results · Could not connect to the AI server.";
 "결과 0건 · AI가 이 회의록 분석을 거절했습니다." = "No results · The AI declined to analyze this transcript.";
+/* Home first-run and stored-state resume. */
+"Home 도구" = "Home Tools";
+"회의를 남기고, 제안을 검토하고, 다음 할 일을 이어가세요." = "Capture a meeting, review its suggestions, and continue your next task.";
+"최근 회의" = "Latest Meeting";
+"저장 상태: 검토 필요" = "Saved state: review needed";
+"저장 상태: 검토할 제안 없음" = "Saved state: no proposals awaiting review";
+"저장 상태: 회의 저장됨 · 결과 없음" = "Saved state: meeting saved · no results";
+"이 회의의 미검토 제안: %@" = "Unreviewed proposals in this meeting: %@";
+"저장된 회의가 없습니다." = "No saved meetings.";
+"프로젝트 요약" = "Project Summary";
