@@ -102,36 +102,6 @@ final class AppShellUITests: XCTestCase {
         try click(app.buttons["shell-rail-\(destination)"], in: app)
     }
 
-    func testSyntheticUppercaseAndYInputDiagnostic() throws {
-        let app = try launch()
-        defer { app.terminate() }
-        try click(app.buttons["paste-transcript-button"], in: app)
-        let field = app.textFields["meeting-title-field"]
-        try click(field, in: app)
-        field.typeText("S")
-        try guardEnvironment(app)
-        let afterS = field.value as? String
-        print("INPUT_DIAGNOSTIC sent=S observed=\(afterS ?? "nil")")
-        XCTAssertEqual(afterS, "S")
-        field.typeText("y")
-        try guardEnvironment(app)
-        let afterY = field.value as? String
-        print("INPUT_DIAGNOSTIC sent=y after_S observed=\(afterY ?? "nil")")
-        // Separate lower-case-only control, not a retry of a failed save or assertion.
-        for _ in afterY ?? "" { field.typeKey(.delete, modifierFlags: []) }
-        XCTAssertEqual(field.value as? String, "")
-        field.typeText("y")
-        try guardEnvironment(app)
-        let textY = field.value as? String
-        print("INPUT_DIAGNOSTIC typeText=y empty_field observed=\(textY ?? "nil")")
-        for _ in textY ?? "" { field.typeKey(.delete, modifierFlags: []) }
-        XCTAssertEqual(field.value as? String, "")
-        field.typeKey("y", modifierFlags: [])
-        try guardEnvironment(app)
-        print("INPUT_DIAGNOSTIC typeKey=y empty_field observed=\(field.value as? String ?? "nil")")
-        XCTAssertEqual(field.value as? String, "y", "Direct key transport must preserve y")
-    }
-
     private func element(_ id: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)[id].firstMatch
     }
