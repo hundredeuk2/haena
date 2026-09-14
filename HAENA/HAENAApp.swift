@@ -528,9 +528,7 @@ struct HAENAApp: App {
             metricsRepository = recoveryProcessAssembly.metricsRepository
             notificationScheduler = recoveryProcessAssembly.notificationScheduler
         } else if _isDebugAssertConfiguration() && AppComponentSelection.isUITesting() {
-            let manualBriefSeed = ProcessInfo.processInfo.environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1"
-                ? ManualContinuityBriefUITestSeed.make()
-                : nil
+            let manualBriefSeed = ManualContinuityBriefUITestSeed.select(environment: ProcessInfo.processInfo.environment)
             var uiTestProjects = manualBriefSeed.map { [$0.project] } ?? []
             var uiTestProfile = manualBriefSeed?.profile
             #if DEBUG
@@ -565,7 +563,9 @@ struct HAENAApp: App {
             #endif
             transitionRepository = InMemoryWorkStateTransitionRepository(
                 proposals: manualBriefSeed?.proposals ?? [],
-                ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? []
+                ambiguousMatchGroups: manualBriefSeed?.ambiguityGroups ?? [],
+                // Fails the apply intent before any Project write: the candidate must survive.
+                saveError: manualBriefSeed?.failsApply == true ? ManualContinuityBriefUITestSeed.ApplyFailure() : nil
             )
             #if DEBUG
             if let lifecycleSeed, let lifecycleRepository {

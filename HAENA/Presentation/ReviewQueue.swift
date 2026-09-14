@@ -48,6 +48,11 @@ struct ReviewQueue: Equatable {
         let proposal: WorkStateProposal
         let timestamp: String?
         let sourceIssue: ReviewSourceIssue?
+        /// Set only when the owning meeting really stores the referenced segment. Built from the
+        /// stored IDs alone; a missing, dangling or cross-meeting reference gets nil, never a
+        /// nearest match. Independent of `timestamp`: a pasted transcript has no timing but its
+        /// segment is still exactly addressable.
+        let transcriptSelection: TranscriptEvidenceSelection?
         var id: ReviewProposalIdentity { ReviewProposalIdentity(proposal) }
         var canEdit: Bool { proposal.kind == .actionItem }
     }
@@ -79,9 +84,12 @@ struct ReviewQueue: Equatable {
                 else if !meeting!.transcriptSegments.contains(where: { $0.id == proposal.evidence?.transcriptSegmentID }) {
                     issue = .missingSegment
                 } else { issue = nil }
+                let selection = issue == nil ? proposal.evidence.map {
+                    TranscriptEvidenceSelection(meetingID: $0.meetingID, segmentID: $0.transcriptSegmentID)
+                } : nil
                 return Entry(proposal: proposal,
                     timestamp: issue == nil ? meeting.flatMap { MeetingWorkStateSummary.evidenceTimestamp(proposal.evidence, in: $0) } : nil,
-                    sourceIssue: issue)
+                    sourceIssue: issue, transcriptSelection: selection)
             }
             return Group(id: meetingID, meeting: meeting, entries: entries)
         }.sorted {

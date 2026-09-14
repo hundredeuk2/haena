@@ -49,6 +49,9 @@ struct MeetingDetailView: View {
     var reanalysis: MeetingReanalysisService?
     /// Explicit shell navigation may request the transcript; capture links still request results.
     var requestedPane: MeetingDetailPane?
+    /// The exact stored segment a review quote asked this transcript to show. Matched by ID only:
+    /// an ID this meeting does not store is reported as missing, never swapped for similar text.
+    var requestedSegmentID: UUID?
 
     @State private var isConfirmingDeletion = false
     /// Nil until asked. The answer comes from `MeetingReanalysisService` rather than from a local
@@ -173,6 +176,11 @@ struct MeetingDetailView: View {
         .onAppear { if let requestedPane { pane = requestedPane } }
         .onChange(of: requestedPane) { _, value in
             if let value { pane = value }
+        }
+        // A new evidence request always lands on the transcript, even if the user had switched
+        // this meeting back to its results in the meantime.
+        .onChange(of: requestedSegmentID) { _, value in
+            if value != nil { pane = .transcript }
         }
         // Keyed on the project's own timestamp: a verdict, a deletion, or a finished re-analysis
         // all reload the project, and each of them can change whether this meeting still has
@@ -335,27 +343,72 @@ struct MeetingDetailView: View {
 
             unconfirmedSpeakerBanner
 
+            evidenceRequestStatus
+
             // The one part of this pane that grows: a long transcript scrolls here rather than
             // stretching the pane past the bottom of the column.
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(meeting.transcriptSegments) { segment in
-                        TranscriptSegmentRow(segment: segment, meeting: meeting)
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("transcript-segment-\(segment.id.uuidString)")
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(meeting.transcriptSegments) { segment in
+                            TranscriptSegmentRow(segment: segment, meeting: meeting,
+                                                 isRequestedEvidence: segment.id == requestedSegmentID)
+                                .id(segment.id)
+                                .accessibilityElement(children: .contain)
+                                .accessibilityIdentifier("transcript-segment-\(segment.id.uuidString)")
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // Same reasoning as the results pane: a transcript of any length must not become a
+                // height this screen asks the window for. See `MeetingResultsView`.
+                .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("meeting-transcript")
+                .onAppear { scrollToRequestedSegment(using: proxy) }
+                .onChange(of: requestedSegmentID) { _, _ in scrollToRequestedSegment(using: proxy) }
             }
-            // Same reasoning as the results pane: a transcript of any length must not become a
-            // height this screen asks the window for. See `MeetingResultsView`.
-            .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("meeting-transcript")
         }
         .frame(maxWidth: .infinity, minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("meeting-transcript-pane")
+    }
+
+    // MARK: - Requested evidence segment
+
+    /// The stored segment the request names, if this meeting really stores it.
+    private var requestedSegment: TranscriptSegment? {
+        guard let requestedSegmentID else { return nil }
+        return meeting.transcriptSegments.first { $0.id == requestedSegmentID }
+    }
+
+    /// Says what the request came to, in words: either the highlighted segment is on this screen,
+    /// or the ID is not stored here and the quote the user came from is all there is. Nothing is
+    /// highlighted in the second case — a similar-looking line is not the evidence.
+    @ViewBuilder
+    private var evidenceRequestStatus: some View {
+        if requestedSegmentID != nil {
+            if requestedSegment != nil {
+                Text(L10n.text("검토 근거 발화를 강조 표시했습니다."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("transcript-evidence-status")
+            } else {
+                Text(L10n.text("선택한 근거 발화를 찾을 수 없습니다."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("transcript-evidence-unavailable")
+            }
+        }
+    }
+
+    /// Deferred one turn for the same reason as `ProjectWorkStateView`: the rows are laid out after
+    /// this appearance finishes, and an anchor that is not there yet scrolls nowhere.
+    private func scrollToRequestedSegment(using proxy: ScrollViewProxy) {
+        guard let segment = requestedSegment else { return }
+        DispatchQueue.main.async {
+            withAnimation { proxy.scrollTo(segment.id, anchor: .center) }
+        }
     }
 
     // MARK: - Audio playback
@@ -461,6 +514,8 @@ struct MeetingDetailView: View {
 private struct TranscriptSegmentRow: View {
     let segment: TranscriptSegment
     let meeting: Meeting
+    /// True for exactly the segment a review quote asked for — by stored ID, never by text.
+    var isRequestedEvidence = false
 
     private var speakerLabel: String? {
         TranscriptSpeakerDisplay.label(for: segment, in: meeting)
@@ -488,6 +543,20 @@ private struct TranscriptSegmentRow: View {
             }
             Text(segment.text)
                 .textSelection(.enabled)
+            if isRequestedEvidence {
+                Text(L10n.text("근거 발화"))
+                    .font(.caption2)
+                    .bold()
+                    .foregroundStyle(.tint)
+                    .accessibilityIdentifier("transcript-segment-evidence-\(segment.id.uuidString)")
+            }
         }
+        // The same tint `ProjectWorkStateView` uses for the task the user came for: a marker,
+        // not a selection state the user has to clear.
+        .padding(isRequestedEvidence ? 6 : 0)
+        .background(
+            isRequestedEvidence ? AnyShapeStyle(Color.accentColor.opacity(0.12)) : AnyShapeStyle(.clear),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
     }
 }

@@ -9,6 +9,9 @@ struct WorkStateReviewView: View {
     let reminderRepository: any ActionItemReminderRepository
     let reminderService: ActionItemReminderService?
     let onChanged: () async -> Void
+    /// Opens the exact stored segment in its owning meeting's transcript. Called only with a
+    /// selection `ReviewQueue` proved; the screen itself performs no navigation.
+    var onOpenEvidence: ((TranscriptEvidenceSelection) -> Void)?
     @State private var filter = ReviewQueueFilter.all
     @State private var errorMessage: String?
     @State private var editingActionItem: ActionItem?
@@ -65,7 +68,8 @@ struct WorkStateReviewView: View {
                                         identifiers: .projectReview(entry.proposal.id),
                                         onApprove: { Task { await verdict(entry.proposal, approve: true) } },
                                         onExclude: { Task { await verdict(entry.proposal, approve: false) } },
-                                        onEdit: editAction(entry.proposal)
+                                        onEdit: editAction(entry.proposal),
+                                        onOpenEvidence: openEvidenceAction(entry)
                                     )
                                 }
                             }
@@ -91,6 +95,11 @@ struct WorkStateReviewView: View {
                     if saved { editingActionItem = nil }
                 }, onCancel: { editingActionItem = nil })
         }
+    }
+
+    private func openEvidenceAction(_ entry: ReviewQueue.Entry) -> (() -> Void)? {
+        guard let onOpenEvidence, let selection = entry.transcriptSelection else { return nil }
+        return { onOpenEvidence(selection) }
     }
 
     private func editAction(_ proposal: WorkStateProposal) -> (() -> Void)? {

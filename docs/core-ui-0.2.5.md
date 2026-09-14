@@ -550,3 +550,291 @@ package, Release, Windows, Notion, push, PR or merge operation was performed.
 
 Task Master is **parent 2 in-progress / 2.5 done / 2.6 pending**. All direct 2.5 acceptance has a
 passing final result and no blocker remains for this slice.
+
+## 2.6 — source quote to exact transcript context
+
+### Baseline and route
+
+2026-09-14. Start: `bcb673d75a59c9f5697b4f708760ab12c94599df`, `codex/0.2.5-ui-plan`, upstream
+`origin/codex/0.2.5-ui-plan` 0/0, clean. Read-only gate confirmed parent 2 in-progress / 2.5 done /
+2.6 pending and 2 parents / 13 subtasks / 17 valid unique acyclic dependencies before 2.6 was set
+in-progress. No worktree, checkout, reset, stash or clean operation was used.
+
+The route is typed end to end. `TranscriptEvidenceSelection(meetingID, segmentID)` is built only
+from the stored `EvidenceReference`; it carries no text and no time. `BrowserTarget
+.transcriptEvidence(selection)` lands on `.transcripts` with `meetingPane = .transcript`, and the
+route's meeting is taken from the selection itself, so a caller cannot name one meeting and
+highlight a segment of another. `AppShellNavigation.transcriptSelection` is a one-shot request
+like `workStateSelection`: replaced by any explicit `open`, cleared by rail navigation, project
+change, a meeting that fails validation, and never applied to a meeting other than the one on
+screen (`highlightedSegmentID(in:)`).
+
+`ReviewQueue.Entry.transcriptSelection` is non-nil only when the owning meeting really stores the
+referenced segment — the same proof 2.5 requires for a timestamp, but independent of it: a pasted
+transcript has no timing and still has an exactly addressable segment. Missing, dangling,
+cross-meeting and unassigned references get nil. On the card a proven quote becomes a plain-style
+button (the transcripts symbol beside it, Approve still the only prominent control), focusable and
+Space-activated like the verdicts, with the exact quote text as its accessibility label and a hint
+saying it opens the transcript. An unproven quote stays the 2.5 static text beside the 2.5
+source-issue line. The transcript pane scrolls to the stored ID, tints that one row with a
+"근거 발화 / Evidence segment" marker, and states in words whether the segment was highlighted or
+could not be found. A same-text segment elsewhere in the transcript is never marked. The Review /
+Projects ownership, verdict services, editing, reminders, lifecycle, schema and stable IDs are
+unchanged; `MeetingResultsView` still shows the quote as text. Opening the screen performs reads
+only: no model call, no reconciliation write.
+
+### Direct acceptance
+
+| Unit selection | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ReviewEvidenceNavigationTests (new) | 20 | 0 | 0 |
+| ReviewQueueTests (2.5 direct) | 20 | 0 | 0 |
+| Navigation, destination, Home, capture, presentation, language regressions | 181 | 0 | 0 |
+| **Total** | **221** | **0** | **0** |
+
+The 20 new tests cover exact stored meeting/segment IDs for every pending kind, three proposals of
+one meeting on the same segment plus one on its own segment, an identical-text duplicate segment
+that is never selected, a pasted transcript without timing or audio, a recorded meeting whose audio
+asset is absent, missing segment, dangling meeting, cross-meeting and unassigned references,
+an emptied transcript, the typed route and shell state, selection change, one-shot clearing,
+manual meeting switch, validation, preserved proposal identity / pending state / stored bytes, the
+selection's two-field shape, and ko/en resources. The first unit run failed one assertion that
+compared kind-ordered inbox IDs with meeting-grouped queue IDs as arrays; the test was corrected to
+a set comparison and the whole selection rerun green (`haena-026-unit-final.xcresult`).
+
+Synthetic `evidence` seed UI, guarded launch, minimum window:
+
+| Review evidence UI | Distinct scenarios with final pass | Failed final | Skipped final |
+| --- | ---: | ---: | ---: |
+| ko / en navigation, keyboard Space activation, missing-source honesty | **4** | **0** | **0** |
+
+Each navigation scenario clicks decision 100 → "Synthetic Review Meeting" transcript with only
+segment 4 marked (same-text segment 8 and segment 7 unmarked), no audio player; returns to Review
+with the count still 5, the same card, headline and hittable unselected Approve/Exclude; clicks
+agenda 103 → segment 7 marked and 4 unmarked; clicks action 104 → "Synthetic Earlier Meeting"
+(텍스트 입력 / Pasted Text), segment 5 marked, no timestamp, no player; then rail navigation shows
+the meeting without a highlight and Review still at 5. The keyboard case tabs to the quote button,
+confirms its own "Keyboard Focused" attribute, and presses Space. Attempt history: the first run
+passed keyboard and missing-source and failed both navigation cases at the same step — action
+104's quote existed below the fold of the minimum-height list and was not hittable. The test now
+scrolls the quote into the list viewport first, exactly as the 2.5 ownership case does, and both
+cases passed on rerun (`haena-026-evidence-ui.xcresult`, `haena-026-evidence-ui-rerun.xcresult`).
+Across direct 2.6 UI attempts: 6 invocations, 4 pass, 2 fail, 0 environment skips.
+
+### Preserved 2.5 and 2.2–2.4 UI regression
+
+| Serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ReviewQueueUITests (2.5 direct) | 10 | 0 | 0 |
+| AppShellUITests | 5 | 0 | 0 |
+| HomeResumeUITests | 12 | 0 | 0 |
+| CaptureLifecycleUITests | 17 | 0 | 0 |
+| **Total** | **44** | **0** | **0** |
+
+One serial invocation, `haena-026-ui-regression.xcresult`. The 2.5 presentation cases now assert
+the exact evidence text as the label of the quote *button* for the four proven cards; the 2.5
+missing-source case additionally asserts that no such button exists. No other 2.5 assertion
+changed. PasteTranscript and ProjectBrowser non-input cases were not rerun for 2.6: nothing in
+this diff touches those screens.
+
+### Completion checks and boundaries
+
+Final Debug build and build-for-testing passed. XcodeGen is idempotent: project.pbxproj SHA-256
+before/after regeneration is `e08955b633c7071dbe582dda08acacedc2473cb8788f520c75d7bcc6ed151cf9`
+(two new test files); `project.yml` remains `19a1118a9e9a12d1cba35011c78251e963300c7de5624ab264d28e47525b430e`.
+`git diff --check` passes. Dependency validation confirms **2 parents / 13 subtasks / 17 valid,
+unique, non-self, acyclic dependencies**; it ran as an equivalent offline script because the only
+installed Task Master executable lives under the unrelated human-gold checkout, which this session
+must not read, and `.taskmaster/tasks/tasks.json` was updated in the CLI's own field format.
+
+Out of scope, disclosed not repaired: `scripts/check-localization.py` already fails at the start
+HEAD on a pre-existing duplicate key `저장된 회의가 없습니다.`; the same audit with that one
+duplicate tolerated reports 511 keys, 415 static references, 0 missing, 0 placeholder mismatches.
+The quote button gives up text selection on the Review card; the transcript row keeps it. VoiceOver
+hint text is set in code and visible in the attached hierarchies but is not asserted by XCUITest.
+The physical character-input scenarios remain assigned to 2.10. No real user data, provider, model,
+microphone, audio, Notion, package, Release, Windows, push, PR or merge operation was performed.
+Task 2.7 was not started.
+
+Task Master is **parent 2 in-progress / 2.5 done / 2.6 done / 2.7 pending**.
+
+## 2.7 — Continuity Brief verdict flow
+
+### Baseline and audited contract
+
+2026-09-14. Start: `9568b37c8d239180262fdf2b0cf9f71853291bd3`, `codex/0.2.5-ui-plan`, upstream 1/0,
+clean. The read-only gate confirmed parent 2 in-progress / 2.5 done / 2.6 done / 2.7 pending, 17
+valid unique non-self acyclic dependencies, and the 2.6 evidence with its disclosed boundaries
+before 2.7 was set in-progress. No worktree, checkout, reset, stash or clean operation was used.
+
+Audit of the existing surface: `ManualContinuityBriefService` is a pure read (three repositories,
+no extractor, no provider); `WorkStateTransitionReviewService.review(action:)` accepts exactly
+`.approve` / `.reject` per proposal ID, `resolveAmbiguity(selection:)` accepts `.priorCandidate(id)`
+/ `.new` per group, and `WorkStateReviewService` approves or dismisses one Agenda Item. The six
+`WorkStateTransitionKind` cases map onto those verdicts as the service really applies them:
+`completed` → prior item becomes `.completed`; `delayed` (blocked / deferred / overdue) → prior
+status, due date and assignee stay exactly as stored and only this meeting's duplicate is cleared;
+`changed` → prior takes this meeting's content; `resolved` → question resolved and linked item
+approved; `new` → adopted; `same` → duplicate cleared. No verdict outside this set exists, so none
+was invented: `ManualContinuityBriefVerdictKind` is a total, typed function of the transition kind,
+and its labels name the real effect ("차단 확인 · 상태 유지", "완료로 반영", …). No schema, service
+or engine change was needed; no contract gap was found.
+
+### Implementation
+
+`ManualContinuityBriefVerdictQueue` splits the loaded Brief once into A (approved carried state,
+read-only), B (candidates awaiting a verdict: completion, blocked/delayed/overdue, other changes,
+link groups, agenda candidates — each with its own exact ID) and C (approved next agenda,
+read-only), with `ManualContinuityBriefCandidateState` naming why B is empty: `.unavailable`
+(transition store unreadable — not zero), `.firstBrief` (fewer than two meetings), `.none` (two or
+more meetings, nothing pending). The header states the count and the boundary in words: opening or
+browsing saves nothing; only a candidate's verdict button changes stored state. Each candidate card
+shows the affected exact object, its current stored status, the proposed transition, its evidence
+control, and an "on approval" line describing the effect before the user presses. Approve is the
+single prominent control; reject is bordered. All verdict controls are focusable, Space- and
+Return-activated, and carry a VoiceOver hint that says whether they change stored state. A refused
+or failed apply keeps the candidate, re-enables its buttons and says so in the feedback line. The
+seed gained `firstBrief`, `zeroCandidates` and `applyFailure` scenarios; `applyFailure` makes the
+in-memory transition store throw before any Project write. Task 2.5 Review / Projects ownership and
+the 2.6 evidence route are untouched.
+
+### Direct unit acceptance
+
+| Unit selection | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ManualContinuityBriefVerdictFlowTests (new) | 14 | 0 | 0 |
+| ManualContinuityBriefTests · WorkStateTransitionReviewServiceTests · WorkStateTransitionRepositoryTests | 71 | 0 | 0 |
+| 2.6 ReviewEvidenceNavigationTests · 2.5 ReviewQueueTests | 40 | 0 | 0 |
+| Navigation, destination, Home, capture, presentation, language regressions | 181 | 0 | 0 |
+| **Total** | **306** | **0** | **0** |
+
+The 14 new tests cover the A/B/C split of the full seed with no candidate in two groups, the
+total mapping of every transition kind to one verdict with distinct localized labels, first-Brief
+/ zero-candidate / unavailable as three states, load failure reported rather than shown as empty,
+opening twice with zero writes and a three-repository dependency shape, navigation-only reads,
+completion completing only its prior and moving it to A, blocked/deferred/overdue leaving status,
+due date, assignee and evidence unchanged, reject touching no object, resolution / link / agenda
+verdicts routing to their own services, agenda exclusion retiring one candidate, apply failure
+leaving Project and candidate untouched with a later retry applying, and the absence of any batch
+member. Two first-run assertion failures were my own ordering assumptions (inbox vs. queue order;
+`changes` order), corrected to set comparisons; the final selection ran green
+(`haena-027-unit-final.xcresult`).
+
+### Direct UI acceptance
+
+Synthetic seed, minimum window, foreground guard on every click:
+
+| Brief verdict UI | Distinct scenarios with final pass | Failed final | Skipped final |
+| --- | ---: | ---: | ---: |
+| ko / en sections + verdicts, apply failure, first Brief, zero candidates, keyboard Space | **6** | **0** | **0** |
+
+The ko/en scenario asserts the header count "판정 대기 8건 · 확정 아젠다 1건", the boundary line, A
+above B above C, zero verdict buttons inside A and C, the approved agenda item only in C and the
+candidate only in B, the four distinct primary labels (완료로 반영 / 차단 확인 · 상태 유지 / 지연
+확인 · 상태 유지 / 기한 초과 확인 · 기한 유지), the "on approval" effect line, no approve-all
+control; then one completion verdict removes exactly that card, moves "Export transition fixture"
+from A's active group to A's completed group and drops the count to 7 while the three progress
+candidates remain; then one reject removes only the deferred note (count 6). Apply failure keeps
+the candidate enabled, the count at 8, nothing moved to A, and shows the retry sentence. First
+Brief and zero candidates show their own sentence with no verdict button and no error or
+unavailable banner. The keyboard case tabs to the completion button, confirms its own "Keyboard
+Focused" attribute and applies it with Space.
+
+Attempt history: two invocations executed zero tests because the UI runner timed out enabling
+automation mode behind a macOS authentication window (`coreautha`); a bounded wait resumed once it
+closed. The first executed run passed 5 and failed the apply-failure case on my own wrong
+assumption (the prior's title is already visible in A as active work); the carried groups gained
+stable identifiers (`manual-brief-confirmed-<group>`) and the rerun passed 6/6
+(`haena-027-brief-ui-final.xcresult`, `haena-027-brief-ui-rerun.xcresult`). Across direct 2.7 UI
+attempts: 12 framework invocations, 11 pass, 1 fail, 0 guard skips, plus 2 runner-initialization
+failures with nothing executed.
+
+### Preserved Brief, 2.6, 2.5 and 2.2–2.4 UI regression
+
+| Serial UI suite | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ManualContinuityBriefUITests (legacy Brief journey, final) | 5 | 0 | 0 |
+| ReviewEvidenceUITests (2.6 direct) | 4 | 0 | 0 |
+| ReviewQueueUITests (2.5 direct) | 10 | 0 | 0 |
+| AppShellUITests | 5 | 0 | 0 |
+| HomeResumeUITests | 12 | 0 | 0 |
+| CaptureLifecycleUITests | 17 | 0 | 0 |
+| **Final distinct regression cases** | **53** | **0** | **0** |
+
+The first combined invocation (`haena-027-ui-regression.xcresult`) passed 47 and failed 6. One,
+`CaptureLifecycleUITests/testRecordCancellation`, asserted `sheets.count == 0` while the
+recording sheet was still dismissing; its immediate rerun passed without any change
+(`haena-027-brief-legacy-ui.xcresult`). The five legacy `ManualContinuityBriefUITests` cases all
+failed at their shared `selectSeedProject` helper, which still looked for a project-name static
+text inside `project-list`; the 2.2 shell exposes projects as `project-row-<id>` buttons. This is
+pre-existing: the unmodified suite, run against a `git archive` export of the start HEAD
+`9568b37c` (no checkout, no worktree), fails all five at the same line
+(`haena-027-head-baseline-brief-ui.xcresult`). The helper now clicks the seed row. With that fix
+three cases passed and two still missed their click after a scroll; the legacy `scrollTo` reported
+an element hittable while only partly inside the list viewport, the same finding the 2.5 ownership
+case recorded. The helper now requires two agreeing frame reads and full viewport containment,
+and the whole suite passed 5/5 in one invocation (`haena-027-brief-legacy-ui-final.xcresult`). No
+assertion of any legacy case was weakened. Across the legacy-suite attempts: 5 + 5 + 2 + 5
+invocations, 10 pass, 7 fail (5 stale helper, 2 click geometry), 0 guard skips, plus the 5
+HEAD-baseline failures recorded as evidence.
+
+### Completion checks and boundaries
+
+Final Debug build and build-for-testing passed. XcodeGen is idempotent: project.pbxproj SHA-256
+before/after regeneration is `52ad6b46e4bad358cc70754fcf2dc2d061705e7af7dc6dc27c80dd142d213143`
+(three new files); `project.yml` remains `19a1118a9e9a12d1cba35011c78251e963300c7de5624ab264d28e47525b430e`.
+`git diff --check` passes. Dependency validation (equivalent offline script, as in 2.6) confirms
+**2 parents / 13 subtasks / 17 valid, unique, non-self, acyclic dependencies**. The localization
+audit with the pre-existing `저장된 회의가 없습니다.` duplicate tolerated reports 547 keys, 440
+static references, 0 missing, 0 placeholder mismatches; that duplicate, the three physical
+character-input scenarios and the VoiceOver hint (set in code, visible in the attached hierarchies,
+not asserted by XCUITest) remain 2.10 boundaries, unchanged.
+
+Opening read-only evidence: `testOpeningTheBriefTwiceWritesNothingAndHasNoModelDependency` loads
+the Brief twice and after a rail navigation with the Project bytes unchanged, every proposal still
+`pendingReview`, no apply intent, and a read service whose only dependencies are the three
+repositories; scenario 35 of the existing suite still counts 0 writes per load. The UI journeys
+open the Brief through the seeded in-memory stores with `DeterministicWorkStateExtractor` and no
+provider, and the header count is unchanged after every open. Not verified: the transition-store
+unavailable state in the UI (its typed state and banner are unit-covered; the in-memory store has
+no read-failure switch and none was added), and both ambiguity choices being prominent — the
+existing "new" choice stays prominent and "link" bordered as before 2.7. No real user data,
+provider, model, microphone, audio, Notion, package, Release, Windows, push, PR or merge operation
+was performed. Task 2.8 was not started.
+
+Task Master is **parent 2 in-progress / 2.5 done / 2.6 done / 2.7 done / 2.8 pending**.
+
+## 2.8 — first core-loop self-tryout
+
+2026-09-14. Start `4910f4d8f1c7dc11e6418f3fef925060532705fe`, clean, ahead 2. A light tryout only:
+does the core path stay open for the product owner, not a release judgement.
+
+`TryoutSmokeUITests` drives a clean synthetic account: a fresh directory under the login session's
+per-user temporary directory through the Debug-only isolated-root contract, seeded with the
+existing deterministic fixture (one pasted meeting, one proposed decision with a stored quote),
+`DeterministicWorkStateExtractor`, no provider, no Application Support. Physical character input
+stays a 2.10 boundary, so the fixture stands in for paste.
+
+| Run | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Korean core loop: Home next action → Review (pending, quote) → transcript at the exact segment → approve one → quit → relaunch → next Brief | 1 | 0 | 0 |
+| English smoke of the same screens (copy, CTAs, navigation; nothing approved) | 1 | 0 | 0 |
+
+Observed on the attached screenshots without a guide: Home names the next action ("지금 할 일 ·
+결과 검토 1건 · 검토하기"); Review marks the candidate "미승인 후보" with 승인/제외 and the quote as
+the way to the transcript; the transcript marks exactly the stored segment; after approval Review
+says 0 and Home no longer offers a next action; after relaunch the Brief carries the decision under
+확정된 상태 · 확정 with "판정 대기 0건" and the first-Brief sentence. English: "AI Suggestions: 1",
+"Evidence …", Approve / Exclude, "Awaiting verdict: 1 · Approved agenda items: 0", "Approve New
+Item". No reproducible product blocker was found. Result: `haena-028-tryout-final.xcresult`.
+
+Tryout memo, not blockers: the driver must pass `TEST_RUNNER_HAENA_TRYOUT_TEMP=$TMPDIR` — the
+UI-test runner is sandboxed and its own temporary directory is refused by the app's isolation
+check, which by design ends the process (`fatalError`) and surfaces the macOS crash reporter; the
+first attempts did exactly that until the root was handed in, and the test now skips instead of
+launching when the value is absent. Two earlier invocations could not start because the UI runner
+waited on the macOS automation-mode authentication window after a reboot. A clean account shows
+the "내 프로필이 없어 모든 업무를 팀 업무로 표시합니다" notice on the Brief, which is honest but
+worth a look in the packaged tryout. Nothing else was run: no full regression, soak or packaging.
+
+Task Master is **parent 2 in-progress / 2.7 done / 2.8 done / 2.9 pending**.

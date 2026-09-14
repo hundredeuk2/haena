@@ -117,7 +117,8 @@ struct AppShellWorkspaceView: View {
             WorkStateReviewView(
                 project: project, reviewService: reviewService,
                 profileRepository: profileRepository, reminderRepository: reminderRepository,
-                reminderService: reminderService, onChanged: refresh
+                reminderService: reminderService, onChanged: refresh,
+                onOpenEvidence: { navigation.open(.transcriptEvidence(projectID: project.id, $0)) }
             ).id(navigation.requestID)
         case .briefs:
             ManualContinuityBriefView(
@@ -178,7 +179,8 @@ struct AppShellWorkspaceView: View {
                 speakerConfirmation: SpeakerConfirmationService(repository: repository),
                 onSpeakersChanged: refresh, audioAssetStore: audioAssetStore,
                 makeAudioPlayer: makeAudioPlayer, reanalysis: reanalysisService,
-                requestedPane: navigation.meetingPane
+                requestedPane: navigation.meetingPane,
+                requestedSegmentID: navigation.highlightedSegmentID(in: meeting.id)
             ).id(meeting.id)
         }
     }

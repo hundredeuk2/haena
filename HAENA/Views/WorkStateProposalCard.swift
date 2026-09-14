@@ -63,7 +63,11 @@ struct WorkStateProposalCard: View {
     let onExclude: () -> Void
     /// Nil for kinds with nothing to correct: only an action item carries an assignee and a due date.
     var onEdit: (() -> Void)?
-    private enum Control: Hashable { case approve, exclude, edit }
+    /// Set only when the caller has proved the quote's stored segment exists in its owning meeting.
+    /// Then the quote itself is the way to the transcript; otherwise it stays plain text beside the
+    /// source-issue line, so an unavailable source is never dressed up as a working link.
+    var onOpenEvidence: (() -> Void)?
+    private enum Control: Hashable { case evidence, approve, exclude, edit }
     @FocusState private var focusedControl: Control?
 
     private var dateFormatter: MeetingDateFormatter { MeetingDateFormatter(locale: AppLanguageSettings.shared.locale) }
@@ -115,9 +119,35 @@ struct WorkStateProposalCard: View {
             // The evidence is the whole point of the review step: a user should never have to take
             // the model's word for what was said.
             if let evidence = proposal.evidence {
-                WorkStateEvidenceQuote(quote: evidence.quote, timestamp: evidenceTimestamp)
+                if let onOpenEvidence {
+                    // A plain button, so the quote reads as a quote and Approve stays the one
+                    // prominent control. Keyboard and VoiceOver reach it exactly like the verdicts.
+                    Button(action: onOpenEvidence) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            WorkStateEvidenceQuote(quote: evidence.quote, timestamp: evidenceTimestamp, isSelectable: false)
+                            Image(systemName: AppShellDestination.transcripts.symbol)
+                                .font(.caption)
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .focusable()
+                    .focused($focusedControl, equals: .evidence)
+                    .onKeyPress(.space) {
+                        guard focusedControl == .evidence else { return .ignored }
+                        onOpenEvidence(); return .handled
+                    }
+                    .accessibilityLabel(WorkStateEvidenceQuote.label(quote: evidence.quote, timestamp: evidenceTimestamp))
+                    .accessibilityHint(L10n.text("원문에서 이 발화를 엽니다."))
                     .accessibilityIdentifier(identifiers.evidence)
                     .accessibilitySortPriority(3)
+                } else {
+                    WorkStateEvidenceQuote(quote: evidence.quote, timestamp: evidenceTimestamp)
+                        .accessibilityIdentifier(identifiers.evidence)
+                        .accessibilitySortPriority(3)
+                }
             }
             if let issue = sourceIssue ?? (proposal.evidence == nil ? .noEvidence : nil) {
                 Text(L10n.text(issue.localizationKey))
@@ -198,15 +228,26 @@ struct WorkStateStatusBadge: View {
 struct WorkStateEvidenceQuote: View {
     let quote: String
     var timestamp: String?
+    /// Off inside a button, where a selection gesture would fight the activation.
+    var isSelectable: Bool = true
 
     var body: some View {
-        Text(label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
+        if isSelectable {
+            Text(Self.label(quote: quote, timestamp: timestamp))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        } else {
+            Text(Self.label(quote: quote, timestamp: timestamp))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+        }
     }
 
-    private var label: String {
+    /// One string for the visible quote and the accessibility label, so what VoiceOver reads is
+    /// what is on screen.
+    static func label(quote: String, timestamp: String?) -> String {
         guard let timestamp else {
             return L10n.format("원문 “%@”", String(describing: quote))
         }

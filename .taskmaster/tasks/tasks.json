@@ -116,31 +116,31 @@
           {
             "id": 6,
             "title": "Link proposal evidence to transcript context",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.5"
             ],
             "details": "Selecting a source quote opens or focuses the owning meeting transcript and highlights the exact referenced segment. Keep the quote visible when audio or a segment is unavailable, and never fabricate a timestamp or fuzzy-match unrelated transcript text.",
             "testStrategy": "Tests cover exact evidence-segment IDs, multiple proposals in one meeting, missing audio, pasted transcripts, missing segment references, selection changes, and preserved proposal identity after navigation.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-13T16:08:35.000Z"
           },
           {
             "id": 7,
             "title": "Clarify the Continuity Brief verdict flow",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.2"
             ],
             "details": "Separate approved carried state, candidates awaiting verdict, and approved next agenda. Give completion, blocked/delayed, and ambiguous transitions distinct labels and actions. State the precise boundary: opening the Brief performs no write and no model call, while an explicit verdict can change durable state. Define first-Brief and zero-candidate states.",
             "testStrategy": "Synthetic Brief cases verify each verdict type, first-meeting and zero-candidate states, unchanged object IDs and due dates unless explicitly edited, and no model invocation when opening the Brief.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-14T13:09:52.000Z"
           },
           {
             "id": 8,
             "title": "Run the first core-loop self-tryout",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "2.3",
               "2.4",
@@ -150,7 +150,7 @@
             "details": "Build a local 0.2.5 candidate before adding the menu-bar enhancement. A fresh synthetic user must complete paste or import, inspect evidence, approve one item, relaunch, and open the next Brief without a separate guide. Record only reproducible blockers as Bug tasks.",
             "testStrategy": "One clean-account Korean run and one English smoke run; capture step, expected action, actual action, and blocker. No actual meeting, provider request, user Application Support, or release replacement.",
             "parentId": "2",
-            "updatedAt": "2026-09-13T04:30:37.000Z"
+            "updatedAt": "2026-09-14T13:55:11.000Z"
           },
           {
             "id": 9,
@@ -179,12 +179,12 @@
             "updatedAt": "2026-09-13T04:30:37.000Z"
           }
         ],
-        "updatedAt": "2026-09-13T13:45:25.000Z"
+        "updatedAt": "2026-09-14T13:55:11.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-09-13T13:45:25.000Z",
+      "lastModified": "2026-09-14T13:55:11.000Z",
       "taskCount": 2,
       "completedCount": 0,
       "tags": [

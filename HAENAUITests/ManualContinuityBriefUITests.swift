@@ -188,14 +188,13 @@ final class ManualContinuityBriefUITests: XCTestCase {
         )
     }
 
+    /// The 2.2 shell lists projects as `project-row-<id>` buttons; the seed project's id is fixed.
     private func selectSeedProject(in app: XCUIApplication) {
         let projectList = app.descendants(matching: .any)["project-list"]
         XCTAssertTrue(projectList.waitForExistence(timeout: 5))
-        let projectName = projectList.staticTexts.matching(
-            NSPredicate(format: "value == %@", "Continuity UI Seed")
-        ).firstMatch
-        XCTAssertTrue(projectName.waitForExistence(timeout: 5))
-        projectName.click()
+        let projectRow = app.buttons["project-row-C8000000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(projectRow.waitForExistence(timeout: 5))
+        projectRow.click()
     }
 
     // MARK: - Accessibility queries
@@ -266,7 +265,7 @@ final class ManualContinuityBriefUITests: XCTestCase {
     }
 
     private func scrollTo(_ target: XCUIElement, in app: XCUIApplication) -> Bool {
-        if target.waitForExistence(timeout: 1), target.isHittable {
+        if target.waitForExistence(timeout: 1), isSettledAndHittable(target) {
             return true
         }
         let scrollView = app.scrollViews[ID.screen]
@@ -278,11 +277,21 @@ final class ManualContinuityBriefUITests: XCTestCase {
             // actual target in bounded increments, including back up after an overshoot.
             let delta = target.exists && target.frame.midY < scrollView.frame.midY ? 200.0 : -200.0
             scrollView.scroll(byDeltaX: 0, deltaY: delta)
-            if target.waitForExistence(timeout: 0.5), target.isHittable {
+            if target.waitForExistence(timeout: 0.5), isSettledAndHittable(target, in: scrollView) {
                 return true
             }
         }
-        return target.exists && target.isHittable
+        return target.exists && isSettledAndHittable(target, in: scrollView)
+    }
+
+    /// A click synthesized while the smooth scroll is still animating lands where the element
+    /// *was*. Only report hittable once two frame reads agree.
+    private func isSettledAndHittable(_ target: XCUIElement, in scrollView: XCUIElement? = nil) -> Bool {
+        guard target.isHittable else { return false }
+        if let scrollView, !scrollView.frame.contains(target.frame) { return false }
+        let frame = target.frame
+        Thread.sleep(forTimeInterval: 0.4)
+        return target.isHittable && target.frame == frame
     }
 
     private func waitUntilGone(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {

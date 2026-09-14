@@ -509,3 +509,47 @@
 "이 제안 하나만 승인합니다." = "Approve only this proposal.";
 "선택한 승인 항목: %@" = "Selected approved item: %@";
 "선택한 항목은 현재 승인된 업무 상태에 없습니다." = "The selected item is not in the current approved work state.";
+
+/* Review evidence to transcript context (2.6). */
+"원문에서 이 발화를 엽니다." = "Opens this segment in the transcript.";
+"근거 발화" = "Evidence segment";
+"검토 근거 발화를 강조 표시했습니다." = "The review evidence segment is highlighted.";
+"선택한 근거 발화를 찾을 수 없습니다." = "The selected evidence segment could not be found.";
+
+/* Continuity Brief verdict flow (2.7). */
+"판정 대기 후보" = "Candidates Awaiting Verdict";
+"이번 회의에서 제안된 변화입니다. 아래 버튼을 누르기 전까지 저장된 상태는 바뀌지 않습니다." = "Changes proposed by this meeting. Nothing stored changes until you press a verdict button below.";
+"사용자가 이미 승인한 상태입니다. 이 화면에서는 읽기만 합니다." = "State you have already approved. This screen only reads it.";
+"확정된 다음 아젠다" = "Approved Next Agenda";
+"이미 승인한 다음 회의 안건입니다. 후보는 위의 판정 대기 목록에 있습니다." = "Next-meeting agenda items you have already approved. Candidates are in the awaiting-verdict list above.";
+"브리프를 열거나 둘러보는 것은 저장하지 않습니다. 후보의 판정 버튼만 저장된 상태를 바꿉니다." = "Opening or browsing the brief saves nothing. Only a candidate's verdict button changes stored state.";
+"판정 대기 %@건 · 확정 아젠다 %@건" = "Awaiting verdict: %@ · Approved agenda items: %@";
+"후보 목록을 불러오지 못했습니다. 후보가 0건이라는 뜻이 아닙니다." = "The candidate list could not be loaded. This does not mean there are no candidates.";
+"첫 브리프입니다. 비교할 이전 회의 상태가 없어 판정할 후보가 없습니다." = "This is the first brief. There is no earlier meeting state to compare, so nothing awaits a verdict.";
+"판정할 후보가 없습니다. 이전 회의 상태가 그대로 이어집니다." = "Nothing awaits a verdict. The earlier meeting state carries forward unchanged.";
+"완료로 반영" = "Mark Completed";
+"완료 후보 거절" = "Reject Completion";
+"차단 확인 · 상태 유지" = "Acknowledge Block · Keeps Status";
+"지연 확인 · 상태 유지" = "Acknowledge Delay · Keeps Status";
+"기한 초과 확인 · 기한 유지" = "Acknowledge Overdue · Keeps Due Date";
+"진행 후보 거절" = "Reject Progress Note";
+"변경 반영" = "Apply Change";
+"변경 거절" = "Reject Change";
+"해결로 반영" = "Mark Resolved";
+"해결 거절" = "Reject Resolution";
+"새 항목 승인" = "Approve New Item";
+"새 항목 거절" = "Reject New Item";
+"중복 정리" = "Merge Duplicate";
+"중복 거절" = "Reject Duplicate";
+"승인 시 · %@" = "On approval · %@";
+"기존 항목을 완료로 표시합니다." = "Marks the existing item completed.";
+"기존 항목의 상태와 기한은 그대로 두고 이번 회의 후보만 정리합니다." = "Leaves the existing item's status and due date unchanged and clears this meeting's candidate.";
+"기존 항목 내용을 이번 회의 내용으로 갱신합니다." = "Updates the existing item with this meeting's content.";
+"질문을 해결로 표시하고 연결된 항목을 승인합니다." = "Marks the question resolved and approves the linked item.";
+"이번 회의 항목을 새 항목으로 승인합니다." = "Approves this meeting's item as a new item.";
+"이번 회의 중복 후보를 정리하고 기존 항목을 유지합니다." = "Clears this meeting's duplicate and keeps the existing item.";
+"영향 대상 · %@" = "Affects · %@";
+"현재 상태 · %@" = "Current status · %@";
+"이 후보 하나에만 적용되며 저장된 상태를 바꿉니다." = "Applies to this one candidate and changes stored state.";
+"이 후보 하나만 거절로 기록하며 기존 상태는 바꾸지 않습니다." = "Records a rejection for this one candidate and leaves existing state unchanged.";
+"후보는 그대로 남아 있습니다. 다시 시도할 수 있습니다." = "The candidate is still here. You can try again.";
