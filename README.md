@@ -81,24 +81,32 @@ approval or bulk apply.
 
 ## Install the preview
 
-Current download: **0.2.4 (8) Experimental Developer Preview**
+Current download: **0.2.5 (9) Experimental Developer Preview**
 
-**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip)** ·
-[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip.sha256) ·
-[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.4-preview.1)
+**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip)** ·
+[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip.sha256) ·
+[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)
 
 | Item | Value |
 | --- | --- |
 | macOS | 14.0 or later |
-| Package | `HAE.NA-0.2.4-8-unsigned.app.zip` |
+| Package | `HAE.NA-0.2.5-9-unsigned.app.zip` |
 | Architecture | universal — Apple silicon + Intel |
-| SHA-256 | `64d85ffc9186f47fffb3d92c450d88297836c0e69235b29a7982ea0522eb1726` |
+| SHA-256 | `7f69eef6f19f018962a0156f44b910e484a50b15e3fa8de76d299e1bc0d67785` |
 | Signing | ad-hoc; no Developer ID signature or notarization |
 
-No GitHub account is required to download. This is the previously frozen private candidate,
-published without rebuilding or repackaging; its source commit is `19728e50`.
-Later `main` documentation updates do not change this binary. The packaged-app tryout is still pending.
-See the [0.2.4 release notes](docs/private-preview-0.2.4.md) for verification status and known risks.
+No GitHub account is required to download. This package was built from source commit `4ab2c9f0`
+after the 0.2.5 UI integration. A synthetic clean-account core-loop tryout passed before packaging;
+the product owner's real packaged-app tryout is still pending. See the
+[0.2.5 release notes](docs/private-preview-0.2.5.md) for exact verification scope and known risks.
+
+### What's new in 0.2.5
+
+- A persistent Home / Review / Briefs / Transcripts / Projects shell with clearer next actions.
+- Pending AI proposals live in Review; approved work state lives in Projects.
+- A proposal's evidence quote opens the exact stored transcript segment by ID.
+- Continuity Briefs separate confirmed carried state, candidates awaiting a verdict, and approved agenda.
+- Korean and English display UI with an explicit System / 한국어 / English setting.
 
 **Windows:** [experimental text-pilot source and build instructions](https://github.com/hundredeuk2/haena/tree/82183e844689fe4a7a8f44e0fb9bb9fc88c9b006/pilot/windows-text)
 are available on a separate branch. Core tests passed on macOS (27/27) and WPF cross-compilation
@@ -108,7 +116,7 @@ This synthetic-fixture pilot has no live AI, recording, or macOS data-file compa
 Verify the package before opening it:
 
 ```bash
-shasum -a 256 HAE.NA-0.2.4-8-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.5-9-unsigned.app.zip
 ```
 
 Then:
@@ -229,8 +237,8 @@ remove the Keychain item separately.
 HAE.NA's product model is intended to be language-independent, but the current app is **not yet a
 globally validated build**:
 
-- The downloadable 0.2.4 interface is Korean-first. English UI and language selection are separate
-  work in progress, awaiting UI regression verification; they are not included in this ZIP.
+- The downloadable 0.2.5 app includes Korean and English display UI with System / 한국어 / English
+  selection. This changes app chrome only; it does not translate meeting text or model output.
 - Korean meetings have received the most hands-on testing.
 - English and other languages have not completed end-to-end quality evaluation.
 - Mixed-language detection and post-meeting translation are not implemented.
@@ -243,7 +251,7 @@ translated text.
 
 - Unsigned and unnotarized; installation requires the manual macOS steps above.
 - Manual downloads through GitHub prereleases; no automatic updates.
-- No English UI in this ZIP; language quality is not broadly validated.
+- English display UI is included, but English meeting extraction quality is not broadly validated.
 - No mixed-language detection or translation.
 - No quantitative WER or speaker-diarization accuracy report yet.
 - No video-to-audio extraction.
@@ -254,9 +262,12 @@ translated text.
 
 ## Evaluation status
 
-The 0.2.4 deletion lifecycle passed **149/149 focused tests**. Package version, universal architecture,
-ad-hoc signature, SHA-256, and privacy contents were checked. The remaining product-validation gate is a
-short packaged-app tryout of:
+At the final 0.2.5 UI checkpoint, **306 selected unit tests**, **6 direct Brief UI cases**, and
+**53 preserved UI regression cases** passed. A later light synthetic tryout passed the Korean core
+loop and an English UI smoke. The published package was then checked for version, universal
+architecture, ad-hoc signature, SHA-256, and excluded development/user-data markers. These are
+implementation and packaging checks, not a real-meeting validation. The remaining product gate is
+the product owner's short packaged-app tryout of:
 
 ```text
 Save → Extract → Review/Approve → Next Brief → Quit/Reopen
@@ -375,24 +386,31 @@ terms are intentional. OpenAI APIs and models are not covered by this license; s
 
 ## Preview 설치
 
-현재 다운로드: **0.2.4 (8) Experimental Developer Preview**
+현재 다운로드: **0.2.5 (9) Experimental Developer Preview**
 
-**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip)** ·
-[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.4-preview.1/HAE.NA-0.2.4-8-unsigned.app.zip.sha256) ·
-[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.4-preview.1)
+**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip)** ·
+[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip.sha256) ·
+[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)
 
 | 항목 | 값 |
 | --- | --- |
 | macOS | 14.0 이상 |
-| 패키지 | `HAE.NA-0.2.4-8-unsigned.app.zip` |
+| 패키지 | `HAE.NA-0.2.5-9-unsigned.app.zip` |
 | 아키텍처 | universal — Apple silicon + Intel |
-| SHA-256 | `64d85ffc9186f47fffb3d92c450d88297836c0e69235b29a7982ea0522eb1726` |
+| SHA-256 | `7f69eef6f19f018962a0156f44b910e484a50b15e3fa8de76d299e1bc0d67785` |
 | 서명 | ad-hoc; Developer ID 서명·공증 없음 |
 
-GitHub 로그인 없이 받을 수 있습니다. 기존 비공개 후보를 재빌드·재패키징하지 않고 그대로 공개하며,
-바이너리의 source commit은 `19728e50`입니다. 이후 `main` 문서 변경은 ZIP에 반영된 제품 변경이 아닙니다.
-패키징된 앱의 실제 tryout은 아직 대기 중입니다.
-빌드별 사실·검증 상태·알려진 위험은 [0.2.4 릴리스 노트](docs/private-preview-0.2.4.md)를 확인하세요.
+GitHub 로그인 없이 받을 수 있습니다. 0.2.5 UI 통합 뒤 source commit `4ab2c9f0`에서 빌드했습니다.
+패키징 전 합성 clean-account 핵심 루프는 통과했지만 제품 오너의 실제 패키지 tryout은 아직 남았습니다.
+정확한 검증 범위와 알려진 위험은 [0.2.5 릴리스 노트](docs/private-preview-0.2.5.md)를 확인하세요.
+
+### 0.2.5의 주요 변경
+
+- Home / Review / Briefs / Transcripts / Projects를 잇는 지속적인 앱 shell과 명확한 다음 행동.
+- 미승인 AI 후보는 Review, 승인된 업무 상태는 Projects가 소유하도록 화면 역할 분리.
+- 후보의 근거 인용문에서 저장된 정확한 Transcript segment ID로 이동.
+- Continuity Brief에서 확정 이월 상태, 판정 대기 후보, 승인 아젠다를 분리.
+- 시스템 설정 / 한국어 / English를 선택할 수 있는 한국어·영어 표시 UI.
 
 **Windows:** 별도 브랜치의 [텍스트 pilot 소스와 빌드 안내](https://github.com/hundredeuk2/haena/tree/82183e844689fe4a7a8f44e0fb9bb9fc88c9b006/pilot/windows-text)를
 공개합니다. macOS core 테스트 27/27과 WPF 크로스컴파일은 통과했으나 실제 Windows 실행은 미검증입니다.
@@ -401,7 +419,7 @@ GitHub 로그인 없이 받을 수 있습니다. 기존 비공개 후보를 재�
 실행 전에 패키지를 검증하세요.
 
 ```bash
-shasum -a 256 HAE.NA-0.2.4-8-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.5-9-unsigned.app.zip
 ```
 
 그다음:
@@ -516,8 +534,8 @@ Application Support 폴더를 확인하거나 삭제한 뒤 Keychain 항목을 �
 HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지만, 현재 앱은 **글로벌 검증이 끝난
 빌드가 아닙니다.**
 
-- 다운로드하는 0.2.4 UI는 한국어 우선입니다. 영어 UI·언어 선택은 별도 작업으로 UI 회귀 검증을
-  기다리고 있으며 이 ZIP에는 포함되지 않았습니다.
+- 다운로드하는 0.2.5 앱에는 시스템 설정 / 한국어 / English를 선택할 수 있는 표시 UI가 포함됩니다.
+  앱 화면만 바뀌며 회의 원문이나 모델 결과를 번역하지는 않습니다.
 - 한국어 회의를 가장 많이 직접 확인했습니다.
 - 영어와 다른 언어는 전체 흐름의 품질 평가를 마치지 않았습니다.
 - 혼합 언어 감지와 회의 후 번역은 구현되지 않았습니다.
@@ -529,7 +547,7 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 
 - 서명·공증되지 않아 위의 수동 macOS 설치 절차가 필요합니다.
 - GitHub prerelease에서 수동 다운로드하며 자동 업데이트는 없습니다.
-- 이 ZIP에는 영어 UI가 없고 언어별 품질을 폭넓게 검증하지 않았습니다.
+- 영어 표시 UI는 포함되지만 영어 회의 추출 품질은 폭넓게 검증하지 않았습니다.
 - 혼합 언어 감지와 번역이 없습니다.
 - WER와 화자 분리 정확도의 정량 보고서가 없습니다.
 - 영상에서 오디오를 추출하지 않습니다.
@@ -540,9 +558,11 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 
 ## 검증 상태
 
-0.2.4 삭제 lifecycle은 **focused test 149/149**를 통과했습니다. 패키지 버전, universal 아키텍처,
-ad-hoc 서명, SHA-256과 패키지의 개인정보 포함 여부를 확인했습니다. 남은 제품 검증 관문은
-패키징된 앱에서 다음 실제 흐름을 짧게 사용해보는 것입니다.
+0.2.5 최종 UI checkpoint에서 **선별 unit 306건**, **Brief 직접 UI 6건**, **보존 UI 회귀 53건**이
+통과했습니다. 이후 가벼운 합성 tryout에서 한국어 핵심 루프와 영어 UI smoke가 통과했습니다.
+공개 패키지는 버전, universal 아키텍처, ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을
+확인했습니다. 이는 구현·패키지 검증이며 실제 회의 검증은 아닙니다. 남은 제품 관문은 제품 오너가
+패키징된 앱에서 다음 흐름을 짧게 직접 사용해보는 것입니다.
 
 ```text
 저장 → 추출 → 검토·승인 → 다음 Brief → 종료·재실행
