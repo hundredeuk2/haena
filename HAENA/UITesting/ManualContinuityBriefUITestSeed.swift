@@ -6,10 +6,45 @@ import Foundation
 /// present. It contains no user path, credential, audio, or network provider and is never written to
 /// Application Support.
 struct ManualContinuityBriefUITestSeed {
+    /// 2.7 verdict-flow states. `full` is the original seed; the others narrow it so a test can see
+    /// a first Brief, a zero-candidate Brief, and an apply that fails before any Project write.
+    enum Scenario: String { case full, firstBrief, zeroCandidates, applyFailure }
+    struct ApplyFailure: Error {}
+
     let project: Project
     let proposals: [WorkStateTransitionProposal]
     let ambiguityGroups: [WorkStateAmbiguousMatchGroup]
     let profile: LocalUserProfile
+    var scenario: Scenario = .full
+    var failsApply: Bool { scenario == .applyFailure }
+
+    static func select(environment: [String: String]) -> ManualContinuityBriefUITestSeed? {
+        guard environment["HAENA_UI_TESTING"] == "1",
+              environment["HAENA_UI_TESTING_MANUAL_BRIEF"] == "1" else { return nil }
+        let scenario = environment["HAENA_UI_TEST_MANUAL_BRIEF_SCENARIO"].flatMap(Scenario.init(rawValue:)) ?? .full
+        return make(scenario: scenario)
+    }
+
+    static func make(scenario: Scenario) -> ManualContinuityBriefUITestSeed {
+        var seed = make()
+        seed.scenario = scenario
+        switch scenario {
+        case .full, .applyFailure:
+            return seed
+        case .firstBrief, .zeroCandidates:
+            // Only user-approved objects remain; every pending candidate, proposal and group is gone.
+            var project = seed.project
+            project.decisions.removeAll { PendingAIProposalPolicy.isPending($0) }
+            project.actionItems.removeAll { PendingAIProposalPolicy.isPending($0) }
+            project.openQuestions.removeAll { PendingAIProposalPolicy.isPending($0) }
+            project.nextAgenda.removeAll { PendingAIProposalPolicy.isPending($0) }
+            if scenario == .firstBrief {
+                project.meetings = Array(project.meetings.prefix(1))
+            }
+            return ManualContinuityBriefUITestSeed(project: project, proposals: [], ambiguityGroups: [],
+                                                   profile: seed.profile, scenario: scenario)
+        }
+    }
 
     static func make() -> ManualContinuityBriefUITestSeed {
         let projectID = id(1)

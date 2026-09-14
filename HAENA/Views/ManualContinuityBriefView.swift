@@ -23,6 +23,12 @@ enum ManualContinuityBriefAccessibility {
     static let closeEvidence = "close-manual-continuity-brief-evidence"
     static let feedback = "manual-continuity-brief-feedback"
     static let headerSummary = "manual-continuity-brief-header-summary"
+    /// 2.7: the three ownership sections and the typed candidate state.
+    static let boundary = "manual-continuity-brief-boundary"
+    static let candidatesSection = "manual-continuity-brief-candidates-section"
+    static let candidateState = "manual-continuity-brief-candidate-state"
+    static let completionSection = "manual-continuity-brief-completion-section"
+    static let agendaCandidateSection = "manual-continuity-brief-agenda-candidate-section"
 
     static func transitionCard(_ id: UUID) -> String { "manual-brief-transition-\(id.uuidString)" }
     static func evidence(_ id: UUID) -> String { "manual-brief-evidence-\(id.uuidString)" }
@@ -37,6 +43,8 @@ enum ManualContinuityBriefAccessibility {
     static func delayBadge(_ kind: ManualContinuityBriefDelayKind) -> String {
         "manual-brief-delay-\(kind.rawValue)"
     }
+    static func verdictEffect(_ id: UUID) -> String { "manual-brief-effect-\(id.uuidString)" }
+    static func currentStatus(_ id: UUID) -> String { "manual-brief-current-status-\(id.uuidString)" }
 }
 
 /// A read-and-review surface for continuity state between meetings.
@@ -156,16 +164,17 @@ struct ManualContinuityBriefView: View {
         .accessibilityIdentifier(ManualContinuityBriefAccessibility.error)
     }
 
+    /// A: already approved · B: awaiting a verdict · C: approved next agenda. The split is computed
+    /// once by `ManualContinuityBriefVerdictQueue` so the header count and the sections agree.
     private func loadedContent(_ brief: ManualContinuityBrief) -> some View {
-        ScrollView {
+        let queue = ManualContinuityBriefVerdictQueue(brief: brief)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                header(brief)
+                header(brief, queue: queue)
                 warnings(brief)
                 confirmedState(brief)
-                delayedState(brief)
-                reviewCandidates(brief)
-                ambiguityCandidates(brief)
-                agenda(brief)
+                candidates(queue)
+                approvedAgenda(queue)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -174,19 +183,12 @@ struct ManualContinuityBriefView: View {
         }
     }
 
-    private func header(_ brief: ManualContinuityBrief) -> some View {
+    private func header(_ brief: ManualContinuityBrief, queue: ManualContinuityBriefVerdictQueue) -> some View {
         let latestMeeting = brief.project.meetings.max { left, right in
             if left.occurredAt != right.occurredAt { return left.occurredAt < right.occurredAt }
             return left.id.uuidString.lowercased() < right.id.uuidString.lowercased()
         }
-        let ambiguityTransitionIDs = Set(
-            brief.ambiguousMatches.flatMap { match in
-                match.selections.compactMap(\.transitionID)
-            }
-        )
-        let reviewCount = brief.pendingTransitions.filter {
-            !ambiguityTransitionIDs.contains($0.proposal.id)
-        }.count + brief.ambiguousMatches.count
+        let reviewCount = queue.candidateCount
         return VStack(alignment: .leading, spacing: 6) {
             Text(L10n.text("회의 연속성 브리프"))
                 .font(.title2.bold())
@@ -200,10 +202,16 @@ struct ManualContinuityBriefView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(L10n.format("검토 후보 %@건 · 확정 아젠다 %@건", String(describing: reviewCount), String(describing: brief.approvedNextAgenda.count)))
+            Text(L10n.format("판정 대기 %@건 · 확정 아젠다 %@건", String(describing: reviewCount), String(describing: brief.approvedNextAgenda.count)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.headerSummary)
+            // The boundary, stated where the user reads it: looking saves nothing.
+            Text(L10n.text("브리프를 열거나 둘러보는 것은 저장하지 않습니다. 후보의 판정 버튼만 저장된 상태를 바꿉니다."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(ManualContinuityBriefAccessibility.boundary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -222,7 +230,7 @@ struct ManualContinuityBriefView: View {
             warningCard(L10n.text("내 프로필을 불러오지 못해 모든 업무를 팀 업무로 표시합니다."))
         }
         if let feedback {
-            Text(L10n.text(feedback.message))
+            Text(feedback.isComposed ? feedback.message : L10n.text(feedback.message))
                 .font(.callout)
                 .foregroundStyle(feedback.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                 .accessibilityIdentifier(ManualContinuityBriefAccessibility.feedback)
@@ -244,21 +252,23 @@ struct ManualContinuityBriefView: View {
     private func confirmedState(_ brief: ManualContinuityBrief) -> some View {
         briefSection(
             L10n.text("확정된 상태"),
-            subtitle: L10n.text("이미 검토를 마친 프로젝트 상태입니다."),
+            subtitle: L10n.text("사용자가 이미 승인한 상태입니다. 이 화면에서는 읽기만 합니다."),
             identifier: ManualContinuityBriefAccessibility.confirmedSection
         ) {
-            confirmedGroup(L10n.text("결정"), values: brief.confirmedDecisions.map(\.statement))
+            confirmedGroup(L10n.text("결정"), values: brief.confirmedDecisions.map(\.statement), key: "decisions")
 
             if brief.personalisation == .personalised {
-                confirmedGroup(L10n.text("내가 맡은 일"), values: brief.myActiveCommitments.map(\.title))
+                confirmedGroup(L10n.text("내가 맡은 일"), values: brief.myActiveCommitments.map(\.title), key: "mine")
             }
-            confirmedGroup(L10n.text("팀의 진행 업무"), values: brief.otherCommitments.map(\.title))
-            confirmedGroup(L10n.text("완료된 업무"), values: brief.completedCommitments.map(\.title))
-            confirmedGroup(L10n.text("미해결 질문"), values: brief.unresolvedQuestions.map(\.question))
+            confirmedGroup(L10n.text("팀의 진행 업무"), values: brief.otherCommitments.map(\.title), key: "team")
+            confirmedGroup(L10n.text("완료된 업무"), values: brief.completedCommitments.map(\.title), key: "completed")
+            confirmedGroup(L10n.text("미해결 질문"), values: brief.unresolvedQuestions.map(\.question), key: "questions")
         }
     }
 
-    private func confirmedGroup(_ title: String, values: [String]) -> some View {
+    /// `key` names the group for tests and assistive queries: which carried group an item sits in
+    /// is the fact a verdict changes, so it has to be addressable without matching titles.
+    private func confirmedGroup(_ title: String, values: [String], key: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(title)
@@ -280,65 +290,99 @@ struct ManualContinuityBriefView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("manual-brief-confirmed-\(key)")
     }
 
-    // MARK: - Review candidates
+    // MARK: - B: candidates awaiting a verdict
+
+    /// One section for everything this meeting asks the user to decide, grouped by the verdict the
+    /// service can apply. Empty states name their cause; a load failure is never shown as zero.
+    private func candidates(_ queue: ManualContinuityBriefVerdictQueue) -> some View {
+        briefSection(
+            L10n.text("판정 대기 후보"),
+            subtitle: L10n.text("이번 회의에서 제안된 변화입니다. 아래 버튼을 누르기 전까지 저장된 상태는 바뀌지 않습니다."),
+            identifier: ManualContinuityBriefAccessibility.candidatesSection
+        ) {
+            candidateState(queue.state)
+            candidateGroup(L10n.text("완료 후보"), identifier: ManualContinuityBriefAccessibility.completionSection,
+                           items: queue.completions)
+            candidateGroup(L10n.text("막히거나 늦어진 일"), identifier: ManualContinuityBriefAccessibility.delaySection,
+                           subtitle: L10n.text("지연, 차단, 기한 초과는 서로 다른 근거로 표시합니다."), items: queue.progress)
+            candidateGroup(L10n.text("검토할 변화"), identifier: ManualContinuityBriefAccessibility.reviewSection,
+                           subtitle: L10n.text("한 항목씩 근거를 확인한 뒤 승인하거나 거절하세요."), items: queue.changes,
+                           emptyText: queue.state == .none || queue.state == .firstBrief ? nil : L10n.text("검토할 변화가 없습니다."))
+            ambiguityCandidates(queue.carried)
+            agendaCandidates(queue)
+        }
+    }
 
     @ViewBuilder
-    private func delayedState(_ brief: ManualContinuityBrief) -> some View {
-        if !brief.delayedOrBlockedItems.isEmpty {
-            briefSection(
-                L10n.text("막히거나 늦어진 일"),
-                subtitle: L10n.text("지연, 차단, 기한 초과는 서로 다른 근거로 표시합니다."),
-                identifier: ManualContinuityBriefAccessibility.delaySection
-            ) {
-                ForEach(brief.delayedOrBlockedItems, id: \.transition.proposal.id) { item in
-                    transitionCard(
-                        item.transition,
-                        delayKind: item.kind,
-                        assigneeDisplayName: item.assigneeDisplayName
-                    )
-                }
-            }
+    private func candidateState(_ state: ManualContinuityBriefCandidateState) -> some View {
+        switch state {
+        case .pending:
+            EmptyView()
+        case .unavailable:
+            Text(L10n.text("후보 목록을 불러오지 못했습니다. 후보가 0건이라는 뜻이 아닙니다."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(ManualContinuityBriefAccessibility.candidateState)
+        case .firstBrief:
+            Text(L10n.text("첫 브리프입니다. 비교할 이전 회의 상태가 없어 판정할 후보가 없습니다."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(ManualContinuityBriefAccessibility.candidateState)
+        case .none:
+            Text(L10n.text("판정할 후보가 없습니다. 이전 회의 상태가 그대로 이어집니다."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(ManualContinuityBriefAccessibility.candidateState)
         }
     }
 
-    private func reviewCandidates(_ brief: ManualContinuityBrief) -> some View {
-        let delayIDs = Set(brief.delayedOrBlockedItems.map(\.transition.proposal.id))
-        let ambiguityIDs = Set(
-            brief.ambiguousMatches.flatMap { $0.selections.compactMap(\.transitionID) }
-        )
-        let plainAgendaIDs = Set(
-            brief.agendaCandidates.flatMap { candidate in
-                candidate.sources.compactMap { source in
-                    source.kind == .pendingAgendaItem ? source.transitionID : nil
+    @ViewBuilder
+    private func candidateGroup(
+        _ title: String,
+        identifier: String,
+        subtitle: String? = nil,
+        items: [ManualContinuityBriefVerdictQueue.TransitionCandidate],
+        emptyText: String? = nil
+    ) -> some View {
+        if !items.isEmpty || emptyText != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline)
+                    if let subtitle {
+                        Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if items.isEmpty, let emptyText {
+                    Text(emptyText)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(items) { item in
+                        transitionCard(
+                            item.transition,
+                            verdict: item.verdict,
+                            delayKind: item.delay?.kind,
+                            assigneeDisplayName: item.delay?.assigneeDisplayName
+                        )
+                    }
                 }
             }
-        )
-        let remaining = brief.pendingTransitions.filter {
-            !delayIDs.contains($0.proposal.id)
-                && !ambiguityIDs.contains($0.proposal.id)
-                && !plainAgendaIDs.contains($0.proposal.id)
-        }
-        return briefSection(
-            L10n.text("검토할 변화"),
-            subtitle: L10n.text("한 항목씩 근거를 확인한 뒤 승인하거나 거절하세요."),
-            identifier: ManualContinuityBriefAccessibility.reviewSection
-        ) {
-            if remaining.isEmpty {
-                Text(L10n.text("검토할 변화가 없습니다."))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(remaining, id: \.proposal.id) { transition in
-                    transitionCard(transition)
-                }
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(identifier)
         }
     }
 
     private func transitionCard(
         _ transition: ManualContinuityBriefTransition,
+        verdict: ManualContinuityBriefVerdictKind,
         delayKind: ManualContinuityBriefDelayKind? = nil,
         assigneeDisplayName: String? = nil
     ) -> some View {
@@ -364,6 +408,19 @@ struct ManualContinuityBriefView: View {
                 Text(L10n.format("출처 회의 · %@", String(describing: sourceMeetingTitle)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            // The exact object a verdict would touch, and where it stands now — read from the
+            // Project value the read model resolved, never inferred from the proposal's text.
+            if let affected = transition.previousState ?? transition.currentState {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.format("영향 대상 · %@", String(describing: workStateLabel(affected.kind) + " “" + affected.displayText + "”")))
+                    Text(L10n.format("현재 상태 · %@", String(describing: currentStatusLabel(affected))))
+                        .accessibilityIdentifier(ManualContinuityBriefAccessibility.currentStatus(proposal.id))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if delayKind != nil {
@@ -420,7 +477,13 @@ struct ManualContinuityBriefView: View {
                     .foregroundStyle(.red)
             }
 
-            reviewActions(for: transition)
+            Text(L10n.format("승인 시 · %@", L10n.text(verdict.approveEffectKey)))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(ManualContinuityBriefAccessibility.verdictEffect(proposal.id))
+
+            reviewActions(for: transition, verdict: verdict)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -433,10 +496,11 @@ struct ManualContinuityBriefView: View {
         .accessibilityIdentifier(ManualContinuityBriefAccessibility.transitionCard(proposal.id))
     }
 
+    /// Approve is the only prominent control: it is the one that changes the Project. Reject records
+    /// a verdict for this candidate alone and changes nothing that was already approved.
     private func reviewActions(
         for transition: ManualContinuityBriefTransition,
-        approveLabel: String = L10n.text("승인하고 반영"),
-        rejectLabel: String = L10n.text("거절")
+        verdict: ManualContinuityBriefVerdictKind
     ) -> some View {
         let id = transition.proposal.id
         let approveDisabled: Bool
@@ -447,27 +511,25 @@ struct ManualContinuityBriefView: View {
         }
 
         return VStack(spacing: 8) {
-            Button {
+            BriefVerdictButton(
+                title: L10n.text(verdict.approveKey),
+                hint: L10n.text("이 후보 하나에만 적용되며 저장된 상태를 바꿉니다."),
+                identifier: ManualContinuityBriefAccessibility.approve(id),
+                isPrimary: true,
+                isDisabled: approveDisabled || busyProposalIDs.contains(id)
+            ) {
                 Task { await review(transition, action: .approve) }
-            } label: {
-                Text(approveLabel)
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .disabled(approveDisabled || busyProposalIDs.contains(id))
-            .accessibilityIdentifier(ManualContinuityBriefAccessibility.approve(id))
 
-            Button {
+            BriefVerdictButton(
+                title: L10n.text(verdict.rejectKey),
+                hint: L10n.text("이 후보 하나만 거절로 기록하며 기존 상태는 바꾸지 않습니다."),
+                identifier: ManualContinuityBriefAccessibility.reject(id),
+                isPrimary: false,
+                isDisabled: busyProposalIDs.contains(id)
+            ) {
                 Task { await review(transition, action: .reject) }
-            } label: {
-                Text(rejectLabel)
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
-            .disabled(busyProposalIDs.contains(id))
-            .accessibilityIdentifier(ManualContinuityBriefAccessibility.reject(id))
         }
         .frame(maxWidth: .infinity)
     }
@@ -584,40 +646,52 @@ struct ManualContinuityBriefView: View {
 
     // MARK: - Agenda
 
-    private func agenda(_ brief: ManualContinuityBrief) -> some View {
+    /// Agenda candidates belong to B: they are pending until the user says otherwise.
+    @ViewBuilder
+    private func agendaCandidates(_ queue: ManualContinuityBriefVerdictQueue) -> some View {
+        if !queue.agendaCandidates.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L10n.text("아젠다 후보")).font(.headline)
+                ForEach(queue.agendaCandidates, id: \.agendaItem.id) { candidate in
+                    VStack(alignment: .leading, spacing: 8) {
+                        agendaRow(candidate.agendaItem, badge: L10n.text("아젠다 후보"), tone: .review)
+                        if let source = candidate.sources.first {
+                            Text(agendaSourceLabel(source.kind))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            evidenceControl(
+                                source.evidence,
+                                ownerID: candidate.agendaItem.id,
+                                fallbackTitle: candidate.agendaItem.title
+                            )
+                        }
+                        agendaActions(for: candidate.agendaItem)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(ManualContinuityBriefAccessibility.agendaCandidateSection)
+        }
+    }
+
+    /// C: only what the user already approved. No verdict control lives here.
+    private func approvedAgenda(_ queue: ManualContinuityBriefVerdictQueue) -> some View {
         briefSection(
-            L10n.text("다음 아젠다"),
-            subtitle: L10n.text("확정된 항목과 아직 검토가 필요한 후보를 구분합니다."),
+            L10n.text("확정된 다음 아젠다"),
+            subtitle: L10n.text("이미 승인한 다음 회의 안건입니다. 후보는 위의 판정 대기 목록에 있습니다."),
             identifier: ManualContinuityBriefAccessibility.agendaSection
         ) {
-            if brief.approvedNextAgenda.isEmpty && brief.agendaCandidates.isEmpty {
-                Text(L10n.text("다음 아젠다가 없습니다."))
+            if queue.approvedAgenda.isEmpty {
+                Text(L10n.text("아직 확인된 다음 아젠다가 없습니다."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-
-            ForEach(brief.approvedNextAgenda) { item in
+            ForEach(queue.approvedAgenda) { item in
                 agendaRow(item, badge: L10n.text("확정"), tone: .confirmed)
-            }
-
-            ForEach(brief.agendaCandidates, id: \.agendaItem.id) { candidate in
-                VStack(alignment: .leading, spacing: 8) {
-                    agendaRow(candidate.agendaItem, badge: L10n.text("아젠다 후보"), tone: .review)
-                    if let source = candidate.sources.first {
-                        Text(agendaSourceLabel(source.kind))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        evidenceControl(
-                            source.evidence,
-                            ownerID: candidate.agendaItem.id,
-                            fallbackTitle: candidate.agendaItem.title
-                        )
-                    }
-                    agendaActions(for: candidate.agendaItem)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }
@@ -633,21 +707,25 @@ struct ManualContinuityBriefView: View {
     private func agendaActions(for item: AgendaItem) -> some View {
         let isBusy = busyAgendaIDs.contains(item.id)
         VStack(spacing: 6) {
-            Button(L10n.text("다음 아젠다 승인")) {
+            BriefVerdictButton(
+                title: L10n.text("다음 아젠다 승인"),
+                hint: L10n.text("이 후보 하나에만 적용되며 저장된 상태를 바꿉니다."),
+                identifier: ManualContinuityBriefAccessibility.approve(item.id),
+                isPrimary: true,
+                isDisabled: isBusy
+            ) {
                 Task { await reviewAgenda(item, approve: true) }
             }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .disabled(isBusy)
-            .accessibilityIdentifier(ManualContinuityBriefAccessibility.approve(item.id))
 
-            Button(L10n.text("다음 아젠다 제외")) {
+            BriefVerdictButton(
+                title: L10n.text("다음 아젠다 제외"),
+                hint: L10n.text("이 후보 하나만 거절로 기록하며 기존 상태는 바꾸지 않습니다."),
+                identifier: ManualContinuityBriefAccessibility.reject(item.id),
+                isPrimary: false,
+                isDisabled: isBusy
+            ) {
                 Task { await reviewAgenda(item, approve: false) }
             }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
-            .disabled(isBusy)
-            .accessibilityIdentifier(ManualContinuityBriefAccessibility.reject(item.id))
         }
     }
 
@@ -778,8 +856,10 @@ struct ManualContinuityBriefView: View {
             }
         } catch {
             feedback = Feedback(
-                message: "다음 아젠다 판정을 저장하지 못했습니다. 다시 시도해주세요.",
-                isError: true
+                message: L10n.text("다음 아젠다 판정을 저장하지 못했습니다. 다시 시도해주세요.") + " "
+                    + L10n.text("후보는 그대로 남아 있습니다. 다시 시도할 수 있습니다."),
+                isError: true,
+                isComposed: true
             )
             return
         }
@@ -822,7 +902,13 @@ struct ManualContinuityBriefView: View {
         case .alreadyApplied: return Feedback(message: "이미 승인된 변화입니다.", isError: false)
         case .rejected: return Feedback(message: "변화를 거절했습니다.", isError: false)
         case .alreadyRejected: return Feedback(message: "이미 거절된 변화입니다.", isError: false)
-        case .refused: return Feedback(message: "현재 저장 상태에서는 이 요청을 처리할 수 없습니다.", isError: true)
+        case .refused:
+            return Feedback(
+                message: L10n.text("현재 저장 상태에서는 이 요청을 처리할 수 없습니다.") + " "
+                    + L10n.text("후보는 그대로 남아 있습니다. 다시 시도할 수 있습니다."),
+                isError: true,
+                isComposed: true
+            )
         case .projectSavedReviewPersistenceFailed:
             return Feedback(
                 message: "프로젝트에는 반영했지만 검토 기록을 저장하지 못했습니다. 다시 시도해주세요.",
@@ -835,7 +921,13 @@ struct ManualContinuityBriefView: View {
         switch result {
         case .applied: return Feedback(message: "연결 선택을 반영했습니다.", isError: false)
         case .alreadyApplied: return Feedback(message: "이미 반영된 연결 선택입니다.", isError: false)
-        case .refused: return Feedback(message: "현재 저장 상태에서는 연결을 반영할 수 없습니다.", isError: true)
+        case .refused:
+            return Feedback(
+                message: L10n.text("현재 저장 상태에서는 연결을 반영할 수 없습니다.") + " "
+                    + L10n.text("후보는 그대로 남아 있습니다. 다시 시도할 수 있습니다."),
+                isError: true,
+                isComposed: true
+            )
         case .projectSavedReviewPersistenceFailed:
             return Feedback(
                 message: "프로젝트에는 반영했지만 연결 기록을 저장하지 못했습니다. 다시 시도해주세요.",
@@ -861,6 +953,16 @@ struct ManualContinuityBriefView: View {
         case .actionItem: return L10n.text("실행 항목")
         case .openQuestion: return L10n.text("미해결 질문")
         case .agendaItem: return L10n.text("다음 아젠다")
+        }
+    }
+
+    /// The affected object's present, already-approved standing — from its own stored status.
+    private func currentStatusLabel(_ state: ManualContinuityBriefWorkState) -> String {
+        switch state {
+        case .decision(let value): return value.status == .confirmed ? L10n.text("확정") : L10n.text("미승인 후보")
+        case .actionItem(let value): return UIWorkStateDisplay.label(for: value.status)
+        case .openQuestion(let value): return value.status == .open ? L10n.text("미해결") : L10n.text("해결됨")
+        case .agendaItem(let value): return value.reviewedAt == nil ? L10n.text("아젠다 후보") : L10n.text("확정")
         }
     }
 
@@ -944,6 +1046,8 @@ private extension ManualContinuityBriefView {
     struct Feedback: Equatable {
         let message: String
         let isError: Bool
+        /// True when `message` was already localized and joined from two sentences.
+        var isComposed = false
     }
 
     struct EvidenceSheet: Identifiable {
@@ -985,5 +1089,44 @@ private struct BriefBadge: View {
 
     private var background: Color {
         foreground.opacity(0.12)
+    }
+}
+
+/// One verdict control. Focusable and activated by Space or Return like the Review card's
+/// verdicts, with a hint that says whether pressing it changes stored state.
+private struct BriefVerdictButton: View {
+    let title: String
+    let hint: String
+    let identifier: String
+    let isPrimary: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Group {
+            if isPrimary {
+                Button(action: action) { Text(title).frame(maxWidth: .infinity) }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                Button(action: action) { Text(title).frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .disabled(isDisabled)
+        .focusable(!isDisabled)
+        .focused($isFocused)
+        .onKeyPress(.space) { activate() }
+        .onKeyPress(.return) { activate() }
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func activate() -> KeyPress.Result {
+        guard isFocused, !isDisabled else { return .ignored }
+        action()
+        return .handled
     }
 }
