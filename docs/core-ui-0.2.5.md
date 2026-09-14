@@ -803,3 +803,38 @@ provider, model, microphone, audio, Notion, package, Release, Windows, push, PR 
 was performed. Task 2.8 was not started.
 
 Task Master is **parent 2 in-progress / 2.5 done / 2.6 done / 2.7 done / 2.8 pending**.
+
+## 2.8 — first core-loop self-tryout
+
+2026-09-14. Start `4910f4d8f1c7dc11e6418f3fef925060532705fe`, clean, ahead 2. A light tryout only:
+does the core path stay open for the product owner, not a release judgement.
+
+`TryoutSmokeUITests` drives a clean synthetic account: a fresh directory under the login session's
+per-user temporary directory through the Debug-only isolated-root contract, seeded with the
+existing deterministic fixture (one pasted meeting, one proposed decision with a stored quote),
+`DeterministicWorkStateExtractor`, no provider, no Application Support. Physical character input
+stays a 2.10 boundary, so the fixture stands in for paste.
+
+| Run | Executed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Korean core loop: Home next action → Review (pending, quote) → transcript at the exact segment → approve one → quit → relaunch → next Brief | 1 | 0 | 0 |
+| English smoke of the same screens (copy, CTAs, navigation; nothing approved) | 1 | 0 | 0 |
+
+Observed on the attached screenshots without a guide: Home names the next action ("지금 할 일 ·
+결과 검토 1건 · 검토하기"); Review marks the candidate "미승인 후보" with 승인/제외 and the quote as
+the way to the transcript; the transcript marks exactly the stored segment; after approval Review
+says 0 and Home no longer offers a next action; after relaunch the Brief carries the decision under
+확정된 상태 · 확정 with "판정 대기 0건" and the first-Brief sentence. English: "AI Suggestions: 1",
+"Evidence …", Approve / Exclude, "Awaiting verdict: 1 · Approved agenda items: 0", "Approve New
+Item". No reproducible product blocker was found. Result: `haena-028-tryout-final.xcresult`.
+
+Tryout memo, not blockers: the driver must pass `TEST_RUNNER_HAENA_TRYOUT_TEMP=$TMPDIR` — the
+UI-test runner is sandboxed and its own temporary directory is refused by the app's isolation
+check, which by design ends the process (`fatalError`) and surfaces the macOS crash reporter; the
+first attempts did exactly that until the root was handed in, and the test now skips instead of
+launching when the value is absent. Two earlier invocations could not start because the UI runner
+waited on the macOS automation-mode authentication window after a reboot. A clean account shows
+the "내 프로필이 없어 모든 업무를 팀 업무로 표시합니다" notice on the Brief, which is honest but
+worth a look in the packaged tryout. Nothing else was run: no full regression, soak or packaging.
+
+Task Master is **parent 2 in-progress / 2.7 done / 2.8 done / 2.9 pending**.
