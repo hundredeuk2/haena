@@ -304,7 +304,7 @@ remove the Keychain item separately.
 HAE.NA's product model is intended to be language-independent, but the current app is **not yet a
 globally validated build**:
 
-- The downloadable 0.2.5 app includes Korean and English display UI with System / 한국어 / English
+- The downloadable 0.2.6 app includes Korean and English display UI with System / 한국어 / English
   selection. This changes app chrome only; it does not translate meeting text or model output.
 - Korean meetings have received the most hands-on testing.
 - English and other languages have not completed end-to-end quality evaluation.
@@ -675,7 +675,7 @@ Application Support 폴더를 확인하거나 삭제한 뒤 Keychain 항목을 �
 HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지만, 현재 앱은 **글로벌 검증이 끝난
 빌드가 아닙니다.**
 
-- 다운로드하는 0.2.5 앱에는 시스템 설정 / 한국어 / English를 선택할 수 있는 표시 UI가 포함됩니다.
+- 다운로드하는 0.2.6 앱에는 시스템 설정 / 한국어 / English를 선택할 수 있는 표시 UI가 포함됩니다.
   앱 화면만 바뀌며 회의 원문이나 모델 결과를 번역하지는 않습니다.
 - 한국어 회의를 가장 많이 직접 확인했습니다.
 - 영어와 다른 언어는 전체 흐름의 품질 평가를 마치지 않았습니다.
