@@ -81,19 +81,19 @@ approval or bulk apply.
 
 ## Install the preview
 
-Current download: **0.2.6 (10) Experimental Developer Preview**
+Current download: **0.2.6 (11) Experimental Developer Preview**
 
-**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip)** ·
-[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip.sha256) ·
-[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)
+**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip)** ·
+[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip.sha256) ·
+[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)
 
 | Item | Value |
 | --- | --- |
 | macOS | 14.0 or later |
-| Package | `HAE.NA-0.2.6-10-unsigned.app.zip` |
-| Size | 4,242,057 bytes |
+| Package | `HAE.NA-0.2.6-11-unsigned.app.zip` |
+| Size | 4,244,296 bytes |
 | Architecture | universal — Apple silicon + Intel |
-| SHA-256 | `621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287` |
+| SHA-256 | `153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67` |
 | Signing | ad-hoc; no Developer ID signature or notarization |
 
 No GitHub account is required to download. See the
@@ -104,6 +104,10 @@ download is 0.2.6.
 The previous **[0.2.5 (9) release](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**
 and its assets stay published and unchanged, so an earlier build can still be re-downloaded and
 compared. Its notes are [here](docs/private-preview-0.2.5.md).
+
+The first 0.2.6 build, **[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**,
+also stays published and unchanged. Build 11 replaces it as the recommended download because of one
+corrected defect, described below.
 
 ### What's new in 0.2.6
 
@@ -125,15 +129,24 @@ compared. Its notes are [here](docs/private-preview-0.2.5.md).
   work in time order, with navigation to the exact past evidence. IDs and approval state survive
   quit and relaunch.
 
-> **Honesty note.** Synthetic UI and packaging checks passed, and the last four fixes were directly
-> confirmed on the packaged app. **Background transcription was not directly confirmed on the
-> packaged binary.** Its behavioral contract was confirmed there — closing the window keeps the same
-> process and the same job, and quitting leaves no transcription state — but the in-flight lifecycle
-> could not be exercised, because the verification environment could not deliver synthetic input to
-> start a transcription. That is a verification limitation on a developer Mac, **not** a known
-> defect. There is still no real-user validation, no Windows validation, and no meeting-quality
-> claim. A.X / RunPod provider integration, which the 0.2.5 notes listed as planned for 0.2.6, is
-> **deferred past 0.2.6**.
+> **What changed in build 11.** In build 10, opening a result's evidence quote took you to the right
+> transcript segment but left the recording at 00:00, so pressing play started from the beginning
+> instead of from the second the quote was spoken — a quote labelled 01:26 played from zero. Opening a
+> quote now moves the playhead to that quote's own stored second and stops there, and play continues
+> from it. Reading a quote still does not start audio on its own. Confirmed on this packaged binary
+> against a synthetic 120-second recording: the review queue's quote and an approved item's "open
+> evidence" both land on 01:26 / 02:00 and play on from there, and a decoy segment carrying identical
+> text at 00:06 is not chosen.
+>
+> **Honesty note.** Synthetic UI and packaging checks passed, and four of the five fixes were directly
+> confirmed on the packaged build 10. The owner has since confirmed on the packaged build that
+> background transcription starts, shows progress and retries, and that the playback position is
+> draggable. The rest of the in-flight transcription lifecycle — duplicate-submission blocking, no
+> audio re-copy on retry, provider failure copy — remains **unobserved**; the owner's report did not
+> cover it, and nothing here infers it. The evidence-listening claim above turned out to be wrong for
+> the "open evidence" route in build 10; build 11 corrects it. There is still no real-user validation,
+> no Windows validation, and no meeting-quality claim. A.X / RunPod provider integration, which the
+> 0.2.5 notes listed as planned for 0.2.6, is **deferred past 0.2.6**.
 
 You can verify the download yourself, with no access to the source, using the
 [public distribution tests](dist-tests/README.md):
@@ -150,7 +163,7 @@ This synthetic-fixture pilot has no live AI, recording, or macOS data-file compa
 Verify the package before opening it:
 
 ```bash
-shasum -a 256 HAE.NA-0.2.6-10-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.6-11-unsigned.app.zip
 ```
 
 Then:
@@ -338,10 +351,11 @@ For **0.2.6**, synthetic UI checks and packaging checks passed, and the publishe
 checked for version, universal architecture, ad-hoc signature, SHA-256, and excluded
 development/user-data markers — the same checks anyone can re-run with
 [`dist-tests/`](dist-tests/README.md). Four of the five 0.2.6 fixes were directly confirmed on the
-packaged app. **Background transcription was not**: its behavioral contract was confirmed on the
-packaged binary, but the in-flight lifecycle could not be exercised because the verification
-environment could not deliver synthetic input to start a transcription. That is a verification
-limitation, not a known defect. Details are in the
+packaged build 10. The owner has since confirmed on the packaged build that background transcription
+starts, shows progress and retries, and that the playback position is draggable; the rest of the
+in-flight transcription lifecycle is still unobserved. The owner also found that opening a result's
+evidence quote left the recording at 00:00 — **build 11 fixes that**, and the fix was confirmed on
+this packaged binary. Details are in the
 [0.2.6 release notes](docs/private-preview-0.2.6.md).
 
 For the preserved **0.2.5** baseline, at its final UI checkpoint **306 selected unit tests**,
@@ -469,19 +483,19 @@ terms are intentional. OpenAI APIs and models are not covered by this license; s
 
 ## Preview 설치
 
-현재 다운로드: **0.2.6 (10) Experimental Developer Preview**
+현재 다운로드: **0.2.6 (11) Experimental Developer Preview**
 
-**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip)** ·
-[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip.sha256) ·
-[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)
+**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip)** ·
+[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip.sha256) ·
+[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)
 
 | 항목 | 값 |
 | --- | --- |
 | macOS | 14.0 이상 |
-| 패키지 | `HAE.NA-0.2.6-10-unsigned.app.zip` |
-| 크기 | 4,242,057 bytes |
+| 패키지 | `HAE.NA-0.2.6-11-unsigned.app.zip` |
+| 크기 | 4,244,296 bytes |
 | 아키텍처 | universal — Apple silicon + Intel |
-| SHA-256 | `621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287` |
+| SHA-256 | `153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67` |
 | 서명 | ad-hoc; Developer ID 서명·공증 없음 |
 
 GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알려진 위험은
@@ -491,6 +505,10 @@ GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알�
 이전 **[0.2.5 (9) 릴리스](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**와
 그 파일들은 변경 없이 그대로 공개되어 있어 다시 내려받아 비교할 수 있습니다. 노트는
 [여기](docs/private-preview-0.2.5.md)에 있습니다.
+
+첫 0.2.6 빌드인 **[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**
+역시 변경 없이 그대로 공개되어 있습니다. 아래에 적은 결함 하나를 고쳤기 때문에 빌드 11이 권장
+다운로드를 대체합니다.
 
 ### 0.2.6의 주요 변경
 
@@ -508,13 +526,22 @@ GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알�
 - **시간순 회의 이력** — 회의마다 결정 / 새 업무 / 이월 업무 / 완료 업무를 시간순으로 보여주고 과거
   근거의 정확한 위치로 이동합니다. ID와 승인 상태는 종료·재실행 후에도 유지됩니다.
 
-> **정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 뒤의 네 가지는 패키징된 앱에서 직접
-> 확인했습니다. 그러나 **백그라운드 전사는 패키징된 바이너리에서 직접 확인하지 못했습니다.** 창을
-> 닫아도 같은 프로세스·같은 작업이 유지되고 앱을 종료하면 전사 상태가 남지 않는다는 동작 계약은
-> 패키지에서 확인했지만, 검증 환경이 전사를 시작할 합성 입력을 전달할 수 없어 실행 중 생애주기를
-> 끝까지 구동하지 못했습니다. 이는 개발용 Mac의 **검증 한계이지 알려진 결함이 아닙니다.** 실제 사용자
-> 검증, Windows 검증, 회의 품질 주장은 여전히 없습니다. 0.2.5 노트가 "0.2.6 계획"으로 적었던
-> **A.X / RunPod provider 연동은 0.2.6 이후로 연기**되었습니다.
+> **빌드 11에서 바뀐 것.** 빌드 10에서는 결과의 근거 인용을 열면 전사의 올바른 구간으로는 갔지만
+> 녹음은 00:00에 머물러 있어서, 재생을 누르면 그 말이 나온 시각이 아니라 처음부터 재생됐습니다 —
+> 01:26으로 표시된 인용이 0초부터 재생됐습니다. 이제 인용을 열면 재생 위치가 그 인용이 저장하고 있는
+> 시각으로 이동해 거기서 멈추고, 재생은 그 지점부터 이어집니다. 인용을 여는 것만으로 소리가 시작되지는
+> 않는 것은 그대로입니다. 이 패키지된 바이너리에서 120초 합성 녹음으로 확인했습니다 — 검토 큐의 인용과
+> 승인된 항목의 '근거 보기' 모두 01:26 / 02:00에 도달해 그 지점부터 재생되고, 00:06에 있는 글자가
+> 똑같은 미끼 구간은 선택되지 않습니다.
+>
+> **정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 다섯 가지 중 네 가지는 패키징된 빌드 10에서
+> 직접 확인했습니다. 그 뒤 오너가 패키징된 빌드에서 **백그라운드 전사의 시작·진행·재시도가 동작하고
+> 재생 위치를 드래그할 수 있음**을 직접 확인했습니다. 실행 중 전사 생애주기의 나머지 — 중복 제출 차단,
+> 재시도 시 오디오 재복사 없음, provider 실패 문구 — 는 **여전히 관찰되지 않았습니다.** 오너의 보고가
+> 그 부분을 다루지 않았고, 여기서 그것을 유추하지 않습니다. 위의 근거 듣기 주장은 빌드 10의 '근거 보기'
+> 경로에 대해서는 사실이 아니었고 빌드 11에서 바로잡았습니다. 실제 사용자 검증, Windows 검증, 회의 품질
+> 주장은 여전히 없습니다. 0.2.5 노트가 "0.2.6 계획"으로 적었던 **A.X / RunPod provider 연동은 0.2.6
+> 이후로 연기**되었습니다.
 
 소스에 접근하지 않고도 [공개 배포 테스트](dist-tests/README.md)로 다운로드를 직접 검증할 수 있습니다.
 
@@ -529,7 +556,7 @@ cd dist-tests && ./run-all.sh
 실행 전에 패키지를 검증하세요.
 
 ```bash
-shasum -a 256 HAE.NA-0.2.6-10-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.6-11-unsigned.app.zip
 ```
 
 그다음:
@@ -706,9 +733,10 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 **0.2.6**은 합성 UI 검증과 패키지 검사를 통과했고, 공개 패키지에서 버전, universal 아키텍처,
 ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을 확인했습니다. 이는 누구나
 [`dist-tests/`](dist-tests/README.md)로 다시 확인할 수 있는 검사입니다. 다섯 가지 수정 중 네 가지는
-패키징된 앱에서 직접 확인했습니다. **백그라운드 전사는 확인하지 못했습니다.** 동작 계약은 패키징된
-바이너리에서 확인했지만, 검증 환경이 전사를 시작할 합성 입력을 전달할 수 없어 실행 중 생애주기를
-구동하지 못했습니다. 검증 한계이며 알려진 결함이 아닙니다. 자세한 내용은
+패키징된 빌드 10에서 직접 확인했습니다. 그 뒤 오너가 패키징된 빌드에서 백그라운드 전사의 시작·진행·
+재시도가 동작하고 재생 위치를 드래그할 수 있음을 확인했습니다. 실행 중 전사 생애주기의 나머지는 여전히
+관찰되지 않았습니다. 오너는 또한 결과의 근거 인용을 열면 녹음이 00:00에 머무는 문제를 발견했고,
+**빌드 11이 이를 고쳤으며** 이 패키지된 바이너리에서 확인했습니다. 자세한 내용은
 [0.2.6 릴리스 노트](docs/private-preview-0.2.6.md)에 있습니다.
 
 보존된 **0.2.5** baseline은 최종 UI checkpoint에서 **선별 unit 306건**, **Brief 직접 UI 6건**,

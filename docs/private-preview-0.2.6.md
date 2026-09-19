@@ -1,8 +1,8 @@
-# HAE.NA 0.2.6 (10) — Experimental Developer Preview
+# HAE.NA 0.2.6 (11) — Experimental Developer Preview
 
-[Download macOS ZIP](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip) ·
-[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip.sha256) ·
-[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)
+[Download macOS ZIP](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip) ·
+[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip.sha256) ·
+[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)
 
 > This is an unsigned, unnotarized experimental build for a small self-tryout. Public download
 > availability does not mean that real-meeting quality, reliability, privacy suitability, or
@@ -17,11 +17,11 @@
 
 | Item | Value |
 | --- | --- |
-| Version | `0.2.6 (10)` |
-| Release tag | `v0.2.6-preview.1` |
-| File | `HAE.NA-0.2.6-10-unsigned.app.zip` |
-| Size | 4,242,057 bytes |
-| SHA-256 | `621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287` |
+| Version | `0.2.6 (11)` |
+| Release tag | `v0.2.6-preview.2` |
+| File | `HAE.NA-0.2.6-11-unsigned.app.zip` |
+| Size | 4,244,296 bytes |
+| SHA-256 | `153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67` |
 | Architecture | universal: `x86_64 arm64` |
 | Signing | ad-hoc; **no Developer ID signature and no notarization** |
 | Minimum macOS | 14.0 |
@@ -31,7 +31,7 @@
 Verify before opening:
 
 ```bash
-shasum -a 256 HAE.NA-0.2.6-10-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.6-11-unsigned.app.zip
 ```
 
 The result must exactly match the SHA-256 above. The previous `v0.2.5-preview.1` release and its
@@ -71,21 +71,51 @@ made the user fight the app, or where a screen implied more certainty than the d
 
 - Synthetic UI checks and packaging checks passed.
 - The ZIP passed archive integrity verification and an independent SHA-256 calculation.
-- The extracted app reports version `0.2.6 (10)`, contains both `x86_64` and `arm64`, and passes
+- The extracted app reports version `0.2.6 (11)`, contains both `x86_64` and `arm64`, and passes
   strict on-disk ad-hoc signature verification.
 - The packaging guard found no API-key pattern, meeting audio, persisted user-data file, benchmark
   artifact, UI-test marker, or user-specific absolute path in the app bundle.
-- Fixes 2, 3, 4, and 5 above were **directly confirmed on the packaged app**, with one exception
-  inside fix 2: dragging the playback slider with the mouse was **not** exercised, because the
-  verification environment could not deliver drag events to any application. The same slider's
-  commit path was confirmed by other means, and evidence listening was confirmed to land on the
-  exact stored segment time and to stay disabled when no time is stored.
+- Fixes 2, 3, 4, and 5 above were **directly confirmed on the packaged app** (build 10), with two
+  later corrections. Dragging the playback slider with the mouse was not exercised then, because that
+  verification environment could not deliver drag events; the owner has since confirmed on the
+  packaged build that the slider drags. And within fix 2, evidence *listening* (the "listen" control)
+  did land on the exact stored segment time, but **opening an evidence quote did not** — it left the
+  recording at 00:00, so pressing play started from the beginning of the file. See
+  [Corrected in build 11](#corrected-in-build-11).
+
+## Corrected in build 11
+
+The owner, using the packaged build 10, reported this:
+
+> When I open the evidence and play it — say 1:26 is captured — pressing it should play from 1:26,
+> but instead it just takes the audio file and plays from the beginning.
+
+That was real. Opening a result's evidence quote routed to the right transcript segment and
+highlighted it, but never moved the playhead, so the recording stayed at 00:00 and the next press of
+play started at the top of the file. A quote labelled 01:26 played from zero. Every "open evidence"
+control was affected, and on the approved work-state screens — which offer "open evidence" and no
+"listen" — the stored second could not reach the player by any route at all.
+
+Build 11 fixes it. Opening a quote now moves the playhead to that quote's own stored second and stops
+there; play continues from it. Reading a quote still does not start audio on its own, and a quote
+whose position cannot be resolved still cues nothing and says so rather than silently landing on zero.
+
+Confirmed on this packaged binary against an isolated synthetic 120-second recording: the review
+queue's evidence quote and an approved item's "open evidence" both land on `01:26 / 02:00` with the
+scrubber at 86 seconds, and play continues from there. A decoy segment carrying identical text at
+00:06 is not chosen, so the position comes from the stored segment id rather than from matching the
+quote's words.
 
 ## What was not confirmed on the packaged binary
 
-**Fix 1, background transcription, was not directly confirmed on the packaged binary.** This is
-stated plainly because the fix is the headline of the release and a reader should not assume it was
-exercised end to end.
+**The in-flight background-transcription lifecycle is still not fully confirmed.** The owner has
+since confirmed on the packaged build that transcription starts, shows progress, and retries — which
+the original verification environment could not exercise at all. What remains unobserved is the rest
+of that lifecycle: duplicate-submission blocking, the absence of an audio re-copy on retry, and the
+provider failure copy. The owner's report did not cover those, and nothing here infers them from the
+fact that transcription starts.
+
+The paragraphs below describe the original build 10 limitation and are kept for the record.
 
 What *was* confirmed on the packaged app is the behavioral contract the fix depends on: closing the
 window keeps the same process and the same job alive, and quitting the app leaves no transcription
@@ -183,11 +213,21 @@ audio, transcripts, API keys, or application data files to a public issue.
 5. **시간순 회의 이력** — 회의마다 결정 / 새 업무 / 이월 업무 / 완료 업무를 시간순으로 보여주고 과거
    근거의 정확한 위치로 이동합니다. ID와 승인 상태는 종료·재실행 후에도 유지됩니다.
 
-**정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 2~5번은 패키징된 앱에서 직접 확인했습니다.
-그러나 **1번(백그라운드 전사)은 패키징된 바이너리에서 직접 확인하지 못했습니다.** 창을 닫아도 같은
-프로세스·같은 작업이 유지되고 앱을 종료하면 전사 상태가 남지 않는다는 동작 계약은 패키지에서
-확인했지만, 검증 환경이 전사를 시작할 합성 입력을 전달할 수 없어 **실행 중 생애주기**를 끝까지
-구동하지 못했습니다. 이는 개발용 Mac의 **검증 한계이지 알려진 결함이 아닙니다.**
+**정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 2~5번은 패키징된 빌드 10에서 직접
+확인했습니다. 그 뒤 두 가지가 정정됐습니다.
+
+첫째, 오너가 패키징된 빌드에서 **백그라운드 전사의 시작·진행·재시도가 동작하고 재생 슬라이더를
+드래그할 수 있음**을 직접 확인했습니다. 다만 실행 중 전사 생애주기의 나머지 — 중복 제출 차단, 재시도 시
+오디오 재복사 없음, provider 실패 문구 — 는 **여전히 관찰되지 않았습니다.** 오너의 보고가 그 부분을
+다루지 않았고, 전사가 시작된다는 사실에서 그것을 유추하지 않습니다.
+
+둘째, 2번 안에서 **근거 인용을 여는 경로에 실제 결함이 있었습니다.** 인용을 열면 전사의 올바른 구간으로
+가고 강조까지 됐지만 재생 위치는 00:00에 그대로 남아, 다음에 재생을 누르면 파일 처음부터 재생됐습니다 —
+01:26으로 표시된 인용이 0초부터 재생된 것입니다. '근거 보기'만 있고 '듣기'가 없는 승인된 업무 상태
+화면에서는 저장된 시각이 어떤 경로로도 플레이어에 도달할 수 없었습니다. **빌드 11이 이를 고쳤고**,
+이 패키지된 바이너리에서 120초 합성 녹음으로 확인했습니다 — 검토 큐의 인용과 승인된 항목의 '근거 보기'
+모두 `01:26 / 02:00`, 스크러버 86초에 도달해 그 지점부터 재생되며, 00:06에 있는 글자가 똑같은 미끼
+구간은 선택되지 않습니다.
 
 서명·공증이 없어 첫 실행에 Control-클릭 → **열기**가 필요합니다. 실제 사용자 검증, Windows 검증,
 회의 품질 주장은 없습니다. 0.2.5 노트에서 "0.2.6 계획"이라고 적었던 **A.X / RunPod provider 연동은
