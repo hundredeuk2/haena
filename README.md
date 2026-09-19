@@ -81,32 +81,66 @@ approval or bulk apply.
 
 ## Install the preview
 
-Current download: **0.2.5 (9) Experimental Developer Preview**
+Current download: **0.2.6 (10) Experimental Developer Preview**
 
-**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip)** ·
-[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip.sha256) ·
-[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)
+**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip)** ·
+[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip.sha256) ·
+[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)
 
 | Item | Value |
 | --- | --- |
 | macOS | 14.0 or later |
-| Package | `HAE.NA-0.2.5-9-unsigned.app.zip` |
+| Package | `HAE.NA-0.2.6-10-unsigned.app.zip` |
+| Size | 4,242,057 bytes |
 | Architecture | universal — Apple silicon + Intel |
-| SHA-256 | `7f69eef6f19f018962a0156f44b910e484a50b15e3fa8de76d299e1bc0d67785` |
+| SHA-256 | `621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287` |
 | Signing | ad-hoc; no Developer ID signature or notarization |
 
-No GitHub account is required to download. This package was built from source commit `4ab2c9f0`
-after the 0.2.5 UI integration. A synthetic clean-account core-loop tryout passed before packaging;
-the product owner's real packaged-app tryout is still pending. See the
-[0.2.5 release notes](docs/private-preview-0.2.5.md) for exact verification scope and known risks.
+No GitHub account is required to download. See the
+[0.2.6 release notes](docs/private-preview-0.2.6.md) for exact verification scope and known risks,
+and [What this repository is](#what-this-repository-is) for why the source here is 0.2.5 while the
+download is 0.2.6.
 
-### What's new in 0.2.5
+The previous **[0.2.5 (9) release](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**
+and its assets stay published and unchanged, so an earlier build can still be re-downloaded and
+compared. Its notes are [here](docs/private-preview-0.2.5.md).
 
-- A persistent Home / Review / Briefs / Transcripts / Projects shell with clearer next actions.
-- Pending AI proposals live in Review; approved work state lives in Projects.
-- A proposal's evidence quote opens the exact stored transcript segment by ID.
-- Continuity Briefs separate confirmed carried state, candidates awaiting a verdict, and approved agenda.
-- Korean and English display UI with an explicit System / 한국어 / English setting.
+### What's new in 0.2.6
+
+0.2.6 adds no new AI capability. It fixes five usability problems:
+
+- **Background transcription** — closing the progress sheet or navigating away no longer cancels the
+  job; step, success, failure, and retry are visible on return; duplicate submission is prevented;
+  progress reports the real step instead of a fake percentage.
+- **Playback seek and evidence listening** — the position is draggable, and a decision or action
+  item's "listen" jumps to the exact stored transcript segment time. With no stored time the app
+  says so and disables the control rather than inventing a timestamp.
+- **Three-scope separation** — the meeting transcript, this meeting's results (candidates and
+  approved), and the project's current approved state are distinct in screens and copy. Candidates
+  are never merged with approved state.
+- **Readable Brief hierarchy** — what changed, then remaining work, then next discussion, with
+  details, evidence, and review actions behind progressive disclosure. Expanding or navigating never
+  approves anything.
+- **Chronological meeting history** — per meeting, decisions / new work / carried work / completed
+  work in time order, with navigation to the exact past evidence. IDs and approval state survive
+  quit and relaunch.
+
+> **Honesty note.** Synthetic UI and packaging checks passed, and the last four fixes were directly
+> confirmed on the packaged app. **Background transcription was not directly confirmed on the
+> packaged binary.** Its behavioral contract was confirmed there — closing the window keeps the same
+> process and the same job, and quitting leaves no transcription state — but the in-flight lifecycle
+> could not be exercised, because the verification environment could not deliver synthetic input to
+> start a transcription. That is a verification limitation on a developer Mac, **not** a known
+> defect. There is still no real-user validation, no Windows validation, and no meeting-quality
+> claim. A.X / RunPod provider integration, which the 0.2.5 notes listed as planned for 0.2.6, is
+> **deferred past 0.2.6**.
+
+You can verify the download yourself, with no access to the source, using the
+[public distribution tests](dist-tests/README.md):
+
+```bash
+cd dist-tests && ./run-all.sh
+```
 
 **Windows:** [experimental text-pilot source and build instructions](https://github.com/hundredeuk2/haena/tree/82183e844689fe4a7a8f44e0fb9bb9fc88c9b006/pilot/windows-text)
 are available on a separate branch. Core tests passed on macOS (27/27) and WPF cross-compilation
@@ -116,7 +150,7 @@ This synthetic-fixture pilot has no live AI, recording, or macOS data-file compa
 Verify the package before opening it:
 
 ```bash
-shasum -a 256 HAE.NA-0.2.5-9-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.6-10-unsigned.app.zip
 ```
 
 Then:
@@ -139,7 +173,40 @@ again after saving.
 Current model configuration: `gpt-4o-transcribe-diarize` for transcription and `gpt-5.6` for work-state
 extraction.
 
+## What this repository is
+
+The download above is **0.2.6**. The source in this repository is **0.2.5**. Both statements are
+true at the same time, so it is worth being precise about which is which.
+
+**What this repository is:**
+
+- The **distribution surface** for the current preview — the binary, its checksum, the release
+  notes, the public distribution tests, and issue intake.
+- The **preserved 0.2.5 source baseline**, licensed under [Apache-2.0](LICENSE). It is a real,
+  buildable tree, and it stays published unchanged.
+
+**What this repository is not:**
+
+- It is **not the source of the 0.2.6 download.** 0.2.6 and later product source is developed in a
+  private core repository and is not published here. Do not read the Swift code in this repository
+  as the code of the build you downloaded, and do not file a 0.2.6 behavior as a bug "in" this
+  source tree — report the behavior and the maintainer maps it to the private source.
+
+**The test boundary follows the same line:**
+
+| Suite | Covers | Who can run it |
+| --- | --- | --- |
+| [`dist-tests/`](dist-tests/README.md) | The **published artifact** — checksum, bundle shape, version identity, universal architecture, signing honesty, distribution hygiene, and preservation of the previous release. | Anyone. Bash and macOS command-line tools only; no source, no Xcode, no GitHub account, no token. |
+| `HAENATests/`, `HAENAUITests/` | The **0.2.5 source baseline** in this repository. | Anyone who builds the baseline from source here. |
+| The 0.2.6 product's own tests | 0.2.6 product behavior. | Not published. They live with the private core source. |
+
+So the strongest thing an outside reader can independently verify about the 0.2.6 download is what
+`dist-tests/` checks. Everything else about 0.2.6 rests on the release notes, which is exactly why
+those notes state what was and was not confirmed.
+
 ## Build from source
+
+Building from this repository produces the **0.2.5 baseline**, not the 0.2.6 download above.
 
 Requirements: macOS 14+, Xcode with the Swift 6 toolchain, and
 [XcodeGen](https://github.com/yonaskolb/XcodeGen).
@@ -259,15 +326,31 @@ translated text.
 - Continuity Briefs are opened manually; there is no Calendar trigger.
 - Multiple app instances can race over the same local files.
 - An interrupted deletion can leave an orphaned audio file as described above.
+- Transcription progress shows the real step, so it can sit on one step without a moving
+  percentage. That is intended, not a hang.
+- Evidence with no stored segment time has its "listen" control disabled with a stated reason,
+  rather than guessing a timestamp.
+- A.X / RunPod provider integration is deferred past 0.2.6.
 
 ## Evaluation status
 
-At the final 0.2.5 UI checkpoint, **306 selected unit tests**, **6 direct Brief UI cases**, and
-**53 preserved UI regression cases** passed. A later light synthetic tryout passed the Korean core
-loop and an English UI smoke. The published package was then checked for version, universal
-architecture, ad-hoc signature, SHA-256, and excluded development/user-data markers. These are
-implementation and packaging checks, not a real-meeting validation. The remaining product gate is
-the product owner's short packaged-app tryout of:
+For **0.2.6**, synthetic UI checks and packaging checks passed, and the published package was
+checked for version, universal architecture, ad-hoc signature, SHA-256, and excluded
+development/user-data markers — the same checks anyone can re-run with
+[`dist-tests/`](dist-tests/README.md). Four of the five 0.2.6 fixes were directly confirmed on the
+packaged app. **Background transcription was not**: its behavioral contract was confirmed on the
+packaged binary, but the in-flight lifecycle could not be exercised because the verification
+environment could not deliver synthetic input to start a transcription. That is a verification
+limitation, not a known defect. Details are in the
+[0.2.6 release notes](docs/private-preview-0.2.6.md).
+
+For the preserved **0.2.5** baseline, at its final UI checkpoint **306 selected unit tests**,
+**6 direct Brief UI cases**, and **53 preserved UI regression cases** passed, and a later light
+synthetic tryout passed the Korean core loop and an English UI smoke.
+
+These are implementation and packaging checks, not a real-meeting validation. There is still no
+real-user validation, no Windows validation, and no meeting-quality claim. The remaining product
+gate is the product owner's short packaged-app tryout of:
 
 ```text
 Save → Extract → Review/Approve → Next Brief → Quit/Reopen
@@ -386,31 +469,58 @@ terms are intentional. OpenAI APIs and models are not covered by this license; s
 
 ## Preview 설치
 
-현재 다운로드: **0.2.5 (9) Experimental Developer Preview**
+현재 다운로드: **0.2.6 (10) Experimental Developer Preview**
 
-**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip)** ·
-[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.5-preview.1/HAE.NA-0.2.5-9-unsigned.app.zip.sha256) ·
-[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)
+**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip)** ·
+[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.1/HAE.NA-0.2.6-10-unsigned.app.zip.sha256) ·
+[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)
 
 | 항목 | 값 |
 | --- | --- |
 | macOS | 14.0 이상 |
-| 패키지 | `HAE.NA-0.2.5-9-unsigned.app.zip` |
+| 패키지 | `HAE.NA-0.2.6-10-unsigned.app.zip` |
+| 크기 | 4,242,057 bytes |
 | 아키텍처 | universal — Apple silicon + Intel |
-| SHA-256 | `7f69eef6f19f018962a0156f44b910e484a50b15e3fa8de76d299e1bc0d67785` |
+| SHA-256 | `621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287` |
 | 서명 | ad-hoc; Developer ID 서명·공증 없음 |
 
-GitHub 로그인 없이 받을 수 있습니다. 0.2.5 UI 통합 뒤 source commit `4ab2c9f0`에서 빌드했습니다.
-패키징 전 합성 clean-account 핵심 루프는 통과했지만 제품 오너의 실제 패키지 tryout은 아직 남았습니다.
-정확한 검증 범위와 알려진 위험은 [0.2.5 릴리스 노트](docs/private-preview-0.2.5.md)를 확인하세요.
+GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알려진 위험은
+[0.2.6 릴리스 노트](docs/private-preview-0.2.6.md)를, 다운로드는 0.2.6인데 이 저장소의 소스는 0.2.5인
+이유는 [이 저장소가 무엇인가](#이-저장소가-무엇인가)를 확인하세요.
 
-### 0.2.5의 주요 변경
+이전 **[0.2.5 (9) 릴리스](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**와
+그 파일들은 변경 없이 그대로 공개되어 있어 다시 내려받아 비교할 수 있습니다. 노트는
+[여기](docs/private-preview-0.2.5.md)에 있습니다.
 
-- Home / Review / Briefs / Transcripts / Projects를 잇는 지속적인 앱 shell과 명확한 다음 행동.
-- 미승인 AI 후보는 Review, 승인된 업무 상태는 Projects가 소유하도록 화면 역할 분리.
-- 후보의 근거 인용문에서 저장된 정확한 Transcript segment ID로 이동.
-- Continuity Brief에서 확정 이월 상태, 판정 대기 후보, 승인 아젠다를 분리.
-- 시스템 설정 / 한국어 / English를 선택할 수 있는 한국어·영어 표시 UI.
+### 0.2.6의 주요 변경
+
+0.2.6은 새 AI 기능을 추가하지 않고 사용성 문제 다섯 가지를 고쳤습니다.
+
+- **백그라운드 전사** — 진행 시트를 닫거나 다른 화면으로 이동해도 작업이 취소되지 않고, 돌아오면
+  단계·성공·실패·재시도가 보입니다. 중복 제출을 막고, 가짜 퍼센트 대신 실제 단계를 표시합니다.
+- **재생 탐색과 근거 듣기** — 재생 위치를 드래그할 수 있고, 결정·액션 아이템의 "듣기"는 저장된 정확한
+  전사 구간 시각으로 이동합니다. 저장된 시각이 없으면 시각을 지어내지 않고 그 사실을 알린 뒤 컨트롤을
+  비활성화합니다.
+- **세 가지 범위 분리** — 회의 전사 / 이번 회의 결과(후보와 승인) / 프로젝트의 현재 승인 상태를 화면과
+  문구에서 구분하며, 후보를 승인 상태와 섞지 않습니다.
+- **읽기 쉬운 Brief 위계** — 변경된 것 → 남은 업무 → 다음 논의 순서로 제시하고 상세·근거·검토 동작은
+  단계적으로 펼칩니다. 펼치거나 이동하는 것으로는 아무것도 승인되지 않습니다.
+- **시간순 회의 이력** — 회의마다 결정 / 새 업무 / 이월 업무 / 완료 업무를 시간순으로 보여주고 과거
+  근거의 정확한 위치로 이동합니다. ID와 승인 상태는 종료·재실행 후에도 유지됩니다.
+
+> **정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 뒤의 네 가지는 패키징된 앱에서 직접
+> 확인했습니다. 그러나 **백그라운드 전사는 패키징된 바이너리에서 직접 확인하지 못했습니다.** 창을
+> 닫아도 같은 프로세스·같은 작업이 유지되고 앱을 종료하면 전사 상태가 남지 않는다는 동작 계약은
+> 패키지에서 확인했지만, 검증 환경이 전사를 시작할 합성 입력을 전달할 수 없어 실행 중 생애주기를
+> 끝까지 구동하지 못했습니다. 이는 개발용 Mac의 **검증 한계이지 알려진 결함이 아닙니다.** 실제 사용자
+> 검증, Windows 검증, 회의 품질 주장은 여전히 없습니다. 0.2.5 노트가 "0.2.6 계획"으로 적었던
+> **A.X / RunPod provider 연동은 0.2.6 이후로 연기**되었습니다.
+
+소스에 접근하지 않고도 [공개 배포 테스트](dist-tests/README.md)로 다운로드를 직접 검증할 수 있습니다.
+
+```bash
+cd dist-tests && ./run-all.sh
+```
 
 **Windows:** 별도 브랜치의 [텍스트 pilot 소스와 빌드 안내](https://github.com/hundredeuk2/haena/tree/82183e844689fe4a7a8f44e0fb9bb9fc88c9b006/pilot/windows-text)를
 공개합니다. macOS core 테스트 27/27과 WPF 크로스컴파일은 통과했으나 실제 Windows 실행은 미검증입니다.
@@ -419,7 +529,7 @@ GitHub 로그인 없이 받을 수 있습니다. 0.2.5 UI 통합 뒤 source comm
 실행 전에 패키지를 검증하세요.
 
 ```bash
-shasum -a 256 HAE.NA-0.2.5-9-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.6-10-unsigned.app.zip
 ```
 
 그다음:
@@ -441,7 +551,38 @@ HAE.NA는 사용자의 OpenAI API 키를 사용합니다. **AI 설정**에서 �
 
 현재 모델 구성은 전사 `gpt-4o-transcribe-diarize`, 업무 상태 추출 `gpt-5.6`입니다.
 
+## 이 저장소가 무엇인가
+
+위의 다운로드는 **0.2.6**이고, 이 저장소의 소스는 **0.2.5**입니다. 두 문장이 동시에 참이므로 어느
+쪽이 무엇인지 분명히 해둡니다.
+
+**이 저장소인 것:**
+
+- 현재 preview의 **배포 창구** — 바이너리, 체크섬, 릴리스 노트, 공개 배포 테스트, 이슈 접수.
+- **보존된 0.2.5 소스 baseline** — [Apache-2.0](LICENSE) 라이선스이며 실제로 빌드되는 트리이고,
+  변경 없이 계속 공개합니다.
+
+**이 저장소가 아닌 것:**
+
+- **0.2.6 다운로드의 소스가 아닙니다.** 0.2.6 이후 제품 소스는 비공개 core 저장소에서 개발하며 여기에
+  공개하지 않습니다. 이 저장소의 Swift 코드를 내려받은 빌드의 코드로 읽지 마시고, 0.2.6 동작을 이
+  소스 트리의 버그로 보고하지 마세요. 동작만 알려주시면 관리자가 비공개 소스에 대응시킵니다.
+
+**테스트 경계도 같은 선을 따릅니다:**
+
+| 테스트 | 검증 대상 | 실행 가능한 사람 |
+| --- | --- | --- |
+| [`dist-tests/`](dist-tests/README.md) | **공개된 릴리스 파일** — 체크섬, 번들 구조, 버전 동일성, universal 아키텍처, 표기대로의 서명 상태, 배포 위생, 이전 릴리스 보존. | 누구나. bash와 macOS 기본 도구만 필요하며 소스·Xcode·GitHub 계정·토큰이 필요 없습니다. |
+| `HAENATests/`, `HAENAUITests/` | 이 저장소의 **0.2.5 소스 baseline**. | 여기서 baseline을 빌드하는 누구나. |
+| 0.2.6 제품 테스트 | 0.2.6 제품 동작. | 공개하지 않습니다. 비공개 core 소스와 함께 있습니다. |
+
+따라서 외부 독자가 0.2.6 다운로드에 대해 독립적으로 검증할 수 있는 범위는 `dist-tests/`가 확인하는
+내용까지입니다. 그 밖의 0.2.6에 관한 내용은 릴리스 노트에 의존하며, 그래서 그 노트가 무엇을
+확인했고 무엇을 확인하지 못했는지 명시합니다.
+
 ## 소스에서 빌드
+
+이 저장소를 빌드하면 위 다운로드가 아니라 **0.2.5 baseline**이 만들어집니다.
 
 요구 사항은 macOS 14+, Swift 6 툴체인이 포함된 Xcode,
 [XcodeGen](https://github.com/yonaskolb/XcodeGen)입니다.
@@ -555,14 +696,28 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 - Continuity Brief는 수동으로 열며 Calendar trigger가 없습니다.
 - 앱을 여러 개 실행하면 같은 로컬 파일을 두고 경합할 수 있습니다.
 - 삭제가 중단되면 위에서 설명한 고아 오디오 파일이 남을 수 있습니다.
+- 전사 진행률은 실제 단계를 표시하므로 퍼센트가 움직이지 않고 한 단계에 머물 수 있습니다. 의도된
+  동작이며 멈춘 것이 아닙니다.
+- 저장된 구간 시각이 없는 근거는 시각을 추정하지 않고 이유를 알린 뒤 "듣기"를 비활성화합니다.
+- A.X / RunPod provider 연동은 0.2.6 이후로 연기되었습니다.
 
 ## 검증 상태
 
-0.2.5 최종 UI checkpoint에서 **선별 unit 306건**, **Brief 직접 UI 6건**, **보존 UI 회귀 53건**이
-통과했습니다. 이후 가벼운 합성 tryout에서 한국어 핵심 루프와 영어 UI smoke가 통과했습니다.
-공개 패키지는 버전, universal 아키텍처, ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을
-확인했습니다. 이는 구현·패키지 검증이며 실제 회의 검증은 아닙니다. 남은 제품 관문은 제품 오너가
-패키징된 앱에서 다음 흐름을 짧게 직접 사용해보는 것입니다.
+**0.2.6**은 합성 UI 검증과 패키지 검사를 통과했고, 공개 패키지에서 버전, universal 아키텍처,
+ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을 확인했습니다. 이는 누구나
+[`dist-tests/`](dist-tests/README.md)로 다시 확인할 수 있는 검사입니다. 다섯 가지 수정 중 네 가지는
+패키징된 앱에서 직접 확인했습니다. **백그라운드 전사는 확인하지 못했습니다.** 동작 계약은 패키징된
+바이너리에서 확인했지만, 검증 환경이 전사를 시작할 합성 입력을 전달할 수 없어 실행 중 생애주기를
+구동하지 못했습니다. 검증 한계이며 알려진 결함이 아닙니다. 자세한 내용은
+[0.2.6 릴리스 노트](docs/private-preview-0.2.6.md)에 있습니다.
+
+보존된 **0.2.5** baseline은 최종 UI checkpoint에서 **선별 unit 306건**, **Brief 직접 UI 6건**,
+**보존 UI 회귀 53건**이 통과했고, 이후 가벼운 합성 tryout에서 한국어 핵심 루프와 영어 UI smoke가
+통과했습니다.
+
+이는 구현·패키지 검증이며 실제 회의 검증은 아닙니다. 실제 사용자 검증, Windows 검증, 회의 품질
+주장은 여전히 없습니다. 남은 제품 관문은 제품 오너가 패키징된 앱에서 다음 흐름을 짧게 직접
+사용해보는 것입니다.
 
 ```text
 저장 → 추출 → 검토·승인 → 다음 Brief → 종료·재실행
