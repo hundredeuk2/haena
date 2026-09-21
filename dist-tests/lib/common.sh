@@ -14,20 +14,20 @@ set -euo pipefail
 
 # --- defaults: the release under test ------------------------------------------------------------
 REPO="${HAENA_REPO:-hundredeuk2/haena}"
-TAG="${HAENA_TAG:-v0.2.6-preview.2}"
-VERSION="${HAENA_VERSION:-0.2.6}"
-BUILD="${HAENA_BUILD:-11}"
+TAG="${HAENA_TAG:-v0.2.7-preview.1}"
+VERSION="${HAENA_VERSION:-0.2.7}"
+BUILD="${HAENA_BUILD:-12}"
 ASSET="${HAENA_ASSET:-HAE.NA-${VERSION}-${BUILD}-unsigned.app.zip}"
-EXPECTED_SHA256="${HAENA_SHA256:-153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67}"
+EXPECTED_SHA256="${HAENA_SHA256:-dedbda669313f9e69b5a997a6fe7a8af83c7ecd6013eae3422c4ce81fc077a62}"
 # Empty (HAENA_BYTES="" or --bytes "") disables the size assertion, so the `-` form, not `:-`.
-EXPECTED_BYTES="${HAENA_BYTES-4244296}"
+EXPECTED_BYTES="${HAENA_BYTES-4868299}"
 APP_NAME="${HAENA_APP_NAME:-HAE.NA.app}"
 APP_BINARY_NAME="${HAENA_APP_BINARY_NAME:-HAENA}"
 
 # --- defaults: the previous release that must stay untouched -------------------------------------
-PRIOR_TAG="${HAENA_PRIOR_TAG:-v0.2.6-preview.1}"
-PRIOR_ASSET="${HAENA_PRIOR_ASSET:-HAE.NA-0.2.6-10-unsigned.app.zip}"
-PRIOR_SHA256="${HAENA_PRIOR_SHA256:-621dc1e2252f9ff8d0673808364368b007cdcddfd5a7c2dfd563da70e620d287}"
+PRIOR_TAG="${HAENA_PRIOR_TAG:-v0.2.6-preview.2}"
+PRIOR_ASSET="${HAENA_PRIOR_ASSET:-HAE.NA-0.2.6-11-unsigned.app.zip}"
+PRIOR_SHA256="${HAENA_PRIOR_SHA256:-153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67}"
 
 # --- work directory ------------------------------------------------------------------------------
 # Downloads and the extracted bundle are cached here so a full run downloads the asset once.

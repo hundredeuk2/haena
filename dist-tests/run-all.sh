@@ -3,7 +3,7 @@
 # Runs every HAE.NA public distribution check against a published release.
 #
 #   ./run-all.sh                          # the current release (defaults in lib/common.sh)
-#   ./run-all.sh --version 0.2.7 --build 11 --tag v0.2.7-preview.1 --sha256 <hex>
+#   ./run-all.sh --version 0.2.8 --build 13 --tag v0.2.8-preview.1 --sha256 <hex>   # any other release
 #
 # The release asset is downloaded once into a shared work directory and reused by every check.
 # Exits non-zero if any check fails, after running them all, and prints which ones failed.

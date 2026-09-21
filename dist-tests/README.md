@@ -24,13 +24,13 @@ different or future release, pass it in — nothing needs editing:
 
 ```bash
 ./run-all.sh \
-  --tag v0.2.7-preview.1 \
-  --version 0.2.7 --build 11 \
+  --tag v0.2.8-preview.1 \
+  --version 0.2.8 --build 13 \
   --sha256 <the checksum from that release's notes> \
   --bytes  <that release's byte size> \
-  --prior-tag v0.2.6-preview.1 \
-  --prior-asset HAE.NA-0.2.6-10-unsigned.app.zip \
-  --prior-sha256 <the 0.2.6 checksum>
+  --prior-tag v0.2.7-preview.1 \
+  --prior-asset HAE.NA-0.2.7-12-unsigned.app.zip \
+  --prior-sha256 <the 0.2.7 build 12 checksum>
 ```
 
 Every option also has an environment variable (`HAENA_TAG`, `HAENA_VERSION`, `HAENA_SHA256`, …);

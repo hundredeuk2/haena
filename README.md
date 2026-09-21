@@ -81,72 +81,93 @@ approval or bulk apply.
 
 ## Install the preview
 
-Current download: **0.2.6 (11) Experimental Developer Preview**
+Current download: **0.2.7 (12) Experimental Developer Preview**
 
-**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip)** ·
-[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip.sha256) ·
-[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)
+**[Download for macOS](https://github.com/hundredeuk2/haena/releases/download/v0.2.7-preview.1/HAE.NA-0.2.7-12-unsigned.app.zip)** ·
+[SHA-256 file](https://github.com/hundredeuk2/haena/releases/download/v0.2.7-preview.1/HAE.NA-0.2.7-12-unsigned.app.zip.sha256) ·
+[Release page](https://github.com/hundredeuk2/haena/releases/tag/v0.2.7-preview.1)
 
 | Item | Value |
 | --- | --- |
 | macOS | 14.0 or later |
-| Package | `HAE.NA-0.2.6-11-unsigned.app.zip` |
-| Size | 4,244,296 bytes |
+| Package | `HAE.NA-0.2.7-12-unsigned.app.zip` |
+| Size | 4,868,299 bytes |
 | Architecture | universal — Apple silicon + Intel |
-| SHA-256 | `153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67` |
+| SHA-256 | `dedbda669313f9e69b5a997a6fe7a8af83c7ecd6013eae3422c4ce81fc077a62` |
 | Signing | ad-hoc; no Developer ID signature or notarization |
 
 No GitHub account is required to download. See the
-[0.2.6 release notes](docs/private-preview-0.2.6.md) for exact verification scope and known risks,
+[0.2.7 release notes](docs/private-preview-0.2.7.md) for exact verification scope and known risks,
 and [What this repository is](#what-this-repository-is) for why the source here is 0.2.5 while the
-download is 0.2.6.
+download is 0.2.7.
 
-The previous **[0.2.5 (9) release](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**
-and its assets stay published and unchanged, so an earlier build can still be re-downloaded and
-compared. Its notes are [here](docs/private-preview-0.2.5.md).
+**Every earlier release stays published and unchanged**, so an older build can still be
+re-downloaded and compared: **[0.2.6 (11)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)**
+([notes](docs/private-preview-0.2.6.md)), **[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**,
+and **[0.2.5 (9)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**
+([notes](docs/private-preview-0.2.5.md)). 0.2.7 does not replace or mutate any of them; it is simply
+the newest.
 
-The first 0.2.6 build, **[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**,
-also stays published and unchanged. Build 11 replaces it as the recommended download because of one
-corrected defect, described below.
+### What's new in 0.2.7
 
-### What's new in 0.2.6
+0.2.7 adds **no new AI capability** and changes no model, provider, or price. It is a UI/UX release:
+the screens were rebuilt around when something happened and what you are being asked to decide.
 
-0.2.6 adds no new AI capability. It fixes five usability problems:
+- **Home is a time axis** — three zones of unequal weight instead of a flat list. The single primary
+  next action stays on the first screen without scrolling. That was measured directly on the running
+  app for this build in **the smallest window the app allows** — 520×552, two different card shapes.
+  At **1180, 800 and 520 point widths** it is asserted by a separate test that passed earlier in this
+  work and was **not re-run against this build**.
+- **Projects live in a sidebar, and reading is split from judging** — one flat column of projects
+  with a *waiting* badge where something needs a person, and a project screen that is a time band
+  plus two tabs: read, and judge. The badge is copied from the count Home already holds rather than
+  recounted, and is taken from the complete summary, so the sixth project is still badged.
+- **The Brief can be looked through** — a *what to look for* section at the top with three folded
+  groups: confirmed decisions, my remaining work, and unanswered questions to prepare. Each shows a
+  count, a scope sentence, and a preview. No count is recomputed; they are the lengths of arrays the
+  carried queue already holds.
+- **Proposals are judged one at a time** — the judging tab shows one card (`3 / 7`), its source
+  meeting, and the quoted evidence behind a fold. *See later* skips a candidate in view state only
+  and calls no service. Warnings — missing evidence, an owning-meeting mismatch, no segment, why
+  something cannot be listened to — stay **outside** the fold, because they are what the approval
+  decision needs.
+- **Empty and failed screens get exactly one next step** — the first-user, no-candidate and
+  analysis-failed screens each offer a single action, enforced by the type rather than by
+  convention.
+- **The three approval states are said in words** — confirmed, unapproved candidate, and read-only
+  now carry spoken labels instead of relying on colour and position alone. The printed words are
+  unchanged.
+- **Three Brief transition sentences were wrong and are now audited** against what the service
+  actually writes: completion also clears this meeting's duplicate candidate when there is one,
+  progress writes nothing at all in the cases that reach it, and change moves the existing item's
+  own assignee and deadline.
+- **A missing transition row is no longer read as proof that a value is unchanged** — an item whose
+  edit path is not recorded is reported as *unproven as of*, not as *as recorded*.
 
-- **Background transcription** — closing the progress sheet or navigating away no longer cancels the
-  job; step, success, failure, and retry are visible on return; duplicate submission is prevented;
-  progress reports the real step instead of a fake percentage.
-- **Playback seek and evidence listening** — the position is draggable, and a decision or action
-  item's "listen" jumps to the exact stored transcript segment time. With no stored time the app
-  says so and disables the control rather than inventing a timestamp.
-- **Three-scope separation** — the meeting transcript, this meeting's results (candidates and
-  approved), and the project's current approved state are distinct in screens and copy. Candidates
-  are never merged with approved state.
-- **Readable Brief hierarchy** — what changed, then remaining work, then next discussion, with
-  details, evidence, and review actions behind progressive disclosure. Expanding or navigating never
-  approves anything.
-- **Chronological meeting history** — per meeting, decisions / new work / carried work / completed
-  work in time order, with navigation to the exact past evidence. IDs and approval state survive
-  quit and relaunch.
-
-> **What changed in build 11.** In build 10, opening a result's evidence quote took you to the right
-> transcript segment but left the recording at 00:00, so pressing play started from the beginning
-> instead of from the second the quote was spoken — a quote labelled 01:26 played from zero. Opening a
-> quote now moves the playhead to that quote's own stored second and stops there, and play continues
-> from it. Reading a quote still does not start audio on its own. Confirmed on this packaged binary
-> against a synthetic 120-second recording: the review queue's quote and an approved item's "open
-> evidence" both land on 01:26 / 02:00 and play on from there, and a decoy segment carrying identical
-> text at 00:06 is not chosen.
+> **Honesty note — what was and was not verified for this build.**
 >
-> **Honesty note.** Synthetic UI and packaging checks passed, and four of the five fixes were directly
-> confirmed on the packaged build 10. The owner has since confirmed on the packaged build that
-> background transcription starts, shows progress and retries, and that the playback position is
-> draggable. The rest of the in-flight transcription lifecycle — duplicate-submission blocking, no
-> audio re-copy on retry, provider failure copy — remains **unobserved**; the owner's report did not
-> cover it, and nothing here infers it. The evidence-listening claim above turned out to be wrong for
-> the "open evidence" route in build 10; build 11 corrects it. There is still no real-user validation,
-> no Windows validation, and no meeting-quality claim. A.X / RunPod provider integration, which the
-> 0.2.5 notes listed as planned for 0.2.6, is **deferred past 0.2.6**.
+> **Machine checks that passed.** The full unit suite runs **1336 tests, 3 skipped, 0 failures**,
+> and that includes 28 new tests for the time projection whose binding force was checked by
+> deliberately breaking the projection six ways and confirming the expected tests failed each time.
+> Seven unit tests that were already failing before this work were fixed rather than left. The
+> packaged binary passes the bundle checks in the release script: no user data, no credentials, no
+> benchmark or UI-test material, and no user-specific absolute path.
+>
+> **The UI suite is not green for this build, and 0.2.7 does not claim it is.** A representative
+> 18-case UI run gave **15 pass, 1 skip, 2 fail**. The skip is a Full Keyboard Access setting that
+> is off on the build machine, and it is not counted as a pass. The two failures are the project
+> deletion confirmations; they fail inside XCTest's own Notification Center banner interruption
+> monitor, which the tests cannot remove, and they are reported as **failing**, not skipped. No
+> system setting was changed and no process was killed to make them pass. Some routes —
+> the stale cue, the Space key, and the all-width meeting routes — were **not run at all** for this
+> build.
+>
+> **No human has used this build.** There is no owner tryout of the packaged 0.2.7 app, no
+> real-user validation, no Windows validation, and no meeting-quality claim. Whether the new screens
+> are actually readable, whether the three states are distinguishable with colour off, and whether
+> VoiceOver reads the new labels are **intentions, not results**. The 0.2.6 items that were listed
+> as unobserved — duplicate-submission blocking, no audio re-copy on retry, provider failure copy —
+> are **still unobserved**; 0.2.7 did not revisit them.
 
 You can verify the download yourself, with no access to the source, using the
 [public distribution tests](dist-tests/README.md):
@@ -163,7 +184,7 @@ This synthetic-fixture pilot has no live AI, recording, or macOS data-file compa
 Verify the package before opening it:
 
 ```bash
-shasum -a 256 HAE.NA-0.2.6-11-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.7-12-unsigned.app.zip
 ```
 
 Then:
@@ -188,7 +209,7 @@ extraction.
 
 ## What this repository is
 
-The download above is **0.2.6**. The source in this repository is **0.2.5**. Both statements are
+The download above is **0.2.7**. The source in this repository is **0.2.5**. Both statements are
 true at the same time, so it is worth being precise about which is which.
 
 **What this repository is:**
@@ -200,9 +221,9 @@ true at the same time, so it is worth being precise about which is which.
 
 **What this repository is not:**
 
-- It is **not the source of the 0.2.6 download.** 0.2.6 and later product source is developed in a
+- It is **not the source of the 0.2.7 download.** 0.2.6 and later product source is developed in a
   private core repository and is not published here. Do not read the Swift code in this repository
-  as the code of the build you downloaded, and do not file a 0.2.6 behavior as a bug "in" this
+  as the code of the build you downloaded, and do not file a 0.2.7 behavior as a bug "in" this
   source tree — report the behavior and the maintainer maps it to the private source.
 
 **The test boundary follows the same line:**
@@ -211,15 +232,15 @@ true at the same time, so it is worth being precise about which is which.
 | --- | --- | --- |
 | [`dist-tests/`](dist-tests/README.md) | The **published artifact** — checksum, bundle shape, version identity, universal architecture, signing honesty, distribution hygiene, and preservation of the previous release. | Anyone. Bash and macOS command-line tools only; no source, no Xcode, no GitHub account, no token. |
 | `HAENATests/`, `HAENAUITests/` | The **0.2.5 source baseline** in this repository. | Anyone who builds the baseline from source here. |
-| The 0.2.6 product's own tests | 0.2.6 product behavior. | Not published. They live with the private core source. |
+| The 0.2.7 product's own tests | 0.2.7 product behavior. | Not published. They live with the private core source. |
 
-So the strongest thing an outside reader can independently verify about the 0.2.6 download is what
-`dist-tests/` checks. Everything else about 0.2.6 rests on the release notes, which is exactly why
+So the strongest thing an outside reader can independently verify about the 0.2.7 download is what
+`dist-tests/` checks. Everything else about 0.2.7 rests on the release notes, which is exactly why
 those notes state what was and was not confirmed.
 
 ## Build from source
 
-Building from this repository produces the **0.2.5 baseline**, not the 0.2.6 download above.
+Building from this repository produces the **0.2.5 baseline**, not the 0.2.7 download above.
 
 Requirements: macOS 14+, Xcode with the Swift 6 toolchain, and
 [XcodeGen](https://github.com/yonaskolb/XcodeGen).
@@ -317,7 +338,7 @@ remove the Keychain item separately.
 HAE.NA's product model is intended to be language-independent, but the current app is **not yet a
 globally validated build**:
 
-- The downloadable 0.2.6 app includes Korean and English display UI with System / 한국어 / English
+- The downloadable 0.2.7 app includes Korean and English display UI with System / 한국어 / English
   selection. This changes app chrome only; it does not translate meeting text or model output.
 - Korean meetings have received the most hands-on testing.
 - English and other languages have not completed end-to-end quality evaluation.
@@ -343,9 +364,24 @@ translated text.
   percentage. That is intended, not a hang.
 - Evidence with no stored segment time has its "listen" control disabled with a stated reason,
   rather than guessing a timestamp.
-- A.X / RunPod provider integration is deferred past 0.2.6.
+- A.X / RunPod provider integration is deferred past 0.2.7. 0.2.7 changed no model or provider.
+- 0.2.7's own UI suite is not fully green on the build that was packaged, and no human has used the
+  packaged 0.2.7 app. See [Evaluation status](#evaluation-status).
 
 ## Evaluation status
+
+For **0.2.7**, the full unit suite runs **1336 tests, 3 skipped, 0 failures**, including 28 new
+tests for the time projection whose binding force was checked by breaking the projection six ways
+and confirming the expected tests failed. The packaged 0.2.7 binary passes the same package checks
+anyone can re-run with [`dist-tests/`](dist-tests/README.md). **The UI suite is not fully green on
+this build**: a representative 18-case run gave 15 pass, 1 skip (a Full Keyboard Access setting on
+the build machine, not counted as a pass) and 2 failures that occur inside XCTest's own Notification
+Center interruption monitor and are reported as failures. Some UI routes — the stale cue, the Space
+key and the all-width meeting routes — were not run at all.
+**No human has used the packaged 0.2.7 app** — there is no owner tryout of it, so whether the new
+screens read well, whether the three approval states are distinguishable with colour off, and
+whether VoiceOver reads the new labels are intentions rather than results. Details are in the
+[0.2.7 release notes](docs/private-preview-0.2.7.md).
 
 For **0.2.6**, synthetic UI checks and packaging checks passed, and the published package was
 checked for version, universal architecture, ad-hoc signature, SHA-256, and excluded
@@ -483,65 +519,85 @@ terms are intentional. OpenAI APIs and models are not covered by this license; s
 
 ## Preview 설치
 
-현재 다운로드: **0.2.6 (11) Experimental Developer Preview**
+현재 다운로드: **0.2.7 (12) Experimental Developer Preview**
 
-**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip)** ·
-[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.6-preview.2/HAE.NA-0.2.6-11-unsigned.app.zip.sha256) ·
-[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)
+**[macOS 다운로드](https://github.com/hundredeuk2/haena/releases/download/v0.2.7-preview.1/HAE.NA-0.2.7-12-unsigned.app.zip)** ·
+[SHA-256 파일](https://github.com/hundredeuk2/haena/releases/download/v0.2.7-preview.1/HAE.NA-0.2.7-12-unsigned.app.zip.sha256) ·
+[릴리스 페이지](https://github.com/hundredeuk2/haena/releases/tag/v0.2.7-preview.1)
 
 | 항목 | 값 |
 | --- | --- |
 | macOS | 14.0 이상 |
-| 패키지 | `HAE.NA-0.2.6-11-unsigned.app.zip` |
-| 크기 | 4,244,296 bytes |
+| 패키지 | `HAE.NA-0.2.7-12-unsigned.app.zip` |
+| 크기 | 4,868,299 bytes |
 | 아키텍처 | universal — Apple silicon + Intel |
-| SHA-256 | `153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67` |
+| SHA-256 | `dedbda669313f9e69b5a997a6fe7a8af83c7ecd6013eae3422c4ce81fc077a62` |
 | 서명 | ad-hoc; Developer ID 서명·공증 없음 |
 
 GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알려진 위험은
-[0.2.6 릴리스 노트](docs/private-preview-0.2.6.md)를, 다운로드는 0.2.6인데 이 저장소의 소스는 0.2.5인
+[0.2.7 릴리스 노트](docs/private-preview-0.2.7.md)를, 다운로드는 0.2.7인데 이 저장소의 소스는 0.2.5인
 이유는 [이 저장소가 무엇인가](#이-저장소가-무엇인가)를 확인하세요.
 
-이전 **[0.2.5 (9) 릴리스](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**와
-그 파일들은 변경 없이 그대로 공개되어 있어 다시 내려받아 비교할 수 있습니다. 노트는
-[여기](docs/private-preview-0.2.5.md)에 있습니다.
+**이전 릴리스는 전부 변경 없이 그대로 공개되어 있어** 다시 내려받아 비교할 수 있습니다 —
+**[0.2.6 (11)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.2)**
+([노트](docs/private-preview-0.2.6.md)),
+**[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**,
+**[0.2.5 (9)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.5-preview.1)**
+([노트](docs/private-preview-0.2.5.md)). 0.2.7은 이들을 대체하거나 변경하지 않으며, 가장 최신일
+뿐입니다.
 
-첫 0.2.6 빌드인 **[0.2.6 (10)](https://github.com/hundredeuk2/haena/releases/tag/v0.2.6-preview.1)**
-역시 변경 없이 그대로 공개되어 있습니다. 아래에 적은 결함 하나를 고쳤기 때문에 빌드 11이 권장
-다운로드를 대체합니다.
+### 0.2.7의 주요 변경
 
-### 0.2.6의 주요 변경
+0.2.7은 **새 AI 기능을 추가하지 않고** 모델·provider·가격도 바꾸지 않습니다. UI/UX 릴리스이며,
+"언제 일어난 일인가"와 "지금 무엇을 판단해 달라는 것인가"를 기준으로 화면을 다시 세웠습니다.
 
-0.2.6은 새 AI 기능을 추가하지 않고 사용성 문제 다섯 가지를 고쳤습니다.
+- **Home이 시간 축이 됩니다** — 평평한 목록 대신 비중이 다른 세 구역입니다. 주 행동 하나는 스크롤
+  없이 첫 화면에 남습니다. **이 앱이 허용하는 가장 작은 창**에서는 이 빌드를 대상으로 돌고 있는
+  앱에서 직접 쟀습니다(520×552, 서로 다른 카드 두 종류). 1180 · 800 · 520 세 폭은 **이전에 통과한
+  테스트가 단언하는 것이고 이 빌드에서 다시 돌리지는 않았습니다.**
+- **프로젝트는 사이드바로, 읽기와 판정은 분리됩니다** — 한 단계짜리 평평한 프로젝트 목록에 사람의
+  손이 필요한 곳만 **대기** 배지가 붙고, 프로젝트 화면은 시간 밴드 + 두 탭(읽기 · 판정)입니다.
+  배지는 Home이 이미 들고 있는 수를 그대로 가져오며 다시 세지 않고, 잘린 요약이 아니라 완전한
+  요약에서 가져오므로 여섯 번째 프로젝트에도 배지가 붙습니다.
+- **Brief를 훑어볼 수 있습니다** — 맨 위에 **찾아볼 것** 구역이 생겼습니다. 확정된 결정 · 내 남은
+  할 일 · 준비할 미답 질문 세 묶음이 기본 접힘 상태로, 각각 건수와 범위 문장과 미리보기를 보여
+  줍니다. 어떤 건수도 새로 계산하지 않습니다 — 이월 큐가 이미 들고 있는 배열의 길이입니다.
+- **후보는 한 번에 하나씩 판정합니다** — 판정 탭이 모든 후보를 늘어놓는 대신 카드 하나를 보여
+  줍니다(`3 / 7`). 출처 회의가 함께 보이고 인용 근거는 접힘 뒤에 있습니다. **나중에 보기**는 화면
+  상태에서만 건너뛰며 어떤 서비스도 호출하지 않습니다. 경고 — 근거 없음, 소유 회의 불일치, 구간
+  없음, 들을 수 없는 이유 — 는 접힘 **바깥**에 남습니다. 승인 판단에 필요한 것이기 때문입니다.
+- **비어 있는 화면과 실패한 화면에 다음 한 걸음이 정확히 하나씩 생깁니다** — 첫 사용자 화면, 후보
+  없음 화면, 분석 실패 화면이 각각 행동 하나만 제시하며, 이는 관례가 아니라 타입으로 강제됩니다.
+- **세 가지 승인 상태를 말로 읽어 줍니다** — 확정 · 미승인 후보 · 읽기 전용에 음성 레이블이 붙어,
+  색과 위치만으로 구분하지 않아도 됩니다. 화면에 찍히는 단어 자체는 바뀌지 않았습니다.
+- **Brief의 전이 문장 세 개가 틀려 있었고, 서비스가 실제로 쓰는 것에 맞춰 바로잡았습니다** —
+  완료는 이번 회의의 중복 후보가 있으면 그것도 함께 정리하고, 진행은 도달하는 경우에 아무것도 쓰지
+  않으며, 변경은 기존 항목 자신의 담당자와 기한을 옮깁니다.
+- **전이 기록이 없다는 것을 "값이 그대로라는 증거"로 읽지 않습니다** — 편집 경로가 기록되지 않는
+  항목은 *기록된 그대로*가 아니라 *…시점 기준 미확인*으로 보고합니다.
 
-- **백그라운드 전사** — 진행 시트를 닫거나 다른 화면으로 이동해도 작업이 취소되지 않고, 돌아오면
-  단계·성공·실패·재시도가 보입니다. 중복 제출을 막고, 가짜 퍼센트 대신 실제 단계를 표시합니다.
-- **재생 탐색과 근거 듣기** — 재생 위치를 드래그할 수 있고, 결정·액션 아이템의 "듣기"는 저장된 정확한
-  전사 구간 시각으로 이동합니다. 저장된 시각이 없으면 시각을 지어내지 않고 그 사실을 알린 뒤 컨트롤을
-  비활성화합니다.
-- **세 가지 범위 분리** — 회의 전사 / 이번 회의 결과(후보와 승인) / 프로젝트의 현재 승인 상태를 화면과
-  문구에서 구분하며, 후보를 승인 상태와 섞지 않습니다.
-- **읽기 쉬운 Brief 위계** — 변경된 것 → 남은 업무 → 다음 논의 순서로 제시하고 상세·근거·검토 동작은
-  단계적으로 펼칩니다. 펼치거나 이동하는 것으로는 아무것도 승인되지 않습니다.
-- **시간순 회의 이력** — 회의마다 결정 / 새 업무 / 이월 업무 / 완료 업무를 시간순으로 보여주고 과거
-  근거의 정확한 위치로 이동합니다. ID와 승인 상태는 종료·재실행 후에도 유지됩니다.
-
-> **빌드 11에서 바뀐 것.** 빌드 10에서는 결과의 근거 인용을 열면 전사의 올바른 구간으로는 갔지만
-> 녹음은 00:00에 머물러 있어서, 재생을 누르면 그 말이 나온 시각이 아니라 처음부터 재생됐습니다 —
-> 01:26으로 표시된 인용이 0초부터 재생됐습니다. 이제 인용을 열면 재생 위치가 그 인용이 저장하고 있는
-> 시각으로 이동해 거기서 멈추고, 재생은 그 지점부터 이어집니다. 인용을 여는 것만으로 소리가 시작되지는
-> 않는 것은 그대로입니다. 이 패키지된 바이너리에서 120초 합성 녹음으로 확인했습니다 — 검토 큐의 인용과
-> 승인된 항목의 '근거 보기' 모두 01:26 / 02:00에 도달해 그 지점부터 재생되고, 00:06에 있는 글자가
-> 똑같은 미끼 구간은 선택되지 않습니다.
+> **정직성 고지 — 이 빌드에서 확인한 것과 확인하지 못한 것.**
 >
-> **정직성 고지.** 합성 UI 검증과 패키지 검사는 통과했고 다섯 가지 중 네 가지는 패키징된 빌드 10에서
-> 직접 확인했습니다. 그 뒤 오너가 패키징된 빌드에서 **백그라운드 전사의 시작·진행·재시도가 동작하고
-> 재생 위치를 드래그할 수 있음**을 직접 확인했습니다. 실행 중 전사 생애주기의 나머지 — 중복 제출 차단,
-> 재시도 시 오디오 재복사 없음, provider 실패 문구 — 는 **여전히 관찰되지 않았습니다.** 오너의 보고가
-> 그 부분을 다루지 않았고, 여기서 그것을 유추하지 않습니다. 위의 근거 듣기 주장은 빌드 10의 '근거 보기'
-> 경로에 대해서는 사실이 아니었고 빌드 11에서 바로잡았습니다. 실제 사용자 검증, Windows 검증, 회의 품질
-> 주장은 여전히 없습니다. 0.2.5 노트가 "0.2.6 계획"으로 적었던 **A.X / RunPod provider 연동은 0.2.6
-> 이후로 연기**되었습니다.
+> **통과한 기계 검증.** 전체 단위 스위트는 **1336종 실행 · 3 skip · 0 실패**이며, 여기에는 시간
+> 투영을 위한 새 테스트 28종이 포함됩니다. 그 28종이 실제로 무언가를 구속하는지는 투영을 일부러
+> 여섯 가지로 망가뜨려 매번 예상한 테스트가 실패하는 것을 확인해 검증했습니다. 이 작업 이전부터
+> 실패하고 있던 단위 테스트 7건은 남겨 두지 않고 고쳤습니다. 패키지된 바이너리는 릴리스 스크립트의
+> 번들 검사를 통과합니다 — 사용자 데이터 없음, 자격 증명 없음, 벤치마크·UI 테스트 자료 없음,
+> 사용자별 절대 경로 없음.
+>
+> **이 빌드에서 UI 스위트는 전부 통과가 아니며, 0.2.7은 그렇다고 주장하지 않습니다.** 대표 18종을
+> 돌려 **15 통과 · 1 skip · 2 실패**입니다. skip은 빌드 기계의 Full Keyboard Access가 꺼져 있어서
+> 이며 **통과로 세지 않았습니다.** 실패 2종은 프로젝트 삭제 확인으로, XCTest 자신의 알림 배너
+> 인터럽션 모니터 안에서 실패하며 테스트가 그것을 제거할 수 없습니다. **통과도 skip도 아닌 실패로
+> 보고합니다.** 통과시키려고 어떤 시스템 설정도 바꾸지 않았고 어떤 프로세스도 종료하지 않았습니다.
+> 일부 경로 — 지난 신호(stale cue), Space 키, 모든 폭의 회의 경로 — 는 이 빌드에서
+> **아예 돌리지 않았습니다.**
+>
+> **사람이 이 빌드를 써 본 적이 없습니다.** 패키지된 0.2.7 앱에 대한 오너 tryout이 없고, 실제 사용자
+> 검증도, Windows 검증도, 회의 품질 주장도 없습니다. 새 화면이 실제로 읽히는지, 색을 끈 상태에서 세
+> 상태가 구분되는지, VoiceOver가 새 레이블을 실제로 읽는지는 **의도이지 결과가 아닙니다.** 0.2.6에서
+> 미관찰로 적었던 항목 — 중복 제출 차단, 재시도 시 오디오 재복사 없음, provider 실패 문구 — 도
+> **여전히 미관찰**이며 0.2.7은 그 부분을 다시 보지 않았습니다.
 
 소스에 접근하지 않고도 [공개 배포 테스트](dist-tests/README.md)로 다운로드를 직접 검증할 수 있습니다.
 
@@ -556,7 +612,7 @@ cd dist-tests && ./run-all.sh
 실행 전에 패키지를 검증하세요.
 
 ```bash
-shasum -a 256 HAE.NA-0.2.6-11-unsigned.app.zip
+shasum -a 256 HAE.NA-0.2.7-12-unsigned.app.zip
 ```
 
 그다음:
@@ -580,7 +636,7 @@ HAE.NA는 사용자의 OpenAI API 키를 사용합니다. **AI 설정**에서 �
 
 ## 이 저장소가 무엇인가
 
-위의 다운로드는 **0.2.6**이고, 이 저장소의 소스는 **0.2.5**입니다. 두 문장이 동시에 참이므로 어느
+위의 다운로드는 **0.2.7**이고, 이 저장소의 소스는 **0.2.5**입니다. 두 문장이 동시에 참이므로 어느
 쪽이 무엇인지 분명히 해둡니다.
 
 **이 저장소인 것:**
@@ -591,8 +647,8 @@ HAE.NA는 사용자의 OpenAI API 키를 사용합니다. **AI 설정**에서 �
 
 **이 저장소가 아닌 것:**
 
-- **0.2.6 다운로드의 소스가 아닙니다.** 0.2.6 이후 제품 소스는 비공개 core 저장소에서 개발하며 여기에
-  공개하지 않습니다. 이 저장소의 Swift 코드를 내려받은 빌드의 코드로 읽지 마시고, 0.2.6 동작을 이
+- **0.2.7 다운로드의 소스가 아닙니다.** 0.2.6 이후 제품 소스는 비공개 core 저장소에서 개발하며 여기에
+  공개하지 않습니다. 이 저장소의 Swift 코드를 내려받은 빌드의 코드로 읽지 마시고, 0.2.7 동작을 이
   소스 트리의 버그로 보고하지 마세요. 동작만 알려주시면 관리자가 비공개 소스에 대응시킵니다.
 
 **테스트 경계도 같은 선을 따릅니다:**
@@ -601,15 +657,15 @@ HAE.NA는 사용자의 OpenAI API 키를 사용합니다. **AI 설정**에서 �
 | --- | --- | --- |
 | [`dist-tests/`](dist-tests/README.md) | **공개된 릴리스 파일** — 체크섬, 번들 구조, 버전 동일성, universal 아키텍처, 표기대로의 서명 상태, 배포 위생, 이전 릴리스 보존. | 누구나. bash와 macOS 기본 도구만 필요하며 소스·Xcode·GitHub 계정·토큰이 필요 없습니다. |
 | `HAENATests/`, `HAENAUITests/` | 이 저장소의 **0.2.5 소스 baseline**. | 여기서 baseline을 빌드하는 누구나. |
-| 0.2.6 제품 테스트 | 0.2.6 제품 동작. | 공개하지 않습니다. 비공개 core 소스와 함께 있습니다. |
+| 0.2.7 제품 테스트 | 0.2.7 제품 동작. | 공개하지 않습니다. 비공개 core 소스와 함께 있습니다. |
 
-따라서 외부 독자가 0.2.6 다운로드에 대해 독립적으로 검증할 수 있는 범위는 `dist-tests/`가 확인하는
-내용까지입니다. 그 밖의 0.2.6에 관한 내용은 릴리스 노트에 의존하며, 그래서 그 노트가 무엇을
+따라서 외부 독자가 0.2.7 다운로드에 대해 독립적으로 검증할 수 있는 범위는 `dist-tests/`가 확인하는
+내용까지입니다. 그 밖의 0.2.7에 관한 내용은 릴리스 노트에 의존하며, 그래서 그 노트가 무엇을
 확인했고 무엇을 확인하지 못했는지 명시합니다.
 
 ## 소스에서 빌드
 
-이 저장소를 빌드하면 위 다운로드가 아니라 **0.2.5 baseline**이 만들어집니다.
+이 저장소를 빌드하면 위 다운로드가 아니라 **0.2.5 baseline**이 만들어집니다. 위 다운로드는 0.2.7입니다.
 
 요구 사항은 macOS 14+, Swift 6 툴체인이 포함된 Xcode,
 [XcodeGen](https://github.com/yonaskolb/XcodeGen)입니다.
@@ -702,7 +758,7 @@ Application Support 폴더를 확인하거나 삭제한 뒤 Keychain 항목을 �
 HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지만, 현재 앱은 **글로벌 검증이 끝난
 빌드가 아닙니다.**
 
-- 다운로드하는 0.2.6 앱에는 시스템 설정 / 한국어 / English를 선택할 수 있는 표시 UI가 포함됩니다.
+- 다운로드하는 0.2.7 앱에는 시스템 설정 / 한국어 / English를 선택할 수 있는 표시 UI가 포함됩니다.
   앱 화면만 바뀌며 회의 원문이나 모델 결과를 번역하지는 않습니다.
 - 한국어 회의를 가장 많이 직접 확인했습니다.
 - 영어와 다른 언어는 전체 흐름의 품질 평가를 마치지 않았습니다.
@@ -726,9 +782,22 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 - 전사 진행률은 실제 단계를 표시하므로 퍼센트가 움직이지 않고 한 단계에 머물 수 있습니다. 의도된
   동작이며 멈춘 것이 아닙니다.
 - 저장된 구간 시각이 없는 근거는 시각을 추정하지 않고 이유를 알린 뒤 "듣기"를 비활성화합니다.
-- A.X / RunPod provider 연동은 0.2.6 이후로 연기되었습니다.
+- A.X / RunPod provider 연동은 0.2.7 이후로 연기되었습니다. 0.2.7은 모델과 provider를 바꾸지 않았습니다.
+- 패키징한 빌드에서 0.2.7의 UI 스위트가 전부 통과하지는 않으며, 패키징된 0.2.7 앱을 사람이 써 본
+  적이 없습니다. [검증 상태](#검증-상태)를 보세요.
 
 ## 검증 상태
+
+**0.2.7**은 전체 단위 스위트가 **1336종 실행 · 3 skip · 0 실패**이며, 시간 투영을 위한 새 테스트
+28종이 포함됩니다. 그 28종은 투영을 여섯 가지로 일부러 망가뜨려 예상한 테스트가 실패하는 것을 확인해
+구속력을 검증했습니다. 패키징된 0.2.7 바이너리는 누구나 [`dist-tests/`](dist-tests/README.md)로 다시
+돌릴 수 있는 패키지 검사를 통과합니다. **이 빌드에서 UI 스위트는 전부 통과가 아닙니다** — 대표 18종
+기준 15 통과 · 1 skip(빌드 기계의 Full Keyboard Access 설정이며 통과로 세지 않음) · 2 실패이고,
+실패 2종은 XCTest 자신의 알림 인터럽션 모니터 안에서 발생하며 **실패로 보고합니다.** 지난
+신호(stale cue) 경로, Space 키, 모든 폭의 회의 경로는 아예 돌리지 않았습니다. **패키징된 0.2.7 앱을 사람이 써 본 적이 없습니다** — 오너 tryout이
+없으므로 새 화면이 실제로 읽히는지, 색을 끈 상태에서 세 승인 상태가 구분되는지, VoiceOver가 새
+레이블을 읽는지는 결과가 아니라 의도입니다. 자세한 내용은
+[0.2.7 릴리스 노트](docs/private-preview-0.2.7.md)에 있습니다.
 
 **0.2.6**은 합성 UI 검증과 패키지 검사를 통과했고, 공개 패키지에서 버전, universal 아키텍처,
 ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을 확인했습니다. 이는 누구나
