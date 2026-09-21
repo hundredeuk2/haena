@@ -17,7 +17,7 @@ CHECK_NAME="bundle-shape"
 parse_common_args "$@"
 
 ensure_app
-ROOT="${WORKDIR}/extracted"
+ROOT="${EXTRACT_ROOT}"
 
 # Exactly one visible top-level entry, and it is the app. `__MACOSX` and dotfiles are ignored:
 # ditto -c -k --sequesterRsrc may legitimately add resource-fork metadata.

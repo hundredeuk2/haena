@@ -45,7 +45,7 @@ ${MEDIA}"
 # --- credentials ----------------------------------------------------------------------------------
 # Scanned across every shipped file, binaries included, via `strings` so a key compiled into the
 # binary cannot hide from a text grep.
-SCAN="${WORKDIR}/bundle-strings.txt"
+SCAN="${STRINGS_CACHE}"
 if [ ! -f "${SCAN}" ]; then
     log "scanning every shipped file for embedded text"
     require_tool strings

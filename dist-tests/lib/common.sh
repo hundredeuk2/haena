@@ -30,7 +30,9 @@ PRIOR_ASSET="${HAENA_PRIOR_ASSET:-HAE.NA-0.2.6-11-unsigned.app.zip}"
 PRIOR_SHA256="${HAENA_PRIOR_SHA256:-153cb4a590817fd6580e623d296c1a456e3dd448ede232e28d072a4b4a18bc67}"
 
 # --- work directory ------------------------------------------------------------------------------
-# Downloads and the extracted bundle are cached here so a full run downloads the asset once.
+# Downloads and the extracted bundle are cached here so a full run downloads the asset once. The
+# extracted bundle and its strings dump are keyed by asset name, so a cache left by a different
+# release is never mistaken for this one's.
 # Never a path inside the repository, and never a hardcoded user path.
 WORKDIR="${HAENA_DIST_TEST_WORKDIR:-${TMPDIR:-/tmp}/haena-dist-tests}"
 
@@ -94,7 +96,16 @@ parse_common_args() {
     if [ -z "${ASSET_EXPLICIT:-}" ] && [ -z "${HAENA_ASSET:-}" ]; then
         ASSET="HAE.NA-${VERSION}-${BUILD}-unsigned.app.zip"
     fi
+    # Everything cached from the bundle is keyed by the asset it came from. A single shared
+    # `extracted/` directory silently reused the previous release's bundle whenever someone ran the
+    # suite against 0.2.6 and then against 0.2.7, and the version check failed on a correct release.
+    EXTRACT_ROOT="${WORKDIR}/extracted/${ASSET}"
+    STRINGS_CACHE="${WORKDIR}/bundle-strings-${ASSET}.txt"
 }
+
+# Set for a caller that never parses arguments, so these are never empty.
+EXTRACT_ROOT="${WORKDIR}/extracted/${ASSET}"
+STRINGS_CACHE="${WORKDIR}/bundle-strings-${ASSET}.txt"
 
 asset_url()  { printf 'https://github.com/%s/releases/download/%s/%s' "${REPO}" "$1" "$2"; }
 
@@ -151,7 +162,7 @@ bytes_of() { wc -c < "$1" | tr -d ' '; }
 APP_PATH=""
 ensure_app() {
     [ -n "${APP_PATH}" ] && return 0
-    local zip="${WORKDIR}/${ASSET}" root="${WORKDIR}/extracted"
+    local zip="${WORKDIR}/${ASSET}" root="${EXTRACT_ROOT}"
     local app="${root}/${APP_NAME}"
     if [ ! -d "${app}" ]; then
         require_tool ditto
