@@ -162,10 +162,12 @@ the screens were rebuilt around when something happened and what you are being a
 > the stale cue, the Space key, and the all-width meeting routes — were **not run at all** for this
 > build.
 >
-> **No human has used this build.** There is no owner tryout of the packaged 0.2.7 app, no
-> real-user validation, no Windows validation, and no meeting-quality claim. Whether the new screens
-> are actually readable, whether the three states are distinguishable with colour off, and whether
-> VoiceOver reads the new labels are **intentions, not results**. The 0.2.6 items that were listed
+> **The owner has used this build and accepted it; nothing else about it has changed.** That is
+> the owner's own report of a tryout, not a recorded test run — there is still no wider real-user
+> validation, no Windows validation, and no meeting-quality claim. The owner did not report which
+> screens or window widths they used, so whether the rebuilt screens read well **at every width**,
+> whether the three approval states are distinguishable with colour off, and whether VoiceOver
+> reads the new labels were not checked and remain **intentions, not results**. The 0.2.6 items that were listed
 > as unobserved — duplicate-submission blocking, no audio re-copy on retry, provider failure copy —
 > are **still unobserved**; 0.2.7 did not revisit them.
 
@@ -365,8 +367,9 @@ translated text.
 - Evidence with no stored segment time has its "listen" control disabled with a stated reason,
   rather than guessing a timestamp.
 - A.X / RunPod provider integration is deferred past 0.2.7. 0.2.7 changed no model or provider.
-- 0.2.7's own UI suite is not fully green on the build that was packaged, and no human has used the
-  packaged 0.2.7 app. See [Evaluation status](#evaluation-status).
+- 0.2.7's own UI suite is not fully green on the build that was packaged. The owner has used and
+  accepted the packaged 0.2.7 app, but that report is not an accessibility or colour-off audit.
+  See [Evaluation status](#evaluation-status).
 
 ## Evaluation status
 
@@ -378,9 +381,11 @@ this build**: a representative 18-case run gave 15 pass, 1 skip (a Full Keyboard
 the build machine, not counted as a pass) and 2 failures that occur inside XCTest's own Notification
 Center interruption monitor and are reported as failures. Some UI routes — the stale cue, the Space
 key and the all-width meeting routes — were not run at all.
-**No human has used the packaged 0.2.7 app** — there is no owner tryout of it, so whether the new
-screens read well, whether the three approval states are distinguishable with colour off, and
-whether VoiceOver reads the new labels are intentions rather than results. Details are in the
+**The owner has since used the packaged 0.2.7 app and accepted it** — an owner report, not a test
+result, and it turns none of the above green. The owner did not report which screens or window
+widths they used, so whether the rebuilt screens read well at every width, whether the three
+approval states are distinguishable with colour off, and whether VoiceOver reads the new labels
+were not checked and stay intentions rather than results. No automated test has ever been run against the published binary. Details are in the
 [0.2.7 release notes](docs/private-preview-0.2.7.md).
 
 For **0.2.6**, synthetic UI checks and packaging checks passed, and the published package was
@@ -399,8 +404,9 @@ For the preserved **0.2.5** baseline, at its final UI checkpoint **306 selected 
 synthetic tryout passed the Korean core loop and an English UI smoke.
 
 These are implementation and packaging checks, not a real-meeting validation. There is still no
-real-user validation, no Windows validation, and no meeting-quality claim. The remaining product
-gate is the product owner's short packaged-app tryout of:
+real-user validation, no Windows validation, and no meeting-quality claim. The owner has used and
+accepted the packaged 0.2.7 app, but did not report running this specific flow, so the product gate
+that stands is still the product owner's short packaged-app tryout of:
 
 ```text
 Save → Extract → Review/Approve → Next Brief → Quit/Reopen
@@ -593,9 +599,11 @@ GitHub 로그인 없이 받을 수 있습니다. 정확한 검증 범위와 알�
 > 일부 경로 — 지난 신호(stale cue), Space 키, 모든 폭의 회의 경로 — 는 이 빌드에서
 > **아예 돌리지 않았습니다.**
 >
-> **사람이 이 빌드를 써 본 적이 없습니다.** 패키지된 0.2.7 앱에 대한 오너 tryout이 없고, 실제 사용자
-> 검증도, Windows 검증도, 회의 품질 주장도 없습니다. 새 화면이 실제로 읽히는지, 색을 끈 상태에서 세
-> 상태가 구분되는지, VoiceOver가 새 레이블을 실제로 읽는지는 **의도이지 결과가 아닙니다.** 0.2.6에서
+> **오너가 이 빌드를 직접 써 보고 수락했습니다. 그 외에 달라진 것은 없습니다.** 이는 오너 본인의
+> tryout 보고이지 기록된 테스트 실행이 아닙니다 — 더 넓은 실제 사용자 검증도, Windows 검증도, 회의
+> 품질 주장도 여전히 없습니다. 오너가 어떤 화면을 어떤 창 폭에서 봤는지는 보고되지 않았으므로, 다시
+> 세운 화면이 **모든 폭에서** 읽히는지, 색을 끈 상태에서 세 승인 상태가 구분되는지, VoiceOver가 새
+> 레이블을 실제로 읽는지는 확인하지 않았고 **의도이지 결과가 아닙니다.** 0.2.6에서
 > 미관찰로 적었던 항목 — 중복 제출 차단, 재시도 시 오디오 재복사 없음, provider 실패 문구 — 도
 > **여전히 미관찰**이며 0.2.7은 그 부분을 다시 보지 않았습니다.
 
@@ -783,8 +791,8 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
   동작이며 멈춘 것이 아닙니다.
 - 저장된 구간 시각이 없는 근거는 시각을 추정하지 않고 이유를 알린 뒤 "듣기"를 비활성화합니다.
 - A.X / RunPod provider 연동은 0.2.7 이후로 연기되었습니다. 0.2.7은 모델과 provider를 바꾸지 않았습니다.
-- 패키징한 빌드에서 0.2.7의 UI 스위트가 전부 통과하지는 않으며, 패키징된 0.2.7 앱을 사람이 써 본
-  적이 없습니다. [검증 상태](#검증-상태)를 보세요.
+- 패키징한 빌드에서 0.2.7의 UI 스위트가 전부 통과하지는 않습니다. 오너가 패키징된 0.2.7 앱을 직접
+  써 보고 수락했으나, 그 보고는 접근성·색 끄기 점검이 아닙니다. [검증 상태](#검증-상태)를 보세요.
 
 ## 검증 상태
 
@@ -794,9 +802,11 @@ HAE.NA의 제품 모델은 언어에 종속되지 않는 것을 목표로 하지
 돌릴 수 있는 패키지 검사를 통과합니다. **이 빌드에서 UI 스위트는 전부 통과가 아닙니다** — 대표 18종
 기준 15 통과 · 1 skip(빌드 기계의 Full Keyboard Access 설정이며 통과로 세지 않음) · 2 실패이고,
 실패 2종은 XCTest 자신의 알림 인터럽션 모니터 안에서 발생하며 **실패로 보고합니다.** 지난
-신호(stale cue) 경로, Space 키, 모든 폭의 회의 경로는 아예 돌리지 않았습니다. **패키징된 0.2.7 앱을 사람이 써 본 적이 없습니다** — 오너 tryout이
-없으므로 새 화면이 실제로 읽히는지, 색을 끈 상태에서 세 승인 상태가 구분되는지, VoiceOver가 새
-레이블을 읽는지는 결과가 아니라 의도입니다. 자세한 내용은
+신호(stale cue) 경로, Space 키, 모든 폭의 회의 경로는 아예 돌리지 않았습니다. **이후 오너가 패키징된 0.2.7 앱을 직접 써 보고 수락했습니다** — 오너 보고이며
+테스트 결과가 아니고 위의 어떤 항목도 통과로 바꾸지 않습니다. 오너가 어떤 화면을 어떤 창 폭에서
+봤는지는 보고되지 않았으므로, 다시 세운 화면이 모든 폭에서 읽히는지, 색을 끈 상태에서 세 승인 상태가
+구분되는지, VoiceOver가 새 레이블을 읽는지는 확인하지 않았고 결과가 아니라 의도입니다. 공개된
+바이너리를 대상으로 돌린 자동 테스트는 한 번도 없습니다. 자세한 내용은
 [0.2.7 릴리스 노트](docs/private-preview-0.2.7.md)에 있습니다.
 
 **0.2.6**은 합성 UI 검증과 패키지 검사를 통과했고, 공개 패키지에서 버전, universal 아키텍처,
@@ -813,7 +823,8 @@ ad-hoc 서명, SHA-256, 개발·사용자 데이터 marker 미포함을 확인�
 통과했습니다.
 
 이는 구현·패키지 검증이며 실제 회의 검증은 아닙니다. 실제 사용자 검증, Windows 검증, 회의 품질
-주장은 여전히 없습니다. 남은 제품 관문은 제품 오너가 패키징된 앱에서 다음 흐름을 짧게 직접
+주장은 여전히 없습니다. 오너가 패키징된 0.2.7 앱을 직접 써 보고 수락했으나 이 흐름을 그대로
+돌렸다는 보고는 없으므로, 남은 제품 관문은 여전히 제품 오너가 패키징된 앱에서 다음 흐름을 짧게 직접
 사용해보는 것입니다.
 
 ```text

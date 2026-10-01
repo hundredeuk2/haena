@@ -8,8 +8,9 @@
 > availability does not mean that real-meeting quality, reliability, privacy suitability, or
 > production readiness has been validated.
 
-> **No human has used this build.** 0.2.7 is a UI/UX release whose screens were rebuilt, and the
-> owner's tryout of the packaged app has **not** happened. Read
+> **The owner has used this build and accepted it.** 0.2.7 is a UI/UX release whose screens were
+> rebuilt; the owner's tryout of the packaged app has since happened and they accepted it. That is
+> an owner report, not a test result, and it closes none of the gaps below. Read
 > [What was not confirmed](#what-was-not-confirmed) before treating any screen claim below as
 > observed behaviour.
 
@@ -128,10 +129,13 @@ so the source SHA in the table above describes the bytes exactly.
 
 This section is the reason to read the rest sceptically.
 
-**No human has used this build.** There is no owner tryout of the packaged 0.2.7 app. Whether the
-rebuilt screens are actually readable, whether the three approval states are distinguishable with
-colour off, and whether VoiceOver reads the new spoken labels are **intentions, not results** — they
-were reviewed in source and asserted in tests, and nobody has looked at them.
+**The owner has used this build and accepted it — and that is all it means.** The owner's tryout of
+the packaged 0.2.7 app happened and they accepted it. It is the owner's own report, not a recorded
+test run; what they looked at and in what order was not reported, so nothing more specific is
+claimed here — in particular not which screens or window widths they saw. So whether the rebuilt
+screens read well **at every width**, whether the three approval states are distinguishable with
+colour off, and whether VoiceOver reads the new spoken labels were **not** checked and stay
+**intentions, not results** — reviewed in source and asserted in tests, never observed.
 
 **The UI suite is not green on this build, and 0.2.7 does not claim it is.** A representative
 18-case UI run gave **15 pass, 1 skip, 2 fail**:
@@ -193,8 +197,8 @@ Use non-sensitive data first, and prefer a throwaway project.
 1. Open AI Settings and save your own OpenAI API key.
 2. Open Home. **Does the time axis tell you what is recent and what is waiting, without scrolling?**
    Resize the window down to its smallest and check that the primary action is still on the first
-   screen. That one was measured by a test on this build — but whether the axis *reads* has never
-   been judged by a person.
+   screen. That one was measured by a test on this build. Whether the axis *reads* is the part no
+   test can answer; the owner reported no judgement on it either way, so it is still open.
 3. Open the project sidebar. Confirm that the *waiting* badge appears where something needs you, and
    that "not read yet", "read and empty" and "could not be read" are three different screens.
 4. Open a project's read tab, then its judge tab. **Is it obvious which one only shows you things
@@ -268,10 +272,12 @@ universal `x86_64 arm64`, Team ID 없는 ad-hoc 서명을 확인했습니다. �
 
 **확인하지 못한 것 — 여기가 중요합니다.**
 
-**사람이 이 빌드를 써 본 적이 없습니다.** 패키징된 0.2.7 앱에 대한 오너 tryout이 없습니다. 다시 세운
-화면이 실제로 읽히는지, 색을 끈 상태에서 세 승인 상태가 구분되는지, VoiceOver가 새 음성 레이블을
-실제로 읽는지는 **의도이지 결과가 아닙니다.** 소스에서 검토하고 테스트로 단언했을 뿐, 아무도 보지
-않았습니다.
+**오너가 이 빌드를 직접 써 보고 수락했습니다 — 그리고 그것이 전부입니다.** 패키징된 0.2.7 앱에 대한
+오너 tryout이 있었고 오너가 수락했습니다. 오너 본인의 보고이지 기록된 테스트 실행이 아니며, 무엇을
+어떤 순서로 어떤 창 크기에서 봤는지는 보고되지 않았으므로 그 이상은 주장하지 않습니다. 따라서 다시
+세운 화면이 **모든 폭에서** 읽히는지, 색을 끈 상태에서 세 승인 상태가 구분되는지, VoiceOver가 새 음성
+레이블을 실제로 읽는지는 확인하지 **않았고** 여전히 **의도이지 결과가 아닙니다** — 소스에서 검토하고
+테스트로 단언했을 뿐입니다.
 
 **이 빌드에서 UI 스위트는 전부 통과가 아니며, 0.2.7은 그렇다고 주장하지 않습니다.** 대표 18종 기준
 **15 통과 · 1 skip · 2 실패**입니다. skip은 빌드 기계의 Full Keyboard Access가 꺼져 있어서이고
